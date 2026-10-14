@@ -199,3 +199,17 @@ fixed 3, broke 5 on the perturbed set. Rejected.
 **Lesson.** Every grader change is measured on stored samples before it is adopted, and reported as a delta.
 Intuition from six examples is not evidence; the base model restates givens in its conclusion sentences about as
 often as it states answers. The fallback's share (17 % here) is in every table so the reader can judge.
+
+## 2026-10-14  Widening a name list silently changed the perturbed GSM8K set
+**Symptom.** After adding names to the swap pools for the names-only control, `rlvr-perturb-gsm8k --seed 0`
+produced 825 problems with a new content hash instead of the committed 830 / `b5afb83e6aacafcf`, which eight
+baseline runs had already used.
+**Cause.** Name swaps and number resampling draw from the same seeded stream; a different pool size changes
+how many draws the name step consumes (numpy's bounded integers reject-sample), so every later number
+changes too. A seeded generator's output is a function of every draw it makes.
+**Fix.** The default set keeps the original 30 + 30 pools byte-for-byte (verified by regenerating and comparing
+the hash); the widened pools are used only by `--names-only`, a separate run. Rule: any change to any draw is
+a new dataset version; either isolate the streams per component or bump the version and re-run.
+**Also found while fixing it.** A patch written through a shell heredoc turned the regex `\b` into literal
+backspace bytes, so the name pattern matched nothing and the set changed again (829). Exact-bytes patching
+only, and `cat -A` on any regex line after editing it.

@@ -8,4 +8,6 @@ Written at the end of each phase, before its PR is marked ready (WORKFLOW.md sec
 | Phase | Notes |
 |---|---|
 | 0 Scaffold, harness, from-scratch references | [`phase-0-engineering-notes.md`](phase-0-engineering-notes.md) |
-| 1 Baselines and pass@k ceiling | (end of Phase 1) |
+| 1 Baselines and pass@k ceiling | [`phase-1-engineering-notes.md`](phase-1-engineering-notes.md) |
+
+Also here: [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on.
