@@ -54,3 +54,19 @@ data folder also caught the Python package of the same name.
 **Fix.** Anchor top-level-only rules with a leading slash (`/data/`, `/outputs/`, `/models/`, ...).
 **Learning.** Always run `git check-ignore -v <path>` on a new package directory; an ignored source
 folder would have shipped a repo that cannot import itself.
+
+## 2026-10-14  Triton cannot compile: `Python.h: No such file or directory` (WSL, no sudo)
+**Symptom.** First vLLM engine start on the 0.6B model died after model load with
+`torch._inductor.exc.InductorError: CalledProcessError: ['/usr/bin/gcc', '.../cuda_utils.c', ...]`;
+the first line of the gcc output was `fatal error: Python.h: No such file or directory`.
+**Cause.** Triton builds a tiny CPython extension (`cuda_utils`) on first use with the include path
+from `sysconfig` (`/usr/include/python3.12`). Ubuntu's `python3` package does not ship headers; they
+live in `python3.12-dev`, which needs `sudo apt install`. Same class of problem as the missing `pip`
+and `venv`: a distro Python is not a development Python.
+**Fix.** Rebuilt the venv on a uv-managed CPython 3.12 (`uv python install 3.12`), which ships
+`include/python3.12/Python.h`. Pinned with `uv python pin 3.12` (`.python-version` committed) so the
+environment no longer depends on the distro interpreter at all. Verified with a 4-line Triton kernel
+before paying for another vLLM startup.
+**Lesson.** Check `python -c "import sysconfig,os;print(os.path.exists(sysconfig.get_paths()['include']+'/Python.h'))"`
+as part of environment setup whenever Triton or torch.compile is in the stack. Added to the install
+script's verify step.
