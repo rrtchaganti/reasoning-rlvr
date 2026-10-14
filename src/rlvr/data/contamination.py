@@ -50,7 +50,9 @@ class OverlapReport:
     num_eval: int
     num_train: int
     ngram_hits: dict[str, list[str]] = field(default_factory=dict)  # eval_id -> train ids
-    fuzzy_hits: dict[str, list[tuple[str, float]]] = field(default_factory=dict)  # eval_id -> (train id, score)
+    fuzzy_hits: dict[str, list[tuple[str, float]]] = field(
+        default_factory=dict
+    )  # eval_id -> (train id, score)
 
     @property
     def train_ids_to_drop(self) -> set[str]:
@@ -155,7 +157,9 @@ def write_report(rep: OverlapReport, path: str | Path, *, examples: int = 10) ->
     path.write_text(json.dumps(payload, indent=2))
 
 
-def read_jsonl_texts(path: str | Path, *, text_field: str, id_field: str | None = None) -> dict[str, str]:
+def read_jsonl_texts(
+    path: str | Path, *, text_field: str, id_field: str | None = None
+) -> dict[str, str]:
     """Load ``{id: text}`` from a JSONL file; ids default to the line number."""
     items: dict[str, str] = {}
     with Path(path).open(encoding="utf-8") as f:
@@ -176,7 +180,9 @@ def main(argv: list[str] | None = None) -> None:
 
     p = argparse.ArgumentParser(description="Training-data overlap probe (13-gram + fuzzy).")
     p.add_argument("--evals", nargs="+", required=True)
-    p.add_argument("--train", type=Path, required=True, help="JSONL with one training item per line")
+    p.add_argument(
+        "--train", type=Path, required=True, help="JSONL with one training item per line"
+    )
     p.add_argument("--text-field", required=True)
     p.add_argument("--id-field", default=None)
     p.add_argument("--n", type=int, default=13)
@@ -190,7 +196,12 @@ def main(argv: list[str] | None = None) -> None:
         es = load_eval_set(name)
         eval_items = {pr.id: pr.question for pr in es.problems}
         rep = overlap_report(
-            name, eval_items, train, n=args.n, fuzzy_threshold=args.fuzzy_threshold, run_fuzzy=not args.no_fuzzy
+            name,
+            eval_items,
+            train,
+            n=args.n,
+            fuzzy_threshold=args.fuzzy_threshold,
+            run_fuzzy=not args.no_fuzzy,
         )
         out = args.out_dir / f"{args.train.stem}__{name}.json"
         write_report(rep, out)

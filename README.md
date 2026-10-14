@@ -25,10 +25,14 @@ None yet. Tables appear here as phases merge; each number carries a 95 % CI and 
 ## Reproduce
 
 ```bash
-# inside WSL2 Ubuntu or any Linux box with a CUDA GPU
-python3 -m venv ~/venvs/rlvr && source ~/venvs/rlvr/bin/activate
-pip install -e ".[dev]"
-pytest -q -m "not gpu"
+# inside WSL2 Ubuntu or any Linux box with a CUDA GPU; no sudo needed
+bash scripts/setup_env.sh            # uv + uv-managed Python 3.12 + vllm/trl + dev tools, writes requirements-lock.txt
+source ~/venvs/rlvr/bin/activate
+bash scripts/check.sh                # ruff + fast CPU tests (the pre-commit gate)
+python scripts/triton_check.py       # GPU sanity: a Triton kernel compiles and runs
+bash scripts/phase0_smoke.sh         # Phase 0 exit check on Qwen3-0.6B-Base
 ```
+
+CPU-only (what CI does): `bash scripts/setup_env.sh --cpu` then `pytest -q -m "not gpu"`.
 
 Per-phase commands are listed in `scripts/` as they are added.
