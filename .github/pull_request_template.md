@@ -27,4 +27,5 @@
 - [ ] GPU-marked tests run locally
 - [ ] README status row and tables updated
 - [ ] experiments.md entries closed with a conclusion
+- [ ] `docs/phase-N-engineering-notes.md` written (what was built, how tested, why, debts, interview questions)
 - [ ] No data, weights or secrets in the diff (`git diff --stat main` checked)

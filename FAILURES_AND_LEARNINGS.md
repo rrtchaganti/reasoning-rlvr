@@ -148,3 +148,68 @@ Git cannot re-include a file when its parent *directory* is excluded: `/outputs/
 directory itself, so the negation never applied. The rule is now `/outputs/*` (exclude the
 contents), after which `!/outputs/reports/` works. Same change for `/data/*`. Check with
 `git check-ignore -v <path>` before assuming a report will be committed.
+
+## 2026-10-14  Perturbed GSM8K: two ways a "recomputed" gold can be silently wrong
+**Context.** Phase 1 builds the perturbed GSM8K set from the calculator annotations: literals in the
+`<<a*b=c>>` chain are classified as references to earlier results, perturbable question numbers, or
+constants, and the chain is re-run with new numbers. Every kept problem passes a self-check (the chain
+with the original numbers reproduces every annotation and the official gold). That check is necessary
+but not sufficient; eyeballing random outputs against their originals found two holes.
+**Hole 1: steps done in prose.** "Thrice as much" was computed in the text, not in an annotation, so
+the chain was just `40 + 120 = 160`. The 40 moved, the 120 did not, the gold was wrong, and the
+self-check passed because the single annotated step was consistent. Fix: every literal above 12 must
+be explained (a reference, a perturbable number, a number written in the question as digits or as a
+word such as "fifty" or "dozen", or a unit constant like 60 or 100); otherwise the problem is dropped
+as `unexplained_constant`. 90 of 1319 test problems go that way.
+**Hole 2: fractional intermediates where the story has none.** Money problems legitimately pass
+through cents, so denominators of 2, 4, 5, 10, 20, 25, 50, 100 were allowed everywhere; a class of 17
+students split into 2 groups then gave 8.5 students per group and the answer was still an integer.
+Fix: fractional intermediates are allowed only when the question mentions money or already contains
+a decimal. A unit test over 30 seeds now checks the division stays exact.
+**Also.** Zero intermediates ("she had 0 notebooks") are rejected; a resampled value may not collide
+with another number in the question; percentages are never perturbed because their decimal form hides
+in the chain. Coverage after all rules: 830 / 1319 (63 %), reasons counted in the report JSON.
+**Lesson.** A self-consistency check validates your parse of the *annotated* steps, not the problem.
+Sample and read outputs against originals every time a generator changes; the two holes above were
+found by reading seven examples each. Residual risk: semantically odd but arithmetically correct
+stories ("2 quarters", "2/6 of the oranges"); these do not affect the gold and are documented, not fixed.
+
+## 2026-10-14  Background GPU job killed by the assistant's memory guard, second time
+**Symptom.** The first 1.7B baseline run (launched as a Claude Code background job inside WSL) was
+stopped thirty seconds after the vLLM engine finished initialising, with the note that the Windows
+host was critically low on memory. The 13 Oct install was stopped the same way.
+**Cause.** WSL2 is capped at 9 GB of the laptop's 15.7 GB and holds it once used; the host side
+(editor, browser, the assistant itself) then has about 6 GB, and the guard reaps the assistant's own
+background shells first. The job itself was healthy: no OOM in WSL, GPU memory fine.
+**Fix / rule.** Long GPU jobs on this machine are started from the user's own PowerShell window
+(`wsl -d Ubuntu -- bash -lc "..."`), where no guard reaps them; the assistant prepares the exact
+command and the log path, and reads the results afterwards. Background jobs from the assistant are
+for short things (gate, lint, tests, generators). `.wslconfig` memory can also be lowered to 8 GB.
+**Cost.** About 17 minutes (mostly the one-time 3.4 GB weight download, which did survive in the HF
+cache) plus one engine start-up.
+
+## 2026-10-14  A "better" extraction rule that made the grader worse (rejected, kept the fallback)
+**Trigger.** On the 1.7B few-shot-CoT GSM8K run, 230 of 1319 answers came from the last-number fallback and a
+read of the wrong ones found a real grader error: "there are 15 liters of water in the remaining 24 liters of
+drink" was extracted as 24.
+**Attempt.** A "conclusion sentence" rule: take the first number of the last sentence that starts with So /
+Therefore / Thus / Hence / In total, placed before the last-number fallback. Evaluated on the stored samples
+before touching the code: it changed 34 extractions, fixed 6 and broke 10 on GSM8K (net minus 0.30 points) and
+fixed 3, broke 5 on the perturbed set. Rejected.
+**Lesson.** Every grader change is measured on stored samples before it is adopted, and reported as a delta.
+Intuition from six examples is not evidence; the base model restates givens in its conclusion sentences about as
+often as it states answers. The fallback's share (17 % here) is in every table so the reader can judge.
+
+## 2026-10-14  Widening a name list silently changed the perturbed GSM8K set
+**Symptom.** After adding names to the swap pools for the names-only control, `rlvr-perturb-gsm8k --seed 0`
+produced 825 problems with a new content hash instead of the committed 830 / `b5afb83e6aacafcf`, which eight
+baseline runs had already used.
+**Cause.** Name swaps and number resampling draw from the same seeded stream; a different pool size changes
+how many draws the name step consumes (numpy's bounded integers reject-sample), so every later number
+changes too. A seeded generator's output is a function of every draw it makes.
+**Fix.** The default set keeps the original 30 + 30 pools byte-for-byte (verified by regenerating and comparing
+the hash); the widened pools are used only by `--names-only`, a separate run. Rule: any change to any draw is
+a new dataset version; either isolate the streams per component or bump the version and re-run.
+**Also found while fixing it.** A patch written through a shell heredoc turned the regex `\b` into literal
+backspace bytes, so the name pattern matched nothing and the set changed again (829). Exact-bytes patching
+only, and `cat -A` on any regex line after editing it.

@@ -1,0 +1,8 @@
+{
+  "name": "gsm8k_names_only",
+  "source": "generated:perturb_gsm8k:seed=0:names=True:names_only=True",
+  "revision": null,
+  "answer_type": "numeric",
+  "num_problems": 516,
+  "content_hash": "4ae8f836dfe6960f"
+}

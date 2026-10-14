@@ -21,6 +21,7 @@ dependencies = [
   "pyyaml>=6.0",
   "pydantic>=2.6",
   "rapidfuzz>=3.6",
+  "matplotlib>=3.8",
   "rich>=13.0",
   "tqdm>=4.66",
 ]
@@ -44,6 +45,8 @@ dev = [
 
 [project.scripts]
 rlvr-eval = "rlvr.eval.run_eval:main"
+rlvr-perturb-gsm8k = "rlvr.data.perturb_gsm8k:main"
+rlvr-probe-partial = "rlvr.data.partial_prompt:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

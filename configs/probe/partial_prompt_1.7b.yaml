@@ -1,0 +1,12 @@
+# EXP-003 (a): partial-prompt completion on the base model. Local RTX 4060.
+model: Qwen/Qwen3-1.7B-Base
+evals: [gsm8k, math500]
+frac: 0.6
+max_tokens: 192
+seed: 0
+backend: vllm
+batch_invariant: true
+dtype: bfloat16
+gpu_memory_utilization: 0.85
+max_model_len: 4096
+out: outputs/probe/partial_prompt_1.7b

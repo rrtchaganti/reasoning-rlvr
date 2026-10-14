@@ -1,0 +1,16 @@
+# EXP-002, Countdown part: the think_tag template is the only Countdown prompt.
+model: Qwen/Qwen3-1.7B-Base
+evals: [countdown]
+template: think_tag
+n: 64
+temperature: 0.6
+top_p: 0.95
+max_tokens: 4096
+seed: 0
+countdown_n: 500
+backend: vllm
+batch_invariant: false
+dtype: bfloat16
+gpu_memory_utilization: 0.90
+max_model_len: 6144
+out: outputs/samples/base_1.7b_n64_countdown

@@ -1,0 +1,14 @@
+# EXP-003b control: names swapped, numbers untouched. Same prompt and settings as base_1.7b_few_shot_cot.
+model: Qwen/Qwen3-1.7B-Base
+evals: [gsm8k_names_only]
+template: few_shot_cot
+n: 1
+temperature: 0.0
+max_tokens: 1024
+seed: 0
+backend: vllm
+batch_invariant: true
+dtype: bfloat16
+gpu_memory_utilization: 0.85
+max_model_len: 4096
+out: outputs/eval/base_1.7b_few_shot_cot_names_only
