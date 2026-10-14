@@ -8,7 +8,23 @@ import torch
 from rlvr.eval.datasets import EvalSet, Problem
 from rlvr.eval.prompts import build_prompt
 from rlvr.eval.report import grade_completions, markdown_row, summarize
-from rlvr.eval.sampler import Completion, HFSampler, SamplingConfig, truncate_at_stop
+from rlvr.eval.run_eval import parse_args
+from rlvr.eval.sampler import (
+    Completion,
+    HFSampler,
+    SamplingConfig,
+    truncate_at_stop,
+    vllm_env_overrides,
+)
+
+
+def test_batch_invariant_is_the_default_and_can_be_switched_off():
+    """EXP-000: every reported vLLM eval runs batch-invariant unless explicitly disabled."""
+    assert vllm_env_overrides(batch_invariant=True) == {"VLLM_BATCH_INVARIANT": "1"}
+    assert vllm_env_overrides(batch_invariant=False) == {"VLLM_BATCH_INVARIANT": "0"}
+    base = ["--model", "m", "--out", "o"]
+    assert parse_args(base).batch_invariant is True
+    assert parse_args([*base, "--no-batch-invariant"]).batch_invariant is False
 
 
 def test_truncate_at_stop_keeps_the_stop_string():

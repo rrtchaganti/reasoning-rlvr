@@ -10,6 +10,7 @@ seed: 0
 limit: 100
 countdown_n: 100
 backend: vllm
+batch_invariant: true   # EXP-000: bit-identical greedy runs; the default anyway
 dtype: bfloat16
 gpu_memory_utilization: 0.80
 max_model_len: 4096

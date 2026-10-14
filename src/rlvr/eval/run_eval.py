@@ -67,6 +67,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--dtype", default="bfloat16")
     p.add_argument("--gpu-memory-utilization", type=float, default=0.85)
     p.add_argument("--max-model-len", type=int, default=6144)
+    p.add_argument(
+        "--no-batch-invariant",
+        dest="batch_invariant",
+        action="store_false",
+        help="disable VLLM_BATCH_INVARIANT (on by default since EXP-000; off = faster, non-reproducible)",
+    )
     p.add_argument("--out", type=Path, required=False)
     p.add_argument(
         "--allow-dirty",
@@ -96,6 +102,7 @@ def make_sampler(args: argparse.Namespace) -> Sampler:
             max_model_len=args.max_model_len,
             revision=args.revision,
             seed=args.seed,
+            batch_invariant=args.batch_invariant,
         )
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -111,7 +118,9 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     config = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
     info = write_run_info(out, config=config, seed=args.seed, allow_dirty=args.allow_dirty)
+    t_start = time.time()  # the compute ledger counts engine start-up as GPU time too
     sampler = sampler or make_sampler(args)
+    engine_startup_s = time.time() - t_start
     cfg_base = SamplingConfig(
         n=args.n,
         temperature=args.temperature,
@@ -181,7 +190,13 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
     )
     (out / "report.md").write_text(report)
     (out / "metrics.json").write_text(json.dumps(all_metrics, indent=2))
-    finish_run_info(out, wall_clock_s=time.time() - t0, evals=list(all_metrics))
+    finish_run_info(
+        out,
+        wall_clock_s=time.time() - t_start,
+        engine_startup_s=engine_startup_s,
+        sampling_wall_clock_s=time.time() - t0,
+        evals=list(all_metrics),
+    )
     return all_metrics
 
 

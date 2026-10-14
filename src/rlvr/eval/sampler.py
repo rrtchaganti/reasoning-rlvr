@@ -7,6 +7,7 @@ is what the truncation-rate metric needs.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -61,6 +62,18 @@ def truncate_at_stop(text: str, stops: Sequence[str]) -> tuple[str, bool]:
     return text[: best + best_len], True
 
 
+def vllm_env_overrides(*, batch_invariant: bool) -> dict[str, str]:
+    """Environment vLLM must see before its engine is built.
+
+    ``VLLM_BATCH_INVARIANT=1`` makes greedy decoding bit-identical across runs. EXP-000
+    (14 Oct 2026, Qwen3-0.6B-Base, RTX 4060): without it three identical T=0 runs produced
+    different text on 16 / 55 / 69 of 100 problems (GSM8K / MATH-500 / Countdown) and pass@1
+    moved by up to 6 points; with it, two runs agreed on all 300 completions. Cost: about
+    13 % more sampling time and one extra minute of engine start-up.
+    """
+    return {"VLLM_BATCH_INVARIANT": "1" if batch_invariant else "0"}
+
+
 class Sampler:
     """Interface. ``generate`` returns one list of ``n`` completions per prompt, in order."""
 
@@ -87,11 +100,16 @@ class VLLMSampler(Sampler):
         enable_prefix_caching: bool = True,
         revision: str | None = None,
         seed: int = 0,
+        batch_invariant: bool = True,
     ) -> None:
+        # vllm.envs reads os.environ lazily, so this works even if vllm was imported earlier,
+        # but it must happen before the engine (and its worker processes) is created.
+        os.environ.update(vllm_env_overrides(batch_invariant=batch_invariant))
         from vllm import LLM  # heavy import kept local
 
         self.model = model
         self.revision = revision
+        self.batch_invariant = batch_invariant
         self.llm = LLM(
             model=model,
             revision=revision,
@@ -139,6 +157,7 @@ class VLLMSampler(Sampler):
             "model": self.model,
             "revision": self.revision,
             "vllm": vllm.__version__,
+            "batch_invariant": self.batch_invariant,
         }
 
 
