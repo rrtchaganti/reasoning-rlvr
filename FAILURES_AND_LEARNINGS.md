@@ -46,3 +46,11 @@ driver of its own. The CUDA 12.6 toolkit directory seen earlier in WSL is irrele
 **Fix.** Update the Windows NVIDIA driver to the 580 series or newer (user action). Lock file written afterwards.
 **Learning.** Check `nvidia-smi` "CUDA Version" against the wheel's `+cuXXX` tag before a multi-GB install, and
 pin the rental image to the same CUDA major so the lock file transfers.
+
+## 2026-10-14  `.gitignore` rule `data/` silently excluded the source package `src/rlvr/data`   [phase 0] [tooling]
+**Symptom.** `git add src/rlvr/data` refused: "paths are ignored by one of your .gitignore files".
+**Diagnosis.** An unanchored directory pattern matches at every depth; the rule meant for the top-level
+data folder also caught the Python package of the same name.
+**Fix.** Anchor top-level-only rules with a leading slash (`/data/`, `/outputs/`, `/models/`, ...).
+**Learning.** Always run `git check-ignore -v <path>` on a new package directory; an ignored source
+folder would have shipped a repo that cannot import itself.
