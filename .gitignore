@@ -1,8 +1,8 @@
 # --- never commit data, models, generations, runs ---
-/data/
+/data/*
 !/data/manifests/
 !/data/README.md
-/outputs/
+/outputs/*
 !/outputs/reports/
 !/outputs/reports/**
 /outputs/reports/**/*.jsonl
