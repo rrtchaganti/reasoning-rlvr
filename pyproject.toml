@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rlvr"
+version = "0.0.1"
+description = "A reproducible study of the post-training recipe for reasoning on Qwen3-1.7B-Base"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Raja Raviteja Chaganti" }]
+# Core: enough to run the reference implementations, extraction, metrics and reports on CPU (this is what CI installs).
+dependencies = [
+  "torch>=2.6",
+  "transformers>=4.51",
+  "datasets>=3.0",
+  "math-verify>=0.7",
+  "numpy>=1.26",
+  "scipy>=1.12",
+  "pyyaml>=6.0",
+  "pydantic>=2.6",
+  "rapidfuzz>=3.6",
+  "rich>=13.0",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# GPU stack for the local 4060 and the rental box. vLLM pins its own torch; install it first.
+gpu = [
+  "vllm>=0.10",
+  "trl>=0.20",
+  "peft>=0.15",
+  "accelerate>=1.0",
+  "wandb>=0.19",
+]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "hypothesis>=6.100",
+  "ruff>=0.8",
+  "pre-commit>=3.7",
+]
+
+[project.scripts]
+rlvr-eval = "rlvr.eval.run_eval:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "gpu: needs a CUDA GPU (skipped in CI)",
+  "slow: takes more than ~30 s",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["notebooks", "outputs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "W", "N", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N806"]
+
+[tool.ruff.format]
+quote-style = "double"
