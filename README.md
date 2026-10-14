@@ -8,8 +8,8 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Background: [
 
 | Phase | Branch | State | Report |
 |---|---|---|---|
-| 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | done 14 Oct 2026, PR open | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines and pass@k ceiling | | | |
+| 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
+| 1 Baselines and pass@k ceiling | `phase-1-baselines` | in progress (started 14 Oct 2026); EXP-001..003 pre-registered | |
 | 2 SFT | | | |
 | 3 RFT | | | |
 | 4 GRPO + ablations | | | |
