@@ -21,6 +21,7 @@ charset-normalizer==3.5.2
 click==8.5.0
 cloudpickle==3.1.2
 compressed-tensors==0.17.0
+contourpy==1.4.0
 coverage==7.16.2
 cryptography==50.0.2
 cuda-bindings==13.4.3
@@ -29,6 +30,7 @@ cuda-pathfinder==1.8.3
 cuda-python==13.4.1
 cuda-tile==1.6.0
 cuda-toolkit==13.0.3.0
+cycler==0.12.1
 datasets==5.1.0
 depyf==0.20.0
 detect-installer==0.2.1
@@ -45,6 +47,7 @@ fastar==0.12.0
 fastsafetensors==0.4.0
 filelock==4.1.1
 flashinfer-python==0.7.0.post1
+fonttools==4.66.1
 frozenlist==1.8.0
 fsspec==2026.7.0
 googleapis-common-protos==1.75.5
@@ -70,6 +73,7 @@ jiter==0.17.0
 jmespath==1.1.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
+kiwisolver==1.5.1
 lark==1.2.2
 latex2sympy2-extended==1.11.0
 llguidance==1.7.6
@@ -79,6 +83,7 @@ loguru==0.7.3
 markdown-it-py==4.2.0
 markupsafe==3.0.4
 math-verify==0.9.0
+matplotlib==3.11.2
 mcp==2.3.0
 mcp-types==2.3.0
 mdurl==0.1.2
@@ -164,6 +169,7 @@ pydantic-settings==2.15.0
 pygments==2.21.0
 pyjwt==2.15.1
 pynvvideocodec==2.0.4
+pyparsing==3.3.3
 pytest==9.1.1
 pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
