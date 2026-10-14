@@ -148,3 +148,28 @@ Git cannot re-include a file when its parent *directory* is excluded: `/outputs/
 directory itself, so the negation never applied. The rule is now `/outputs/*` (exclude the
 contents), after which `!/outputs/reports/` works. Same change for `/data/*`. Check with
 `git check-ignore -v <path>` before assuming a report will be committed.
+
+## 2026-10-14  Perturbed GSM8K: two ways a "recomputed" gold can be silently wrong
+**Context.** Phase 1 builds the perturbed GSM8K set from the calculator annotations: literals in the
+`<<a*b=c>>` chain are classified as references to earlier results, perturbable question numbers, or
+constants, and the chain is re-run with new numbers. Every kept problem passes a self-check (the chain
+with the original numbers reproduces every annotation and the official gold). That check is necessary
+but not sufficient; eyeballing random outputs against their originals found two holes.
+**Hole 1: steps done in prose.** "Thrice as much" was computed in the text, not in an annotation, so
+the chain was just `40 + 120 = 160`. The 40 moved, the 120 did not, the gold was wrong, and the
+self-check passed because the single annotated step was consistent. Fix: every literal above 12 must
+be explained (a reference, a perturbable number, a number written in the question as digits or as a
+word such as "fifty" or "dozen", or a unit constant like 60 or 100); otherwise the problem is dropped
+as `unexplained_constant`. 90 of 1319 test problems go that way.
+**Hole 2: fractional intermediates where the story has none.** Money problems legitimately pass
+through cents, so denominators of 2, 4, 5, 10, 20, 25, 50, 100 were allowed everywhere; a class of 17
+students split into 2 groups then gave 8.5 students per group and the answer was still an integer.
+Fix: fractional intermediates are allowed only when the question mentions money or already contains
+a decimal. A unit test over 30 seeds now checks the division stays exact.
+**Also.** Zero intermediates ("she had 0 notebooks") are rejected; a resampled value may not collide
+with another number in the question; percentages are never perturbed because their decimal form hides
+in the chain. Coverage after all rules: 830 / 1319 (63 %), reasons counted in the report JSON.
+**Lesson.** A self-consistency check validates your parse of the *annotated* steps, not the problem.
+Sample and read outputs against originals every time a generator changes; the two holes above were
+found by reading seven examples each. Residual risk: semantically odd but arithmetically correct
+stories ("2 quarters", "2/6 of the oranges"); these do not affect the gold and are documented, not fixed.
