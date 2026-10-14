@@ -1,0 +1,6 @@
+# Everything text is stored and checked out with LF so the same tree runs under WSL2 and on a Linux rental box
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.svg text eol=lf
+*.ipynb text eol=lf

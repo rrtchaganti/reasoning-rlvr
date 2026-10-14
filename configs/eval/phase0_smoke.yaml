@@ -1,0 +1,17 @@
+# Phase 0 exit check: run the harness end to end on the 0.6B base, locally, on a subset.
+# Not a reported number. The full-set runs are configs/eval/base_*.yaml in Phase 1.
+model: Qwen/Qwen3-0.6B-Base
+evals: [gsm8k, math500, countdown]
+template: few_shot_cot
+n: 1
+temperature: 0.0
+max_tokens: 1024
+seed: 0
+limit: 100
+countdown_n: 100
+backend: vllm
+batch_invariant: true   # EXP-000: bit-identical greedy runs; the default anyway
+dtype: bfloat16
+gpu_memory_utilization: 0.80
+max_model_len: 4096
+out: outputs/eval/phase0_smoke_qwen3-0.6b-base

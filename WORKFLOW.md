@@ -29,7 +29,7 @@ main ──●──────────────●───────
 
 ## 3. Commits and pull requests
 
-- **Small commits, each one green.** `pre-commit` runs `ruff check`, `ruff format`, and the fast unit tests before every commit. A commit that breaks tests is not made.
+- **Small commits, each one green.** `pre-commit` runs `ruff check`, `ruff format`, and the fast unit tests before every commit when committing from inside WSL (`pre-commit install` there). Commits made from the Windows side run the same gate by hand first: `bash scripts/check.sh` in WSL. A commit that breaks tests is not made.
 - **Conventional-commit prefixes** so the history reads as a changelog:
   `feat:` new capability, `fix:` bug fix (say which number it changed, if any), `test:` tests only, `docs:` documentation, `refactor:` no behaviour change, `chore:` tooling, `exp:` an experiment registered in `experiments.md` or a result committed to `outputs/reports/`, `data:` a manifest or filtering script change.
   Subject in the imperative, under 72 characters, body explains *why* when it is not obvious.
@@ -60,6 +60,12 @@ main ──●──────────────●───────
 ## 6. Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main` or a `phase-*` branch, on a CPU runner: install the package, `ruff check`, `ruff format --check`, `pytest -m "not gpu"`. GPU-marked tests (`@pytest.mark.gpu`) run locally before a PR is marked ready. CI stays under five minutes; anything slower is a GPU test.
+
+## 6a. Local actions log
+
+`GIT_ACTIONS_LOG.md` (git-ignored, never pushed) records every git, GitHub and environment
+command run for this project: where, why, the exact command, the result, and how to undo it.
+It is the personal audit trail for the repository and doubles as a cheat sheet.
 
 ## 7. The per-phase routine
 

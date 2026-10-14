@@ -1,14 +1,14 @@
 # --- never commit data, models, generations, runs ---
-data/
-!data/manifests/
-!data/README.md
-outputs/
-!outputs/reports/
-!outputs/reports/**
-outputs/reports/**/*.jsonl
-outputs/reports/**/*.parquet
-models/
-checkpoints/
+/data/*
+!/data/manifests/
+!/data/README.md
+/outputs/*
+!/outputs/reports/
+!/outputs/reports/**
+/outputs/reports/**/*.jsonl
+/outputs/reports/**/*.parquet
+/models/
+/checkpoints/
 *.safetensors
 *.bin
 *.pt
@@ -21,8 +21,8 @@ checkpoints/
 *.arrow
 *.jsonl
 wandb/
-runs/
-logs/
+/runs/
+/logs/
 *.log
 
 # --- secrets ---
@@ -40,7 +40,6 @@ build/
 dist/
 .venv/
 venv/
-.python-version
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
@@ -60,3 +59,6 @@ torch_extensions/
 *.swp
 .DS_Store
 Thumbs.db
+
+# --- personal, never pushed ---
+GIT_ACTIONS_LOG.md
