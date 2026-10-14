@@ -102,7 +102,7 @@ These are the rules every stage follows. They are the difference between a tutor
 ### 4.1 Reproducibility
 - Every run has a YAML config, a git commit hash, a seed, the library versions (`pip freeze` saved), the exact prompt template, and the vLLM version. All written into the run directory and the W&B config.
 - Data is versioned by content hash; the exact filtered SFT/RFT/GRPO prompt files are saved with the run.
-- Evaluation is deterministic at temperature 0 up to vLLM batching nondeterminism; report the observed run-to-run variation once (three identical greedy evals) so it is known.
+- Evaluation is deterministic at temperature 0 up to vLLM batching nondeterminism; report the observed run-to-run variation once (three identical greedy evals) so it is known. *Done, EXP-000 (14 Oct):* default mode moved pass@1 by 1-6 points on 100-problem subsets and changed the text on 16-69 % of problems; the harness therefore runs every vLLM eval with `VLLM_BATCH_INVARIANT=1`, under which three runs are bit-identical. Reported numbers are a function of (commit, config, seed).
 
 ### 4.2 Evaluation protocol (fixed before any training run)
 - **Prompt template** is fixed per model family and written in the harness; the same template is used for every checkpoint. Changing the template is an experiment, not a tweak.

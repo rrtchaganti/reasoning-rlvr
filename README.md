@@ -8,7 +8,7 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Background: [
 
 | Phase | Branch | State | Report |
 |---|---|---|---|
-| 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | in progress (started 14 Oct 2026) | |
+| 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | done 14 Oct 2026, PR open | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
 | 1 Baselines and pass@k ceiling | | | |
 | 2 SFT | | | |
 | 3 RFT | | | |
@@ -21,6 +21,11 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Background: [
 ## Results
 
 None yet. Tables appear here as phases merge; each number carries a 95 % CI and the tag of the commit that produced it.
+
+Phase 0 produced one methodological result rather than a model result: in vLLM's default mode three
+identical greedy evals of Qwen3-0.6B-Base differed by up to 6 points on 100-problem subsets because the
+generated text itself changed between runs; with vLLM's batch-invariant mode (now the harness default)
+they are bit-identical. Details in `outputs/reports/phase-0.md`, EXP-000 in `experiments.md`.
 
 ## Reproduce
 

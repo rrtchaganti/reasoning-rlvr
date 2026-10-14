@@ -118,3 +118,33 @@ Did not change any grade in run 1 (the model's 228 000 was wrong anyway), logged
 `scripts/setup_env.sh` failed in WSL bash with "syntax error: unexpected end of file" because
 `Path.write_text` on Windows used CRLF. Fixed with a CR-stripping `sed`; all later writes pass
 `newline="\n"`. Check before committing: a recursive grep for carriage returns must be empty.
+
+## 2026-10-14  EXP-000: three "identical" greedy vLLM runs disagreed by up to 6 points
+**Symptom.** Same commit, config, seed, GPU; temperature 0; pass@1 on 100-problem subsets came out
+68 / 70 / 68 (GSM8K), 25 / 27 / 31 (MATH-500), 1 / 2 / 2 (Countdown). The pre-registered falsifier
+(spread above 1 point) fired.
+**Diagnosis.** Compared `samples.jsonl` across runs problem by problem: the generated text itself
+differed on 16 / 55 / 69 of 100 problems, in some cases from the first token. So this is numerical
+non-determinism in batched bf16 decoding (reduction order changes with batch composition, chunked
+prefill and prefix caching), not grading or sampling. vLLM 0.31 ships `VLLM_BATCH_INVARIANT=1`
+(tuned batch-invariant matmuls, fixed-split attention, TF32 off); the RTX 4060 is in its tuned
+"ada" family.
+**Fix.** Two runs with the variable set agreed on 300 / 300 completions; three more after making it
+the `VLLMSampler` default (commit f4d1360) also agreed exactly. Cost: about 13 % slower sampling
+and 10-15 s longer start-up on this GPU. `--no-batch-invariant` remains for throughput-only work.
+**Lesson.** "Temperature 0" is not "deterministic" on a batched inference engine. Measure the
+run-to-run spread before measuring anything else, and if the engine offers a batch-invariant mode,
+turn it on for every reported number. Also: compare the texts, not just the metric, when two runs
+disagree; it separates numerics from grading in one step.
+
+## 2026-10-14  run_info.json wall clock excluded engine start-up
+`wall_clock_s` was 61 s while the start and finish timestamps were 135 s apart: the timer started
+after `make_sampler`, so about 75 s of model load and graph capture per run never reached the
+compute ledger. Fixed; `engine_startup_s` and `sampling_wall_clock_s` are recorded separately.
+Lesson: cross-check every duration field against timestamps once before trusting it in a ledger.
+
+## 2026-10-14  `outputs/reports/phase-0.md` was ignored despite the `!/outputs/reports/` rule
+Git cannot re-include a file when its parent *directory* is excluded: `/outputs/` excluded the
+directory itself, so the negation never applied. The rule is now `/outputs/*` (exclude the
+contents), after which `!/outputs/reports/` works. Same change for `/data/*`. Check with
+`git check-ignore -v <path>` before assuming a report will be committed.
