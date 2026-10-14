@@ -60,3 +60,18 @@ With `VLLM_BATCH_INVARIANT=1` (two runs at 1366950, then three runs at f4d1360 w
 **Config.** `configs/probe/partial_prompt.yaml`, `scripts/make_gsm8k_perturbed.py` (seed 0), `rlvr.data.contamination` CLI; local; commit TBD.
 **Result.** TBD
 **Conclusion.** TBD
+
+## EXP-003b  Names-only perturbation: is the GSM8K gap recall or arithmetic?      [phase 1] [status: planned]
+**Question.** Follow-up to EXP-003 (b). The number-and-name perturbation gap on the 1.7B base came out at 10.1 points
+[7.0, 13.3] (paired, 830 problems), above the 8-point falsifier. Two explanations: the base model has memorised
+test problems (recall), or it is brittle to larger numbers (the resampled values are drawn from [x/2, 2x], so the
+arithmetic gets harder on average). A names-only variant separates them: names carry no arithmetic.
+**Hypothesis.** Names-only gap is below 2 points (the model does not recall problems by their characters), so most
+of the 10-point gap is arithmetic brittleness, which is a reasoning finding, not a contamination finding.
+**Metric.** Paired gap original minus names-only on the problems that have a swappable name, 4-shot-CoT greedy, 1.7B base,
+with the paired bootstrap CI and the flip table; the number-only gap (`--no-names`) as the third arm if time allows.
+**Falsifier.** Names-only gap above 5 points with a CI excluding 2: recall is a large part of the gap and GSM8K is treated as
+contaminated for this model, as EXP-003 said.
+**Config.** `rlvr-perturb-gsm8k --names-only --seed 0`; `configs/eval/base_1.7b_few_shot_cot_names_only.yaml`; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
