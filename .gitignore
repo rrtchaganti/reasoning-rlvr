@@ -1,0 +1,62 @@
+# --- never commit data, models, generations, runs ---
+data/
+!data/manifests/
+!data/README.md
+outputs/
+!outputs/reports/
+!outputs/reports/**
+outputs/reports/**/*.jsonl
+outputs/reports/**/*.parquet
+models/
+checkpoints/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.gguf
+*.npy
+*.npz
+*.parquet
+*.arrow
+*.jsonl
+wandb/
+runs/
+logs/
+*.log
+
+# --- secrets ---
+.env
+*.key
+*.pem
+hf_token*
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.python-version
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+.ipynb_checkpoints/
+
+# --- caches ---
+.cache/
+~/.cache/
+triton_cache/
+vllm_cache/
+torch_extensions/
+
+# --- editors / os ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
