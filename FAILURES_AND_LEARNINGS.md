@@ -173,3 +173,17 @@ in the chain. Coverage after all rules: 830 / 1319 (63 %), reasons counted in th
 Sample and read outputs against originals every time a generator changes; the two holes above were
 found by reading seven examples each. Residual risk: semantically odd but arithmetically correct
 stories ("2 quarters", "2/6 of the oranges"); these do not affect the gold and are documented, not fixed.
+
+## 2026-10-14  Background GPU job killed by the assistant's memory guard, second time
+**Symptom.** The first 1.7B baseline run (launched as a Claude Code background job inside WSL) was
+stopped thirty seconds after the vLLM engine finished initialising, with the note that the Windows
+host was critically low on memory. The 13 Oct install was stopped the same way.
+**Cause.** WSL2 is capped at 9 GB of the laptop's 15.7 GB and holds it once used; the host side
+(editor, browser, the assistant itself) then has about 6 GB, and the guard reaps the assistant's own
+background shells first. The job itself was healthy: no OOM in WSL, GPU memory fine.
+**Fix / rule.** Long GPU jobs on this machine are started from the user's own PowerShell window
+(`wsl -d Ubuntu -- bash -lc "..."`), where no guard reaps them; the assistant prepares the exact
+command and the log path, and reads the results afterwards. Background jobs from the assistant are
+for short things (gate, lint, tests, generators). `.wslconfig` memory can also be lowered to 8 GB.
+**Cost.** About 17 minutes (mostly the one-time 3.4 GB weight download, which did survive in the HF
+cache) plus one engine start-up.
