@@ -139,6 +139,20 @@ def test_name_swap_is_consistent_and_gendered():
     assert mapping["Janet"] in FEMALE and mapping["Tom"] in MALE
 
 
+def test_names_only_mode_keeps_numbers_and_gold():
+    p = perturb_problem("g1", Q, SOL, np.random.default_rng(0), names_only=True)
+    assert p.answer == "18" and p.meta["substitutions"] == {} and p.meta["name_map"]
+    assert "16 eggs" in p.question and "Janet" not in p.question
+    with pytest.raises(ValueError, match="no_names"):
+        perturb_problem(
+            "x",
+            "A pen costs $3. Buy 4.",
+            "3*4=<<3*4=12>>12\n#### 12",
+            np.random.default_rng(0),
+            names_only=True,
+        )
+
+
 def test_perturb_many_counts_reasons():
     rows = [
         ("a", Q, SOL),

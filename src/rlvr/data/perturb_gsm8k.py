@@ -103,7 +103,7 @@ PERCENT_RE = re.compile(r"^\s*(%|percent)")
 UNIT_CONSTANTS = frozenset({7, 12, 24, 30, 31, 52, 60, 100, 180, 360, 365, 1000})
 MONEY_DENOMINATORS = frozenset({1, 2, 4, 5, 10, 20, 25, 50, 100})
 
-FEMALE = [
+FEMALE_EXTENDED = [
     "Janet",
     "Mary",
     "Sarah",
@@ -134,8 +134,62 @@ FEMALE = [
     "Lily",
     "Ruby",
     "Chloe",
+    "Sally",
+    "Martha",
+    "Sharon",
+    "Amy",
+    "Anne",
+    "Jane",
+    "Dora",
+    "Samantha",
+    "Jean",
+    "Cindy",
+    "Maria",
+    "Jenny",
+    "Madeline",
+    "Kelly",
+    "Sue",
+    "Erin",
+    "Ashley",
+    "Julie",
+    "Susan",
+    "Jill",
+    "Vanessa",
+    "Naomi",
+    "Brianna",
+    "Erica",
+    "Bernadette",
+    "Jana",
+    "Kate",
+    "Emma",
+    "Sofie",
+    "Polly",
+    "Beatrice",
+    "Brittany",
+    "Sandra",
+    "Harriet",
+    "Jessica",
+    "Jennifer",
+    "Linda",
+    "Patricia",
+    "Barbara",
+    "Elizabeth",
+    "Michelle",
+    "Amanda",
+    "Melissa",
+    "Stephanie",
+    "Nicole",
+    "Heather",
+    "Rebecca",
+    "Katie",
+    "Lucy",
+    "Sophie",
+    "Natalie",
+    "Lauren",
+    "Rose",
+    "Helen",
 ]
-MALE = [
+MALE_EXTENDED = [
     "John",
     "James",
     "Tom",
@@ -166,9 +220,90 @@ MALE = [
     "Leo",
     "Oscar",
     "Max",
+    "Robert",
+    "Jason",
+    "Billy",
+    "Charlie",
+    "Harry",
+    "Fred",
+    "Bobby",
+    "Bill",
+    "Joe",
+    "Ali",
+    "Raymond",
+    "Tim",
+    "Jake",
+    "Marcus",
+    "Jamal",
+    "Carl",
+    "Tony",
+    "Joey",
+    "Richard",
+    "Stanley",
+    "Boris",
+    "Igor",
+    "Aaron",
+    "Stephen",
+    "Jackson",
+    "Gerald",
+    "Joseph",
+    "Jerry",
+    "Chris",
+    "Sean",
+    "Timothy",
+    "Oliver",
+    "Wayne",
+    "Andy",
+    "Mitchell",
+    "Liam",
+    "Gary",
+    "Gunther",
+    "Anthony",
+    "Stan",
+    "Kory",
+    "Allen",
+    "Tommy",
+    "Greg",
+    "Corey",
+    "Johnny",
+    "Jimmy",
+    "Anakin",
+    "Michael",
+    "William",
+    "Steve",
+    "Matt",
+    "Matthew",
+    "Andrew",
+    "Nick",
+    "Frank",
+    "Jeff",
+    "Larry",
+    "Scott",
+    "Ken",
+    "Roger",
+    "Dan",
+    "Edward",
+    "Charles",
+    "Arthur",
+    "Walter",
+    "Nathan",
+    "Isaac",
 ]
-_NAME_GROUP = {n: "f" for n in FEMALE} | {n: "m" for n in MALE}
-NAME_RE = re.compile(r"\b(" + "|".join(sorted(_NAME_GROUP, key=len, reverse=True)) + r")\b")
+# The first 30 of each list are the original pools; the numbers+names set (data/manifests/gsm8k_perturbed.json)
+# was generated with them and must keep regenerating byte-for-byte, so the default swap uses only
+# these. The extended pools serve the names-only control (EXP-003b), where coverage matters more.
+FEMALE = FEMALE_EXTENDED[:30]
+MALE = MALE_EXTENDED[:30]
+
+
+def _name_tables(extended: bool) -> tuple[dict[str, str], re.Pattern[str]]:
+    fem, mal = (FEMALE_EXTENDED, MALE_EXTENDED) if extended else (FEMALE, MALE)
+    group = {n: "f" for n in fem} | {n: "m" for n in mal}
+    pattern = re.compile(r"\b(" + "|".join(sorted(group, key=len, reverse=True)) + r")\b")
+    return group, pattern
+
+
+_NAME_GROUP, NAME_RE = _name_tables(False)
 
 
 # --------------------------------------------------------------------------- arithmetic
@@ -363,9 +498,13 @@ def _valid_run(results: list[Fraction], gold: Fraction, *, allow_cents: bool) ->
     return final.denominator == 1 and final > 0 and final != gold
 
 
-def swap_names(question: str, rng: np.random.Generator) -> tuple[str, dict[str, str]]:
+def swap_names(
+    question: str, rng: np.random.Generator, *, extended: bool = False
+) -> tuple[str, dict[str, str]]:
+    group, pattern = _name_tables(extended)
+    fem, mal = (FEMALE_EXTENDED, MALE_EXTENDED) if extended else (FEMALE, MALE)
     found = []
-    for m in NAME_RE.finditer(question):
+    for m in pattern.finditer(question):
         if m.group(1) not in found:
             found.append(m.group(1))
     if not found:
@@ -373,11 +512,11 @@ def swap_names(question: str, rng: np.random.Generator) -> tuple[str, dict[str, 
     mapping: dict[str, str] = {}
     taken = set(found)
     for name in found:
-        pool = [n for n in (FEMALE if _NAME_GROUP[name] == "f" else MALE) if n not in taken]
+        pool = [n for n in (fem if group[name] == "f" else mal) if n not in taken]
         new = pool[int(rng.integers(len(pool)))]
         mapping[name] = new
         taken.add(new)
-    out = NAME_RE.sub(lambda m: mapping.get(m.group(1), m.group(1)), question)
+    out = pattern.sub(lambda m: mapping.get(m.group(1), m.group(1)), question)
     return out, mapping
 
 
@@ -389,10 +528,33 @@ def perturb_problem(
     *,
     tries: int = 40,
     swap_names_too: bool = True,
+    names_only: bool = False,
 ) -> Perturbed:
-    """Return the perturbed problem or raise ``ValueError(reason)``."""
+    """Return the perturbed problem or raise ``ValueError(reason)``.
+
+    ``names_only`` keeps every number and only swaps names: the control for EXP-003b. Its
+    gold is the original gold; a problem without a swappable name is dropped (``no_names``).
+    """
     prog = Program.parse(solution)
     prog.check_original()
+    if names_only:
+        new_q, name_map = swap_names(question, rng, extended=True)
+        if not name_map:
+            raise ValueError("no_names")
+        return Perturbed(
+            id=f"{pid}-names",
+            question=new_q,
+            answer=str(prog.gold.numerator) if prog.gold.denominator == 1 else str(prog.gold),
+            meta={
+                "original_id": pid,
+                "original_answer": str(prog.gold.numerator)
+                if prog.gold.denominator == 1
+                else str(prog.gold),
+                "substitutions": {},
+                "name_map": name_map,
+                "num_steps": len(prog.steps),
+            },
+        )
     nums = question_numbers(question)
     symbols = perturbable_values(nums, question)
     if not symbols:
@@ -458,7 +620,11 @@ def perturb_problem(
 
 
 def perturb_many(
-    rows: list[tuple[str, str, str]], *, seed: int = 0, swap_names_too: bool = True
+    rows: list[tuple[str, str, str]],
+    *,
+    seed: int = 0,
+    swap_names_too: bool = True,
+    names_only: bool = False,
 ) -> tuple[list[Perturbed], Counter[str]]:
     """``rows`` are (id, question, solution). Returns kept problems and drop reasons."""
     rng = np.random.default_rng(seed)
@@ -466,7 +632,11 @@ def perturb_many(
     reasons: Counter[str] = Counter()
     for pid, q, sol in rows:
         try:
-            kept.append(perturb_problem(pid, q, sol, rng, swap_names_too=swap_names_too))
+            kept.append(
+                perturb_problem(
+                    pid, q, sol, rng, swap_names_too=swap_names_too, names_only=names_only
+                )
+            )
             reasons["kept"] += 1
         except (ValueError, ZeroDivisionError, SyntaxError) as e:
             reasons[str(e).split(":")[0] or type(e).__name__] += 1
@@ -495,6 +665,9 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--split", default="test", choices=["test", "train"])
     ap.add_argument("--no-names", action="store_true", help="numbers only, keep names")
     ap.add_argument(
+        "--names-only", action="store_true", help="swap names, keep every number (EXP-003b control)"
+    )
+    ap.add_argument(
         "--out", type=Path, default=None, help="default outputs/data/gsm8k_perturbed.jsonl"
     )
     ap.add_argument("--manifest", type=Path, default=Path("data/manifests/gsm8k_perturbed.json"))
@@ -506,15 +679,20 @@ def main(argv: list[str] | None = None) -> None:
     rows = [
         (f"gsm8k-{args.split}-{i}", r["question"].strip(), r["answer"]) for i, r in enumerate(ds)
     ]
-    kept, reasons = perturb_many(rows, seed=args.seed, swap_names_too=not args.no_names)
+    kept, reasons = perturb_many(
+        rows, seed=args.seed, swap_names_too=not args.no_names, names_only=args.names_only
+    )
 
-    out = args.out or output_dir() / "data" / "gsm8k_perturbed.jsonl"
+    stem = "gsm8k_names_only" if args.names_only else "gsm8k_perturbed"
+    out = args.out or output_dir() / "data" / f"{stem}.jsonl"
+    if args.names_only and args.manifest == Path("data/manifests/gsm8k_perturbed.json"):
+        args.manifest = Path("data/manifests/gsm8k_names_only.json")
     write_jsonl(kept, out)
     es = EvalSet(
-        "gsm8k_perturbed",
+        stem,
         "numeric",
         [Problem(p.id, p.question, p.answer, p.meta) for p in kept],
-        f"generated:perturb_gsm8k:seed={args.seed}:names={not args.no_names}",
+        f"generated:perturb_gsm8k:seed={args.seed}:names={not args.no_names}:names_only={args.names_only}",
     )
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     write_manifest(es, args.manifest)

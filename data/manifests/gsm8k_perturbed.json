@@ -1,6 +1,6 @@
 {
   "name": "gsm8k_perturbed",
-  "source": "generated:perturb_gsm8k:seed=0:names=True",
+  "source": "generated:perturb_gsm8k:seed=0:names=True:names_only=False",
   "revision": null,
   "answer_type": "numeric",
   "num_problems": 830,

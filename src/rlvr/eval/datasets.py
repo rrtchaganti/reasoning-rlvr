@@ -308,6 +308,15 @@ def load_gsm8k_perturbed(revision: str | None = None) -> EvalSet:
     return load_jsonl_evalset(path, "gsm8k_perturbed", "numeric")
 
 
+def load_gsm8k_names_only(revision: str | None = None) -> EvalSet:
+    """Names swapped, numbers untouched (EXP-003b control); file-based like the perturbed set."""
+    del revision
+    path = output_dir() / "data" / "gsm8k_names_only.jsonl"
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found; run `rlvr-perturb-gsm8k --names-only` first")
+    return load_jsonl_evalset(path, "gsm8k_names_only", "numeric")
+
+
 # --------------------------------------------------------------------------- registry
 
 LOADERS: dict[str, Callable[..., EvalSet]] = {
@@ -316,6 +325,7 @@ LOADERS: dict[str, Callable[..., EvalSet]] = {
     "math500": load_math500,
     "aime24": load_aime24,
     "gsm8k_perturbed": load_gsm8k_perturbed,
+    "gsm8k_names_only": load_gsm8k_names_only,
 }
 
 
