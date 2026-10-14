@@ -9,7 +9,7 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 | Phase | Branch | State | Report |
 |---|---|---|---|
 | 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines and pass@k ceiling | `phase-1-baselines` | in progress (started 14 Oct 2026); EXP-001..003 pre-registered | |
+| 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 waits for the rental | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
 | 2 SFT | | | |
 | 3 RFT | | | |
 | 4 GRPO + ablations | | | |
@@ -20,7 +20,19 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 
 ## Results
 
-None yet. Tables appear here as phases merge; each number carries a 95 % CI and the tag of the commit that produced it.
+Each number carries a 95 % bootstrap CI over problems and the commit that produced it; greedy, batch-invariant vLLM.
+
+**Base models (Phase 1, commit ffd3018).** pass@1 %, full eval sets.
+
+| model | prompt | GSM8K | GSM8K perturbed | MATH-500 | Countdown |
+|---|---|---|---|---|---|
+| Qwen3-1.7B-Base | 4-shot-CoT | 74.5 [72.0, 77.0] | 67.8 [64.8, 71.1] | 41.4 [37.0, 45.8] | - |
+| Qwen3-1.7B-Base | zero-shot | 77.6 [75.3, 79.9] | 70.0 [67.0, 73.1] | 53.6 [49.4, 57.6] | - |
+| Qwen3-1.7B-Base | think-tag | 61.3 [58.7, 63.8] | 50.8 [47.6, 54.5] | 43.0 [38.8, 47.4] | 1.2 [0.4, 2.2] |
+| Qwen3-0.6B-Base | 4-shot-CoT | 61.9 [59.3, 64.6] | 56.5 [53.1, 59.9] | 28.0 [24.0, 31.8] | - |
+| Qwen3-0.6B-Base | zero-shot | 64.9 [62.3, 67.5] | 59.5 [56.1, 62.9] | 37.6 [33.4, 41.6] | - |
+
+Calibration: the 4-shot-CoT rows match the Qwen3 technical report (75.44 / 59.59 on GSM8K) within 1-2 points. Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for the 1.7B base; a names-only control moves nothing (-0.4 [-3.3, 2.5]), so the gap is arithmetic brittleness, not recall. Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs). Details: `outputs/reports/phase-1.md`.
 
 Phase 0 produced one methodological result rather than a model result: in vLLM's default mode three
 identical greedy evals of Qwen3-0.6B-Base differed by up to 6 points on 100-problem subsets because the
