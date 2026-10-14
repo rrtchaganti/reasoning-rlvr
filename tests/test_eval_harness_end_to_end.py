@@ -8,7 +8,20 @@ import torch
 from rlvr.eval.datasets import EvalSet, Problem
 from rlvr.eval.prompts import build_prompt
 from rlvr.eval.report import grade_completions, markdown_row, summarize
-from rlvr.eval.sampler import Completion, HFSampler, SamplingConfig
+from rlvr.eval.sampler import Completion, HFSampler, SamplingConfig, truncate_at_stop
+
+
+def test_truncate_at_stop_keeps_the_stop_string():
+    """Both backends must hand the extractor the closing tag; vLLM does this with
+    include_stop_str_in_output=True and the HF sampler via this helper."""
+    text = "<think>2+2</think><answer>4</answer> trailing\nUser: next"
+    cut, hit = truncate_at_stop(text, ("</answer>", "\nUser:"))
+    assert hit and cut == "<think>2+2</think><answer>4</answer>"
+    cut, hit = truncate_at_stop("no stop here", ("</answer>",))
+    assert not hit and cut == "no stop here"
+    cut, hit = truncate_at_stop("a\nUser: b </answer>", ("</answer>", "\nUser:"))
+    assert hit and cut == "a\nUser:"  # earliest stop wins
+
 
 transformers = pytest.importorskip("transformers")
 

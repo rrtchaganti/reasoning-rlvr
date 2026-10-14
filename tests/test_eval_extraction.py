@@ -35,6 +35,13 @@ def test_extraction_order_tag_then_boxed_then_phrase_then_number():
     assert e.answer == "8" and e.source == "last_number"
     e = extract_answer("#### 1,234", "numeric")
     assert e.answer == "1,234" and e.source == "final_phrase"
+    # space-grouped thousands, as GSM8K questions sometimes write them (smoke run 1)
+    e = extract_answer("The answer is $228 000.", "numeric")
+    assert e.answer == "228000" and e.source == "final_phrase"
+    e = extract_answer("so 1 000 000 people", "numeric")
+    assert e.answer == "1000000" and e.source == "last_number"
+    e = extract_answer("we get 3 1000 left", "numeric")
+    assert e.answer == "1000"  # "3 1000" is two numbers, not a grouped one
     assert extract_answer("", "numeric").failed
     assert extract_answer("no digits here", "numeric").failed
     assert extract_answer("no box here", "latex").failed

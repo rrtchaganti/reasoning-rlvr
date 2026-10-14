@@ -33,7 +33,13 @@ _FINAL_PHRASES = [
         re.IGNORECASE | re.MULTILINE,
     ),
 ]
-_NUMBER = re.compile(r"-?\d[\d,]*(?:\.\d+)?(?:/\d+)?")
+# Digits with optional comma groups, optional space-separated thousands ("400 000", as GSM8K
+# questions sometimes write them), decimals and simple fractions.
+_NUMBER = re.compile(r"-?\d[\d,]*(?: \d{3}(?!\d))*(?:\.\d+)?(?:/\d+)?")
+
+
+def _num(s: str) -> str:
+    return s.replace(" ", "")
 
 
 @dataclass(frozen=True)
@@ -102,14 +108,14 @@ def extract_answer(text: str, answer_type: AnswerType) -> Extraction:
                 cand = _clean_candidate(hits[-1])
                 if answer_type == "numeric":
                     nums = _NUMBER.findall(cand)
-                    cand = nums[0] if nums else cand
+                    cand = _num(nums[0]) if nums else cand
                 if cand:
                     return Extraction(cand, "final_phrase")
 
     if answer_type == "numeric":
         nums = _NUMBER.findall(text)
         if nums:
-            return Extraction(nums[-1], "last_number")
+            return Extraction(_num(nums[-1]), "last_number")
 
     return Extraction(None, "none")
 

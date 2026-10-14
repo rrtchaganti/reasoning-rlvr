@@ -83,7 +83,7 @@ def test_prompts_end_where_the_model_continues(template, fam):
     problem, name = _problem(fam)
     pr = build_prompt(problem, template, name)
     assert problem.question in pr.text
-    assert pr.text.rstrip().endswith(("Answer:", "Solution:", "<think>"))
+    assert pr.text.endswith(("Answer:", "Solution:\n", "<think>\n"))
     assert len(pr.stop) > 0
     if template.startswith("few_shot"):
         assert pr.text.count("Question:" if fam == "gsm8k" else "Problem:") == 5
@@ -96,10 +96,29 @@ def test_prompts_end_where_the_model_continues(template, fam):
 def test_countdown_only_think_tag():
     problem, name = _problem("countdown")
     pr = build_prompt(problem, "think_tag", name)
-    assert "[2, 3, 5, 7]" in pr.text and "29" in pr.text and pr.text.endswith("<think>")
-    assert pr.completion_prefix == "<think>" and "</answer>" in pr.stop
+    assert "[2, 3, 5, 7]" in pr.text and "29" in pr.text and pr.text.endswith("<think>\n")
+    assert pr.completion_prefix == "<think>\n" and "</answer>" in pr.stop
     with pytest.raises(ValueError):
         build_prompt(problem, "few_shot_cot", name)
+
+
+def test_math_prompt_ends_on_the_shots_token_boundary():
+    """Regression: ":\n" is one Qwen3 token. A prompt ending in a bare "Solution:" made the
+    0.6B base emit <|endoftext|> on 53 % of MATH-500 problems (smoke run 1, 14 Oct 2026)."""
+    problem, name = _problem("math500")
+    for template in ("zero_shot", "few_shot", "few_shot_cot"):
+        pr = build_prompt(problem, template, name)
+        assert pr.text.endswith("Solution:\n")
+    gsm, gname = _problem("gsm8k")
+    assert build_prompt(gsm, "few_shot_cot", gname).text.endswith("Answer:")
+
+
+def test_think_tag_prompt_never_ends_on_the_think_token():
+    """Regression: <think> as the last prompt token makes Qwen3-0.6B-Base produce garbage."""
+    for fam in ("gsm8k", "math500", "countdown"):
+        problem, name = _problem(fam)
+        pr = build_prompt(problem, "think_tag", name)
+        assert pr.text.endswith("<think>\n") and pr.completion_prefix == "<think>\n"
 
 
 def test_manifest_fields():

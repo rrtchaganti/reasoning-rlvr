@@ -145,9 +145,12 @@ def build_prompt(problem: Problem, template: str, eval_name: str) -> Prompt:
             "solves it. The Assistant first thinks about the reasoning process in the mind and then "
             "provides the User with the answer.\n"
             f"User: {task}\n"
-            "Assistant: <think>"
+            "Assistant:\n<think>\n"
         )
-        return Prompt(text=text, stop=("</answer>", "\nUser:"), completion_prefix="<think>")
+        # Qwen3 tokenises <think> as one added token that the *base* model has barely seen:
+        # with <think> as the final prompt token, greedy output is garbage ("__(*", "⚐ ⚐ ⚐").
+        # A newline after it restores normal text (probe, 14 Oct 2026, FAILURES_AND_LEARNINGS.md).
+        return Prompt(text=text, stop=("</answer>", "\nUser:"), completion_prefix="<think>\n")
 
     if fam == "countdown":
         raise ValueError("countdown is evaluated with the think_tag template only")
@@ -155,10 +158,15 @@ def build_prompt(problem: Problem, template: str, eval_name: str) -> Prompt:
     if template == "zero_shot":
         if fam == "gsm8k":
             return Prompt(text=f"Question: {q}\n{BOX_INSTRUCTION}\nAnswer:", stop=FEW_SHOT_STOP)
-        return Prompt(text=f"Problem:\n{q}\n{BOX_INSTRUCTION}\n\nSolution:", stop=FEW_SHOT_STOP)
+        return Prompt(text=f"Problem:\n{q}\n{BOX_INSTRUCTION}\n\nSolution:\n", stop=FEW_SHOT_STOP)
 
     cot = template == "few_shot_cot"
     block = _few_shot_block(eval_name, cot)
     if fam == "gsm8k":
         return Prompt(text=f"{block}Question: {q}\nAnswer:", stop=FEW_SHOT_STOP)
-    return Prompt(text=f"{block}Problem:\n{q}\n\nSolution:", stop=FEW_SHOT_STOP)
+    # The prompt must end with "Solution:\n", not "Solution:". The Qwen3 tokeniser merges ":\n"
+    # into one token, so the shots contain [Solution][:\n] and a prompt ending in a bare [:] is a
+    # token state the shots never show; the 0.6B base then emits <|endoftext|> with p = 0.25-0.5
+    # (53 % empty completions in the first smoke run). GSM8K is unaffected because its shots use
+    # "Answer: The ..." where ":" stands alone anyway.
+    return Prompt(text=f"{block}Problem:\n{q}\n\nSolution:\n", stop=FEW_SHOT_STOP)

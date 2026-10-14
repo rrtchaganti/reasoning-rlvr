@@ -44,6 +44,23 @@ class Completion:
         return self.finish_reason == "length"
 
 
+def truncate_at_stop(text: str, stops: Sequence[str]) -> tuple[str, bool]:
+    """Cut ``text`` after the earliest stop string, keeping the stop string itself.
+
+    Mirrors vLLM with ``include_stop_str_in_output=True`` so that both backends hand identical
+    text to the extractor (the ``</answer>`` tag must survive for the tag rule to fire).
+    """
+    best = -1
+    best_len = 0
+    for s in stops:
+        k = text.find(s)
+        if k >= 0 and (best < 0 or k < best):
+            best, best_len = k, len(s)
+    if best < 0:
+        return text, False
+    return text[: best + best_len], True
+
+
 class Sampler:
     """Interface. ``generate`` returns one list of ``n`` completions per prompt, in order."""
 
@@ -97,7 +114,9 @@ class VLLMSampler(Sampler):
             max_tokens=cfg.max_tokens,
             seed=cfg.seed,
             stop=list(cfg.stop) or None,
-            include_stop_str_in_output=False,
+            # Keep the stop string: the think_tag template stops on "</answer>", and the
+            # extraction regex needs the closing tag to be present in the text.
+            include_stop_str_in_output=True,
         )
         outputs = self.llm.generate(list(prompts), params, use_tqdm=True)
         results: list[list[Completion]] = []
@@ -165,10 +184,9 @@ class HFSampler(Sampler):
                     text = self.tok.decode(ids, skip_special_tokens=True)
                     hit_eos = bool((ids == self.tok.eos_token_id).any())
                     finish = "stop" if hit_eos else "length"
-                    for s in cfg.stop:
-                        k = text.find(s)
-                        if k >= 0:
-                            text, finish = text[:k], "stop"
+                    text, hit_stop = truncate_at_stop(text, cfg.stop)
+                    if hit_stop:
+                        finish = "stop"
                     n_tok = int((ids != self.tok.pad_token_id).sum())
                     comps.append(Completion(text=text, num_tokens=n_tok, finish_reason=finish))
                 results.append(comps)
