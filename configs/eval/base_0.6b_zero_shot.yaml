@@ -1,0 +1,15 @@
+# EXP-001: greedy baseline, Qwen/Qwen3-0.6B-Base, template zero_shot. Full eval sets. Local RTX 4060.
+model: Qwen/Qwen3-0.6B-Base
+evals: [gsm8k, gsm8k_perturbed, math500, aime24]
+template: zero_shot
+n: 1
+temperature: 0.0
+max_tokens: 1024
+seed: 0
+countdown_n: 500
+backend: vllm
+batch_invariant: true
+dtype: bfloat16
+gpu_memory_utilization: 0.85
+max_model_len: 4096
+out: outputs/eval/base_0.6b_zero_shot

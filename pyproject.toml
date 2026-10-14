@@ -44,6 +44,8 @@ dev = [
 
 [project.scripts]
 rlvr-eval = "rlvr.eval.run_eval:main"
+rlvr-perturb-gsm8k = "rlvr.data.perturb_gsm8k:main"
+rlvr-probe-partial = "rlvr.data.partial_prompt:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
