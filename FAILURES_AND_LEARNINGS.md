@@ -187,3 +187,15 @@ command and the log path, and reads the results afterwards. Background jobs from
 for short things (gate, lint, tests, generators). `.wslconfig` memory can also be lowered to 8 GB.
 **Cost.** About 17 minutes (mostly the one-time 3.4 GB weight download, which did survive in the HF
 cache) plus one engine start-up.
+
+## 2026-10-14  A "better" extraction rule that made the grader worse (rejected, kept the fallback)
+**Trigger.** On the 1.7B few-shot-CoT GSM8K run, 230 of 1319 answers came from the last-number fallback and a
+read of the wrong ones found a real grader error: "there are 15 liters of water in the remaining 24 liters of
+drink" was extracted as 24.
+**Attempt.** A "conclusion sentence" rule: take the first number of the last sentence that starts with So /
+Therefore / Thus / Hence / In total, placed before the last-number fallback. Evaluated on the stored samples
+before touching the code: it changed 34 extractions, fixed 6 and broke 10 on GSM8K (net minus 0.30 points) and
+fixed 3, broke 5 on the perturbed set. Rejected.
+**Lesson.** Every grader change is measured on stored samples before it is adopted, and reported as a delta.
+Intuition from six examples is not evidence; the base model restates givens in its conclusion sentences about as
+often as it states answers. The fallback's share (17 % here) is in every table so the reader can judge.
