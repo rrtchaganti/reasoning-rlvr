@@ -9,7 +9,7 @@ How this repository is built, phase by phase. These rules hold for the whole pro
 - **One repository**, rooted at this folder. GitHub name `reasoning-rlvr`. The plan documents (`PLAN.md`, `WORKFLOW.md`, `GLOSSARY.md`, `METHODS_AND_METRICS.md`, `PHASES_IO_AND_HYPERPARAMS.md`) live in it from the first commit, so the design history is reviewable.
 - **Code lives in the Windows folder, runs in WSL2.** The repo is at `/mnt/c/Users/chaga/Documents/Job_shift/Independent_research_projects/reasoning_rlvr` from Ubuntu. The Python environment, the Hugging Face cache and vLLM's cache stay on the Linux disk (`~/venvs/rlvr`, `HF_HOME=~/.cache/huggingface`) because virtual environments and large caches on `/mnt/c` are slow and break file permissions. `outputs/` is git-ignored and can point anywhere via `RLVR_OUTPUT_DIR`.
 - **What is never committed**: datasets, model weights, checkpoints, LoRA adapters, tokenizer dumps, sampled generations, W&B run directories, logs, caches, virtual environments, secrets. Enforced by `.gitignore`; see section 4 for where each of these goes instead.
-- **What is committed**: source, tests, configs, scripts, documentation, Markdown reports with tables, small JSON summaries under 1 MB (per-run metrics, CIs), figures as PNG or SVG under 1 MB, data manifests (URL, revision, content hash, row count), and the compute ledger.
+- **What is committed**: source, tests, configs, scripts, documentation (including `docs/phase-N-engineering-notes.md` per phase), Markdown reports with tables, small JSON summaries under 1 MB (per-run metrics, CIs), figures as PNG or SVG under 1 MB, data manifests (URL, revision, content hash, row count), and the compute ledger.
 
 ## 2. Branching: one branch per phase
 
@@ -74,8 +74,9 @@ It is the personal audit trail for the repository and doubles as a cheat sheet.
 3. Pre-register the phase's experiments in `experiments.md` (hypothesis, metric, falsifier) and commit that before any run.
 4. Build, test, run. Commit small. Log every diagnosis in `FAILURES_AND_LEARNINGS.md` as it happens, not at the end.
 5. Write results into `outputs/reports/phase-N.md`, update `README.md` tables and the status row, append `COMPUTE.md`.
-6. Tick the checklist, mark the PR ready, merge with a merge commit, tag `phase-N`, push tags.
-7. Push checkpoints and sample sets to the Hub with the tag in their cards.
+6. Write `docs/phase-N-engineering-notes.md`: what was built, how each piece is tested and why that test, the design decisions and the alternatives rejected, known debts, and the interview questions the phase invites. Results go in the report; reasoning goes here.
+7. Tick the checklist, mark the PR ready, merge with a merge commit, tag `phase-N`, push tags.
+8. Push checkpoints and sample sets to the Hub with the tag in their cards.
 
 ## 8. Remote setup (done once)
 

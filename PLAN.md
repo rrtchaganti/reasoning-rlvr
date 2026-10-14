@@ -298,6 +298,7 @@ reasoning_rlvr/
   PLAN.md                      this file
   WORKFLOW.md                  git process: branch per phase, PRs into main, what is never committed
   .github/                     CI (ruff + pytest on CPU) and the phase PR template
+  docs/                        engineering notes per phase: what was built, how it is tested, why, interview Q&A
   cards/                       model-card sources for the HF checkpoints
   data/manifests/              dataset ids, revisions, hashes (the data itself is git-ignored)
   README.md                    results, how to reproduce
