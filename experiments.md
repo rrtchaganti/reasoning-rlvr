@@ -26,6 +26,7 @@ pass@1 on GSM8K-test varies by well under 0.5 points across three identical runs
 Report max minus min.
 **Falsifier.** Spread above 1 point: the harness is not reproducible and every later
 comparison needs this noise added to its CI.
-**Config.** `configs/eval/phase0_smoke.yaml`; seeds 0, 0, 0; commit TBD.
+**Config.** `configs/eval/phase0_smoke.yaml`; seeds 0, 0, 0; commit TBD (after the prompt fixes below).
+**Attempt 1 (commit 9a2edfa, discarded).** One run only. It found three harness bugs rather than measuring noise: MATH-500 61 % extraction failures (prompt ended on the wrong token boundary, model emitted end-of-text), Countdown 100 % failures (pre-filled `<think>` as the last token; stop string stripped). GSM8K 67.0 [58.0, 76.0] on its 100-problem subset looked sane and 12 of 12 inspected wrong samples were genuine model errors. Fixed in the following commit; see FAILURES_AND_LEARNINGS.md (14 Oct). Output kept locally as `run1_before_prompt_fixes`.
 **Result.** TBD
 **Conclusion.** TBD

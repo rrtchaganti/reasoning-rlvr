@@ -70,3 +70,51 @@ before paying for another vLLM startup.
 **Lesson.** Check `python -c "import sysconfig,os;print(os.path.exists(sysconfig.get_paths()['include']+'/Python.h'))"`
 as part of environment setup whenever Triton or torch.compile is in the stack. Added to the install
 script's verify step.
+
+## 2026-10-14  Smoke run 1: 53 % of MATH-500 completions were empty (model emitted end-of-text at once)
+**Symptom.** `math500` extraction-failure rate 61 %, of which 53 completions had exactly one token
+and empty text, finish reason "stop". GSM8K on the same model, same run: 0 % failures.
+**Diagnosis.** Probed the next-token distribution with the HF backend. With the prompt ending in
+`Solution:` the top token was `<|endoftext|>` with probability 0.24 to 0.49 on every empty case.
+The Qwen3 tokeniser merges colon-plus-newline into one token, so the four shots contain
+`[Solution][:⏎]` while the prompt ended on a bare `[:]`, a token state the shots never show.
+GSM8K was fine because its shots read `Answer: The ...`, where the colon stands alone anyway.
+**Fix.** MATH prompts (zero-shot and few-shot) now end with `Solution:` followed by a newline, so
+the final prompt token is the same `[:⏎]` the shots use. Probe after the fix: top tokens
+`The / To / We / Let`, normal solutions. Regression test pins the ending.
+**Lesson.** Check the token boundary at the end of every prompt against the shots
+(`tokenizer.encode` of the last few characters), not just the text. The classic "token healing"
+bug; it costs nothing to test and silently halves an eval score.
+
+## 2026-10-14  Smoke run 1: Countdown completions were garbage after the pre-filled `<think>`
+**Symptom.** 100 % extraction failures on Countdown. Completions started with `__(*14, 2, 4, 5) = 15`
+or `.linkedin .linkedin ...`, 36 % ran to the 1024-token limit repeating `Assistant: __(...)`.
+**Diagnosis.** `<think>` is a single added token (id 151667) in the Qwen3 tokeniser. The base
+model has barely seen it, so with `<think>` as the final prompt token the distribution is broken
+whatever precedes it (tested `Assistant: <think>` and `Assistant: Let me solve this step by step.`
+plus `<think>`, both garbage). With a newline after `<think>` the model writes ordinary
+step-by-step text. TinyZero's prompt pre-filled `<think>` for Qwen2.5, where it is three BPE pieces.
+**Fix.** think_tag prompt ends `Assistant:` newline `<think>` newline; completion prefix is
+`<think>` plus newline. The later GRPO format reward is unaffected (it sees the full text).
+**Lesson.** Special or added tokens at the end of a base-model prompt are a trap: a base model has
+no training signal for what follows them. Prefill through to the first ordinary token.
+
+## 2026-10-14  Smoke run 1: the `</answer>` stop string was stripped, so the tag rule could never fire
+**Symptom.** Even a perfectly formatted `<answer> 20 + 21 + 7 + 18 </answer>` would have been an
+extraction failure, because vLLM was configured with `include_stop_str_in_output=False` and the
+stop string is `</answer>`, while the extractor requires the closing tag.
+**Fix.** vLLM keeps the stop string; the HF sampler mirrors it through `truncate_at_stop` (unit
+tested) so both backends hand identical text to the extractor.
+**Lesson.** When the stop string is part of the answer format, keep it in the output. A smoke run
+with a deliberately well-formatted fake completion through the full sampler path would have caught
+this before the GPU did.
+
+## 2026-10-14  Minor: `$228 000` was extracted as `228`
+GSM8K questions sometimes write thousands with spaces and the model copies the style. The number
+regex now accepts space-grouped thousands (groups of exactly three digits) and strips the spaces.
+Did not change any grade in run 1 (the model's 228 000 was wrong anyway), logged for completeness.
+
+## 2026-10-14  Files written from Windows Python arrive in WSL with CRLF line endings
+`scripts/setup_env.sh` failed in WSL bash with "syntax error: unexpected end of file" because
+`Path.write_text` on Windows used CRLF. Fixed with a CR-stripping `sed`; all later writes pass
+`newline="\n"`. Check before committing: a recursive grep for carriage returns must be empty.
