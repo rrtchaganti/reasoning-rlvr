@@ -175,6 +175,8 @@ Each phase lists: objective, steps, exit criterion, what usually goes wrong, and
 
 **Exit.** D2 report. One figure: pass@k and maj@k vs k for all evals. D3 baseline rows filled.
 
+*Status, 14 Oct 2026.* Steps 1, 4 and 5 done locally (D2 report, D3 rows, calibration passed). Steps 2 and 3 (n = 64 sampling, the figure, the saved samples) are marked "not met, because no rented GPU yet" at merge time and run first in the Phase 2 rental session (EXP-002 in `experiments.md`).
+
 **Interview value.** The pass@64 ceiling is the reference point for the central question of the project (Yue et al.): if GRPO's pass@1 ends up below the base model's pass@64, RL sharpened; if pass@64 itself rises, RL added.
 
 ### Phase 2: SFT distillation (1.5 days)
