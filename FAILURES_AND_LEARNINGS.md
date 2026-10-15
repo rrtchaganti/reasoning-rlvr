@@ -303,3 +303,32 @@ runs the fp32-plus-autocast combination through TRL's fused LM head.
 **Learning.** "bf16 training" in a DeepSpeed recipe means bf16 compute with fp32 master weights; the
 same flags on a single-GPU Trainer mean pure bf16. Check what holds the master copy before copying
 a recipe's precision settings.
+
+## 2026-10-15  "4096 new tokens" was 4096 minus the prompt: `max_model_len` clips the budget silently        [phase 2] [eval] [protocol]
+**Symptom.** The base think-tag reference (`configs/eval/base_1.7b_think_tag_4096.yaml`, max_tokens
+4096) reported truncated outputs of 3,865-3,994 tokens, never 4,096.
+**Diagnosis.** vLLM stops a completion at `max_model_len - len(prompt)` when that is below
+`max_tokens`; the config sets `max_model_len: 4096` (for the 8 GB KV cache) next to `max_tokens: 4096`.
+The three SFT checkpoint configs do the same, so the paired base-vs-SFT cap is identical per problem;
+the dev and n = 64 sample configs use 6144 and are unaffected; the Phase 1 rows (1024 new tokens)
+always had room.
+**Fix.** Window kept at 4096 for the paired rows (the base's loops never end, journal section 14, so
+100-200 more tokens change nothing and a rerun costs 4 local hours); the effective budget is stated
+in every table; `rlvr-eval` computes `context_budget` per eval from the prompt lengths, warns when
+the window caps it and records it in `metrics.json` (`tests/test_eval_harness_end_to_end.py`).
+EXP-006 amendment (d).
+**Learning.** A generation budget has two knobs and the context window wins. Read the effective
+budget off the run (the longest truncated output) and have the harness print it before sampling,
+rather than a reviewer computing it afterwards.
+
+## 2026-10-15  Wall-clock estimate off by four: "about an hour" took 3 h 55 min        [phase 2] [eval] [process]
+**Symptom.** The base think-tag reference at the 4096 window was announced as about an hour on the
+4060; it took 3 h 55 min (five eval sets, 3,179 problems, 5.3 M generated tokens).
+**Diagnosis.** The estimate was anchored on the Phase 1 think-tag row (24 min) without scaling it:
+that row had a 1024-token budget. Four times the tokens, and the throughput fell from 1,216 to 372
+output tokens/s because the 8 GB KV cache holds about six 4096-token sequences instead of twenty.
+**Fix.** None needed for the run; the estimate rule is now: tokens = problems x expected mean length
+(assume the cap for a looping base), divided by the throughput measured at that context length on
+that GPU, plus engine start-up. `COMPUTE.md` carries the measured throughput.
+**Learning.** Throughput is not a constant of the GPU; it falls with the context length through the
+KV-cache concurrency. Re-derive the estimate whenever the budget or the window changes.

@@ -73,6 +73,13 @@ fine-tune with the chosen LR, three eval templates, perturbation gap, partial-pr
 min: paired tables, figures, model card, uploads). If money runs short, drop `scaling`, then `lora`;
 never `main` or its evals.
 
+The base think-tag reference in `exp002` was already run locally on 15 Oct (3 h 55 min on the 4060;
+`outputs/eval/base_1.7b_think_tag_4096/`). Copy that folder to the box before starting
+(`scp -r outputs/eval/base_1.7b_think_tag_4096 box:reasoning-rlvr/outputs/eval/`); the step then skips it and
+takes about 2.5 h. Budget note: with `max_model_len: 4096` the think-tag rows get 4096 minus the prompt
+(3,865-3,994 new tokens); the SFT checkpoint configs use the same window on purpose, so the paired rows
+share the cap per problem, and `rlvr-eval` prints the effective budget per eval (journal, section 14).
+
 Set `HF_DRY_RUN=1` to run the report step without uploading; `HF_REPO_SFT` and `HF_REPO_SAMPLES`
 override the repo names.
 

@@ -11,5 +11,8 @@ backend: vllm
 batch_invariant: true
 dtype: bfloat16
 gpu_memory_utilization: 0.85
+# 4096 on purpose: the budget is the window minus the prompt (3,865-3,994 new tokens); every paired
+# think-tag row (base reference and checkpoints) uses the same window. rlvr-eval prints the effective
+# budget per eval and records it as context_budget in metrics.json (journal, section 14).
 max_model_len: 4096
 out: outputs/eval/sft_1.7b_zero_shot

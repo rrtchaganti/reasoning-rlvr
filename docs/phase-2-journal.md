@@ -361,3 +361,50 @@ revisited if the rented LoRA run's format rate lags the full fine-tune's.
 
 Smoke step 3 closes the local part of Phase 2. Next: your draft PR from `../PR_BODY_phase2.md`, then
 the rental session (`docs/rental-setup.md`, `scripts/phase2_rental.sh`).
+
+## 14. The base think-tag reference at the 4096 context (15 Oct, your terminal, 3 h 55 min)
+
+`configs/eval/base_1.7b_think_tag_4096.yaml` on the 4060: all five eval sets, greedy, batch-invariant.
+I had said "about an hour". The Phase 1 think-tag row I anchored on was a 1024-token run (24 min), and
+I did not scale it: four times the token budget at a third of the throughput (the KV cache holds about
+six 4096-token sequences on 8 GB against twenty at 1024; 372 output tokens/s against 1,216) is ten
+times the wall clock, and that is what it took. A generation-time estimate is tokens divided by the
+throughput measured at that context length, not a remembered number. Logged in the compute ledger.
+
+| eval | n | pass@1 at 1024 (Phase 1) | pass@1 at the 4096 window | truncated 1024 -> 4096 | extraction failure 1024 -> 4096 |
+|---|---|---|---|---|---|
+| GSM8K | 1319 | 61.3 [58.7, 63.8] | 61.8 [59.2, 64.4] | 35.8 % -> 35.8 % | 0 -> 0 |
+| GSM8K perturbed | 830 | 50.8 [47.6, 54.5] | 51.4 [48.1, 54.8] | 35.8 % -> 35.8 % | 0 -> 0 |
+| MATH-500 | 500 | 43.0 [38.8, 47.4] | 44.8 [40.4, 49.2] | 24.2 % -> 20.0 % | 28.2 % -> 24.6 % |
+| Countdown | 500 | 1.2 [0.4, 2.2] | 1.2 [0.4, 2.2] | 66.4 % -> 65.6 % | 68.8 % -> 68.6 % |
+| AIME24 | 30 | 6.7 [0.0, 16.7] | 6.7 [0.0, 16.7] | 40 % -> 30 % | 0 -> 0 |
+
+`tag_format_rate` is 0 on every eval, as section 12 predicts: the base cannot emit `</think>`.
+
+**Two findings.**
+
+- *The base's think-tag loops never end.* Greedy decoding is deterministic and batch-invariant, so
+  the first 1024 tokens of every output are the same in both runs (all 847 GSM8K outputs that stopped
+  under 1024 are byte-identical across the runs). Of the 472 GSM8K outputs truncated at 1024, all 472
+  were still running at the 4096 window; perturbed 297 of 297; MATH-500 100 of 121; Countdown 328 of
+  332; AIME24 9 of 12. Four times the budget bought MATH-500 21 finished outputs (+1.8 points, CIs
+  overlapping) and GSM8K nothing but 57 last-number flips inside the loops (+0.5 net). The base's
+  truncation rate is a property of the model, not of the budget: once it loops, it does not stop.
+  The SFT checkpoint is the first model for which the 4096 budget can mean anything.
+- *`max_model_len: 4096` clips the budget.* The truncated outputs end at 3,865-3,994 tokens, never
+  4,096: vLLM stops a completion at the context window minus the prompt, and the config sets the
+  window to 4096 (chosen for the 8 GB KV cache). The protocol "4096 new tokens" was, as run, "a
+  4096-token window, 4096 minus a 102-231-token prompt". The three SFT checkpoint configs set the
+  same window, so base and checkpoint get the same cap on every problem and the paired comparison is
+  intact; the dev-split and the n = 64 sample configs use 6144 and do get the full 4096. Decision:
+  keep the window at 4096 for the paired rows (rerunning the base for 100-200 more tokens of loops
+  costs 4 local hours or half an A100-hour and, by the first finding, changes nothing), state the
+  effective budget in every table, and make the harness say it: `rlvr-eval` now computes the context
+  budget per eval from the prompt lengths, prints a warning when `max_model_len` caps it, and writes
+  `context_budget` into `metrics.json`. Tests: the arithmetic on the numbers above and the HF sampler
+  on the tiny model. EXP-006 amendment (d) records the protocol as run. Caught after a local run
+  rather than after a rented one, which is what the local run was for.
+
+**Next.** The reference folder `outputs/eval/base_1.7b_think_tag_4096/` must be on the rental box
+before `scripts/phase2_rental.sh` runs (the `exp002` step skips the reference when its `metrics.json`
+exists); `docs/rental-setup.md` section 3 says how. Nothing else is left to run locally.

@@ -13,9 +13,24 @@ from rlvr.eval.sampler import (
     Completion,
     HFSampler,
     SamplingConfig,
+    context_budget,
     truncate_at_stop,
     vllm_env_overrides,
 )
+
+
+def test_context_budget_reports_the_clip():
+    # the Phase 2 base reference: prompts of 102-231 tokens, max_tokens 4096, window 4096
+    b = context_budget([102, 231], 4096, 4096)
+    assert b["capped_by_context"]
+    assert b["effective_max_tokens_min"] == 3865 and b["effective_max_tokens_max"] == 3994
+    # a window with room: the budget is max_tokens itself
+    b = context_budget([102, 231], 4096, 6144)
+    assert not b["capped_by_context"]
+    assert b["effective_max_tokens_min"] == 4096 and b["effective_max_tokens_max"] == 4096
+    # unknown window or no prompts: nothing to report
+    assert context_budget([102], 4096, None) is None
+    assert context_budget([], 4096, 4096) is None
 
 
 def test_batch_invariant_is_the_default_and_can_be_switched_off():
@@ -105,7 +120,7 @@ def test_hf_sampler_runs_on_tiny_model(tmp_path):
     )
     torch.manual_seed(0)
     model = Qwen2ForCausalLM(cfg)
-    sampler = HFSampler(model, tok, batch_size=2)
+    sampler = HFSampler(model, tok, batch_size=2, max_model_len=20)
     es = EvalSet(
         "toy",
         "numeric",
@@ -119,6 +134,9 @@ def test_hf_sampler_runs_on_tiny_model(tmp_path):
     )
     assert len(out) == 3 and all(len(o) == 2 for o in out)
     assert all(c.num_tokens <= 8 for o in out for c in o)
+    budget = sampler.context_budget([p.text for p in prompts], 8)
+    assert budget["prompt_tokens_max"] >= budget["prompt_tokens_min"] > 0
+    assert budget["capped_by_context"] == (20 - budget["prompt_tokens_max"] < 8)
     results = grade_completions(es, out)
     s = summarize(results, ks=(1, 2))
     json.dumps(s)  # serialisable

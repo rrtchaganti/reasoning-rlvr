@@ -152,6 +152,15 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
             seed=cfg_base.seed,
             stop=tuple(stop),
         )
+        budget = sampler.context_budget([p.text for p in prompts], cfg.max_tokens)
+        if budget and budget["capped_by_context"]:
+            print(
+                f"[rlvr-eval] {name}: max_model_len {budget['max_model_len']} caps new tokens at "
+                f"{budget['effective_max_tokens_min']}-{budget['effective_max_tokens_max']} "
+                f"(max_tokens {budget['max_tokens']}, prompts {budget['prompt_tokens_min']}-"
+                f"{budget['prompt_tokens_max']} tokens); 'length' means the context, not max_tokens",
+                flush=True,
+            )
         t_eval = time.time()
         completions = sampler.generate([p.text for p in prompts], cfg)
         results = grade_completions(
@@ -168,6 +177,7 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
                 "manifest": es.manifest(),
                 "wall_clock_s": time.time() - t_eval,
                 "backend": sampler.describe(),
+                "context_budget": budget,
             }
         )
         eval_dir = out / name

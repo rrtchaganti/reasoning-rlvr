@@ -18,11 +18,12 @@ the sections marked *after the rental* are filled in when the training runs have
 | Trainer, incl. the untrained-tag-row handling | `src/rlvr/train/sft.py` (`rlvr-sft`) | `tests/test_train_sft.py` (8 CPU + 2 GPU + 2 slow) |
 | Paired checkpoint comparison | `scripts/compare_checkpoints.py` | `tests/test_phase2_scripts.py` |
 | LR choice, data-scaling figure, model card and uploads | `scripts/pick_lr.py`, `scripts/plot_data_scaling.py`, `scripts/push_to_hub.py` | `tests/test_phase2_scripts.py` |
+| Context-budget guard in the eval harness | `src/rlvr/eval/sampler.py` (`context_budget`), `run_eval.py` | `tests/test_eval_harness_end_to_end.py` (+1, +1 slow) |
 | Rental session | `scripts/phase2_rental.sh` (resumable, 8 steps) | `bash -n`; exercised on the box |
 | Configs | `configs/train/*.yaml` (8), `configs/eval/{sft_*,ckpt_think_tag_dev,base_1.7b_think_tag_4096}.yaml`, `configs/sample/sft_*.yaml` | config loading tested |
 
-Suite at the end of the code phase: 152 tests on CPU (about 20 s), 2 GPU-marked and 2 slow trainer
-tests (all four pass on the laptop's RTX 4060).
+Suite at the end of the code phase: 153 tests on CPU (about 40 s), 2 GPU-marked and 3 slow tests
+(the trainer's four pass on the laptop's RTX 4060).
 
 ## 2. The data pipeline: what each stage is for
 
@@ -144,6 +145,14 @@ reused. Both the 4-shot-CoT and zero-shot rows of each checkpoint are kept for c
 Phase 1. Every comparison is paired on shared problem ids (`compare_checkpoints.py`): accuracy of both,
 the paired bootstrap difference, the flip counts, MATH-500 by level.
 
+As run, the budget is a 4096-token *window* (`max_model_len: 4096`, chosen for the laptop's KV cache):
+4096 minus the prompt, 3,865-3,994 new tokens. The base reference and the three checkpoint configs
+share the window, so the cap is identical per problem on both sides of every pair; the dev-split and
+n = 64 configs use 6144. `rlvr-eval` computes the budget per eval from the prompt lengths, prints a
+warning when the window caps it and writes `context_budget` into `metrics.json`. The base reference
+itself (journal, section 14) showed that the base's think-tag loops never end: every GSM8K output
+truncated at 1024 was still running at 4096.
+
 ## 8. Budget
 
 61.8 M tokens per epoch, two epochs, 1.7B parameters: about 1.3e18 FLOPs for the main run, 3-5
@@ -177,6 +186,9 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
   1.7B) in order to move two rows. A separate, higher learning rate for new rows is the usual recipe
   and a sparse optimiser state the usual saving; neither was added before the rental. Revisit if the
   EXP-007 format rate lags the full fine-tune's.
+- The think-tag window is 4096 tokens in total, not 4096 new tokens (section 7). A true 4096 would
+  need `max_model_len: 6144` in the four paired configs and a rerun of the base reference (about half
+  an A100-hour); not done because the base's loops never end and the pair shares the cap.
 
 ## 10. Results and what they mean *(after the rental)*
 
@@ -210,6 +222,11 @@ compute rows.
   rather than after the rented run. The rerun with the fix wrote `</think>` in 5 of 100 outputs, each in the training position,
   with accuracy unchanged within the paired CI; the low count is 50 LoRA steps on 400 examples, not
   the mechanism.
+- *Your protocol says 4096 new tokens. Was it?* As run, no: `max_model_len: 4096` makes vLLM stop at
+  the window minus the prompt, 3,865-3,994 new tokens, and the harness said nothing. Caught on the
+  local base reference from the lengths of the truncated outputs. Kept, because every paired row
+  shares the window and the base loops never end anyway; stated in every table; the harness now
+  prints and records the effective budget per eval.
 - *Why fp32 master weights when everyone says "train in bf16"?* Because recipes that say so run
   DeepSpeed or FSDP with an fp32 master copy. On a single GPU with the plain Trainer, bf16 weights are
   the master copy, and an Adam step at LR 1e-5 is below the bf16 spacing of a typical weight.
