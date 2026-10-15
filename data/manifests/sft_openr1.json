@@ -1,0 +1,196 @@
+{
+  "name": "sft_openr1",
+  "source": "open-r1/OpenR1-Math-220k",
+  "config": "default",
+  "revision": "e4e141ec9dea9f8326f4d347be56105859b2bd68",
+  "tokenizer": "Qwen/Qwen3-1.7B-Base",
+  "max_tokens": 4096,
+  "limit": null,
+  "evals_decontaminated": [
+    "aime24",
+    "gsm8k",
+    "gsm8k_dev",
+    "gsm8k_names_only",
+    "gsm8k_perturbed",
+    "math500",
+    "math_dev"
+  ],
+  "fuzzy": true,
+  "min_coverage": 0.5,
+  "num_examples": 23000,
+  "content_hash": "45b3fa4862b11e2a",
+  "kept_token_stats": {
+    "n": 23000,
+    "mean": 2686.8,
+    "p50": 2707,
+    "p90": 3789,
+    "p99": 4066,
+    "max": 4096,
+    "total": 61796025
+  },
+  "stats": {
+    "rows_seen": 93733,
+    "kept": 23057,
+    "drops": {
+      "multiple_boxed": 5965,
+      "no_correct_generation": 28627,
+      "no_boxed_in_summary": 513,
+      "no_single_think_close": 188,
+      "duplicate_problem": 721,
+      "nested_think": 3,
+      "empty_summary": 2,
+      "unbalanced_boxed": 7,
+      "too_long": 34650
+    },
+    "candidate_token_stats": {
+      "n": 57707,
+      "mean": 5985.4,
+      "p50": 4939,
+      "p90": 11796,
+      "p99": 16691,
+      "max": 22266,
+      "total": 345400988
+    }
+  },
+  "overlap": {
+    "gsm8k": {
+      "num_eval": 1319,
+      "eval_hit_ngram": 0,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 0,
+      "eval_hit_union_pct": 0.0,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 0,
+      "seconds": 16.8
+    },
+    "math500": {
+      "num_eval": 500,
+      "eval_hit_ngram": 6,
+      "eval_hit_ngram_covered": 2,
+      "eval_hit_fuzzy": 2,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 6,
+      "eval_hit_union_pct": 1.2,
+      "eval_contaminated": 3,
+      "eval_contaminated_pct": 0.6,
+      "train_items_dropped": 31,
+      "seconds": 4.8
+    },
+    "aime24": {
+      "num_eval": 30,
+      "eval_hit_ngram": 8,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 8,
+      "eval_hit_union_pct": 26.67,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 36,
+      "seconds": 2.0
+    },
+    "gsm8k_perturbed": {
+      "num_eval": 830,
+      "eval_hit_ngram": 0,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 0,
+      "eval_hit_union_pct": 0.0,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 0,
+      "seconds": 10.7
+    },
+    "gsm8k_names_only": {
+      "num_eval": 516,
+      "eval_hit_ngram": 0,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 0,
+      "eval_hit_union_pct": 0.0,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 0,
+      "seconds": 7.1
+    },
+    "gsm8k_dev": {
+      "num_eval": 250,
+      "eval_hit_ngram": 0,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 0,
+      "eval_hit_union_pct": 0.0,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 0,
+      "seconds": 4.3
+    },
+    "math_dev": {
+      "num_eval": 250,
+      "eval_hit_ngram": 9,
+      "eval_hit_ngram_covered": 2,
+      "eval_hit_fuzzy": 1,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 9,
+      "eval_hit_union_pct": 3.6,
+      "eval_contaminated": 2,
+      "eval_contaminated_pct": 0.8,
+      "train_items_dropped": 37,
+      "seconds": 3.2
+    },
+    "_total": {
+      "train_items_dropped_union": 57,
+      "kept_after_decontamination": 23000
+    }
+  },
+  "by_source": {
+    "olympiads": 17491,
+    "cn_contest": 3469,
+    "aops_forum": 1448,
+    "number_theory": 55,
+    "amc_aime": 397,
+    "inequalities": 118,
+    "olympiads_ref": 22
+  },
+  "by_problem_type": {
+    "Algebra": 10722,
+    "Geometry": 3231,
+    "Calculus": 1382,
+    "Combinatorics": 2438,
+    "Number Theory": 3419,
+    "Logic and Puzzles": 1132,
+    "Inequalities": 456,
+    "Other": 220
+  },
+  "git_commit": "04779ecf5e0ecbed7586000d9012f98697fa1c1c",
+  "built_in_s": 318.3,
+  "train_file": "/mnt/c/Users/chaga/Documents/Job_shift/Independent_research_projects/reasoning_rlvr/outputs/data/sft/train.jsonl",
+  "answer_check": {
+    "n": 2000,
+    "agree": 1997,
+    "agree_pct": 99.8,
+    "disagreements": [
+      {
+        "id": "3de64994-d3e2-5eb4-b72f-d34dd14b5c66",
+        "ours": "B",
+        "source_answer": "\\textbf{(B)}1"
+      },
+      {
+        "id": "21ca3868-d793-519e-a1bc-bd94b4bdbdac",
+        "ours": "13",
+        "source_answer": "13==11\\times182-3\\times663"
+      },
+      {
+        "id": "fbfc468e-deb8-5bf9-872a-8aa4f6abaa94",
+        "ours": "\\dfrac{15 + 7i}{10}",
+        "source_answer": "\\frac{3}{2}+\\frac{7}{10}i"
+      }
+    ]
+  }
+}
