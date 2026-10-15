@@ -5,6 +5,7 @@ import pytest
 from rlvr.data.contamination import (
     fuzzy_overlap,
     ngram_overlap,
+    ngrams,
     normalize_text,
     overlap_report,
     write_report,
@@ -73,23 +74,38 @@ def test_dirty_tree_refused_when_not_allowed(tmp_path, monkeypatch):
     assert info["run_tag"].endswith("-dirty")
 
 
-def test_ngram_boilerplate_filter_ignores_template_grams():
-    """A 13-gram shared by many training items is a template, not a copy (the AIME
-    'relatively prime positive integers, find m + n' sentence, 15 Oct 2026)."""
+def test_ngram_coverage_filter_ignores_template_sentences():
+    """A 13-gram shared through a template sentence covers one line of the problem; a copy
+    covers all of it (the AIME 'relatively prime positive integers, find m + n' case, 15 Oct
+    2026). A document-frequency cutoff cannot separate them because template variants are
+    individually rare, so the report uses coverage."""
     tail = "can be written as m over n where m and n are relatively prime positive integers find m plus n"
     evals = {
-        "aime_a": "Eight circles of radius thirty four are tangent and the inradius " + tail,
-        "aime_b": "Jen picks four distinct numbers and the probability of the grand prize " + tail,
+        "aime_a": "Eight circles of radius thirty four are sequentially tangent and two of the "
+        "circles are tangent to the two sides of the triangle respectively so the inradius " + tail,
+        "aime_b": "Jen enters a lottery by picking four distinct numbers from the set of the "
+        "first ten positive integers and she wins the grand prize with probability " + tail,
     }
-    train = {
-        f"t{i}": f"Training problem {i} about something else whose answer {tail}" for i in range(6)
-    }
-    train["copy"] = evals["aime_a"]
+    train = {"template": "Some other problem whose answer " + tail, "copy": evals["aime_a"]}
     every = ngram_overlap(evals, train, n=13)
-    assert set(every) == {"aime_a", "aime_b"} and len(every["aime_b"]) >= 6
-    rare = ngram_overlap(evals, train, n=13, max_df=5)
-    assert rare == {"aime_a": ["copy"]}  # only the verbatim copy survives the filter
-    rep = overlap_report("aime", evals, train, run_fuzzy=False, max_df=5)
-    assert rep.summary()["eval_hit_ngram"] == 2 and rep.summary()["eval_hit_ngram_rare"] == 1
+    assert set(every) == {"aime_a", "aime_b"} and set(every["aime_b"]) == {"template"}
+    covered = ngram_overlap(evals, train, n=13, min_coverage=0.5)
+    # the 19-token template covers under half of a 45-token problem; the copy covers all of it
+    assert covered == {"aime_a": ["copy"]}
+    rep = overlap_report("aime", evals, train, run_fuzzy=False, min_coverage=0.5)
+    s = rep.summary()
+    assert s["eval_hit_ngram"] == 2 and s["eval_hit_ngram_covered"] == 1
     assert rep.contaminated_eval_ids == {"aime_a"}
-    assert rep.train_ids_to_drop == set(train)  # conservative: every hit item is still dropped
+    assert rep.train_ids_to_drop == {"template", "copy"}  # conservative drop keeps every hit
+
+
+def test_ngram_coverage_arithmetic():
+    from rlvr.data.contamination import ngram_coverage
+
+    toks = ["a", "b", "c", "d", "e", "f", "g", "h"]  # 8 tokens, n = 3: 6 windows
+    pos = {}
+    for i, g in enumerate(ngrams(toks, 3)):
+        pos.setdefault(g, []).append(i)
+    assert ngram_coverage({("a", "b", "c")}, pos, 3, 8) == 3 / 8
+    assert ngram_coverage({("a", "b", "c"), ("b", "c", "d")}, pos, 3, 8) == 4 / 8
+    assert ngram_coverage(set(pos), pos, 3, 8) == 1.0

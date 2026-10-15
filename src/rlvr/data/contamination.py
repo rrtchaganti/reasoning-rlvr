@@ -19,7 +19,7 @@ from __future__ import annotations
 import bisect
 import json
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,10 +53,10 @@ class OverlapReport:
     fuzzy_hits: dict[str, list[tuple[str, float]]] = field(
         default_factory=dict
     )  # eval_id -> (train id, score)
-    # n-gram hits that survive the boilerplate filter (grams shared by at most ``max_df``
-    # training items); None when the filter was not run
-    ngram_hits_rare: dict[str, list[str]] | None = None
-    max_df: int | None = None
+    # n-gram hits whose shared windows cover at least ``min_coverage`` of the eval problem;
+    # None when the coverage filter was not run
+    ngram_hits_covered: dict[str, list[str]] | None = None
+    min_coverage: float | None = None
 
     @property
     def train_ids_to_drop(self) -> set[str]:
@@ -67,9 +67,10 @@ class OverlapReport:
 
     @property
     def contaminated_eval_ids(self) -> set[str]:
-        """Eval problems counted as present in the training data: a *rare* n-gram hit (when the
-        boilerplate filter ran, else any n-gram hit) or a fuzzy hit."""
-        grams = self.ngram_hits if self.ngram_hits_rare is None else self.ngram_hits_rare
+        """Eval problems counted as present in the training data: an n-gram hit that covers
+        at least ``min_coverage`` of the problem (when the filter ran, else any n-gram hit)
+        or a fuzzy hit."""
+        grams = self.ngram_hits if self.ngram_hits_covered is None else self.ngram_hits_covered
         return set(grams) | set(self.fuzzy_hits)
 
     def summary(self) -> dict:
@@ -79,10 +80,10 @@ class OverlapReport:
             "num_eval": self.num_eval,
             "num_train": self.num_train,
             "eval_hit_ngram": len(self.ngram_hits),
-            "eval_hit_ngram_rare": None
-            if self.ngram_hits_rare is None
-            else len(self.ngram_hits_rare),
-            "max_df": self.max_df,
+            "eval_hit_ngram_covered": None
+            if self.ngram_hits_covered is None
+            else len(self.ngram_hits_covered),
+            "min_coverage": self.min_coverage,
             "eval_hit_fuzzy": len(self.fuzzy_hits),
             "eval_hit_any": len(set(self.ngram_hits) | set(self.fuzzy_hits)),
             "eval_contaminated": len(self.contaminated_eval_ids),
@@ -96,40 +97,59 @@ def ngram_overlap(
     *,
     n: int = 13,
     max_hits_per_eval: int = 20,
-    max_df: int | None = None,
+    min_coverage: float | None = None,
 ) -> dict[str, list[str]]:
     """Map eval id -> training ids sharing at least one n-gram with it.
 
-    ``max_df``: ignore n-grams that occur in more than this many *training* items. Such grams
-    are templates, not copies ("where m and n are relatively prime positive integers find m n"
-    is a 13-gram shared by most AIME problems; found 15 Oct 2026, it made 8 of 30 AIME24
-    problems "hit" through one unrelated training item). None keeps every gram.
+    ``min_coverage``: count a (eval, train) pair only if the shared n-gram windows cover at
+    least this fraction of the eval problem's tokens. A copied problem is covered end to end;
+    a template sentence ("where m and n are relatively prime positive integers, find m + n",
+    in many variants across AIME-style problems) covers one line. Found 15 Oct 2026, when one
+    unrelated training item made 8 of 30 AIME24 problems "hit"; a document-frequency cutoff
+    did not fix it because each template variant is itself rare. None keeps every pair.
     """
     index: dict[tuple[str, ...], list[str]] = defaultdict(list)
+    positions: dict[str, dict[tuple[str, ...], list[int]]] = {}
+    lengths: dict[str, int] = {}
     for eid, text in eval_items.items():
-        for g in set(ngrams(normalize_text(text).split(), n)):
+        toks = normalize_text(text).split()
+        lengths[eid] = max(1, len(toks))
+        pos: dict[tuple[str, ...], list[int]] = defaultdict(list)
+        for i, g in enumerate(ngrams(toks, n)):
+            pos[g].append(i)
+        positions[eid] = pos
+        for g in pos:
             index[g].append(eid)
-    # grams of each training item that occur in the eval index (small: only shared grams)
-    shared: list[tuple[str, set[tuple[str, ...]]]] = []
-    df: Counter[tuple[str, ...]] = Counter()
-    for tid, text in train_items.items():
-        gs = {g for g in ngrams(normalize_text(text).split(), n) if g in index}
-        if gs:
-            shared.append((tid, gs))
-            if max_df is not None:
-                df.update(gs)
     hits: dict[str, list[str]] = defaultdict(list)
-    for tid, gs in shared:
-        seen: set[str] = set()
-        for g in gs:
-            if max_df is not None and df[g] > max_df:
+    for tid, text in train_items.items():
+        shared: dict[str, set[tuple[str, ...]]] = defaultdict(set)
+        for g in ngrams(normalize_text(text).split(), n):
+            for eid in index.get(g, ()):
+                shared[eid].add(g)
+        for eid, gs in shared.items():
+            if (
+                min_coverage is not None
+                and ngram_coverage(gs, positions[eid], n, lengths[eid]) < min_coverage
+            ):
                 continue
-            for eid in index[g]:
-                if eid not in seen:
-                    seen.add(eid)
-                    if len(hits[eid]) < max_hits_per_eval:
-                        hits[eid].append(tid)
+            if len(hits[eid]) < max_hits_per_eval:
+                hits[eid].append(tid)
     return dict(hits)
+
+
+def ngram_coverage(
+    shared: set[tuple[str, ...]],
+    positions: dict[tuple[str, ...], list[int]],
+    n: int,
+    length: int,
+) -> float:
+    """Fraction of an eval problem's tokens inside at least one shared n-gram window."""
+    covered: set[int] = set()
+    for g in shared:
+        width = len(g)  # a short item is one gram of its own length
+        for start in positions.get(g, ()):
+            covered.update(range(start, start + width))
+    return len(covered) / length
 
 
 def fuzzy_overlap(
@@ -172,12 +192,14 @@ def overlap_report(
     n: int = 13,
     fuzzy_threshold: float = 0.9,
     run_fuzzy: bool = True,
-    max_df: int | None = None,
+    min_coverage: float | None = None,
 ) -> OverlapReport:
-    rep = OverlapReport(eval_name, n, len(eval_items), len(train_items), max_df=max_df)
+    rep = OverlapReport(eval_name, n, len(eval_items), len(train_items), min_coverage=min_coverage)
     rep.ngram_hits = ngram_overlap(eval_items, train_items, n=n)
-    if max_df is not None:
-        rep.ngram_hits_rare = ngram_overlap(eval_items, train_items, n=n, max_df=max_df)
+    if min_coverage is not None:
+        rep.ngram_hits_covered = ngram_overlap(
+            eval_items, train_items, n=n, min_coverage=min_coverage
+        )
     if run_fuzzy:
         rep.fuzzy_hits = fuzzy_overlap(eval_items, train_items, threshold=fuzzy_threshold)
     return rep
@@ -189,9 +211,9 @@ def write_report(rep: OverlapReport, path: str | Path, *, examples: int = 10) ->
     payload = {
         "summary": rep.summary(),
         "ngram_hits": dict(list(rep.ngram_hits.items())[:examples]),
-        "ngram_hits_rare": None
-        if rep.ngram_hits_rare is None
-        else dict(list(rep.ngram_hits_rare.items())[:examples]),
+        "ngram_hits_covered": None
+        if rep.ngram_hits_covered is None
+        else dict(list(rep.ngram_hits_covered.items())[:examples]),
         "fuzzy_hits": dict(list(rep.fuzzy_hits.items())[:examples]),
         "contaminated_eval_ids": sorted(rep.contaminated_eval_ids),
         "train_ids_to_drop": sorted(rep.train_ids_to_drop),

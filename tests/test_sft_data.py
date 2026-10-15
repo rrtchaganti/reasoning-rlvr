@@ -155,7 +155,7 @@ def test_decontaminate_drops_hits_and_reports_per_eval(tmp_path):
     assert [ex.id for ex in kept] == ["clean"]
     g = summary["gsm8k"]
     assert g["eval_hit_ngram"] == 1 and g["eval_hit_fuzzy"] == 2 and g["eval_hit_union"] == 2
-    assert g["eval_hit_ngram_rare"] == 1 and g["eval_contaminated"] == 2  # df 1: the copy is rare
+    assert g["eval_hit_ngram_covered"] == 1 and g["eval_contaminated"] == 2  # full copy
     assert g["eval_hit_fuzzy_only"] == 1 and g["train_items_dropped"] == 2
     assert summary["math500"]["eval_hit_union"] == 0
     assert summary["_total"]["train_items_dropped_union"] == 2
@@ -198,7 +198,7 @@ def test_token_stats_and_report_render():
         "gsm8k": {
             "num_eval": 2,
             "eval_hit_ngram": 1,
-            "eval_hit_ngram_rare": 0,
+            "eval_hit_ngram_covered": 0,
             "eval_contaminated": 1,
             "eval_contaminated_pct": 50.0,
             "eval_hit_fuzzy": 1,

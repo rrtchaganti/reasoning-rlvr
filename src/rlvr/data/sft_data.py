@@ -16,9 +16,9 @@ Pipeline, in this order, every drop counted by reason:
 5. **Dedup** on the normalised problem text (keep the first).
 6. **Decontaminate** against every eval set and the dev split with the 13-gram and fuzzy
    detectors from :mod:`rlvr.data.contamination`; every hit item is dropped (conservative),
-   while the *reported* contamination counts only rare 13-grams (shared by at most
-   ``BOILERPLATE_DF`` training items) and fuzzy matches, because template sentences such as
-   "where m and n are relatively prime positive integers, find m + n" are 13-grams too
+   while the *reported* contamination counts only 13-gram hits that cover at least
+   ``MIN_COVERAGE`` of the eval problem, plus fuzzy matches, because template sentences such
+   as "where m and n are relatively prime positive integers, find m + n" are 13-grams too
    (EXP-004 / D3 part a).
 
 Ids: the source uuid, made unique (22 rows carry the uuid "NaN" and some uuids repeat), so
@@ -53,7 +53,7 @@ SOURCE = "open-r1/OpenR1-Math-220k"
 SOURCE_CONFIG = "default"
 DEFAULT_MAX_TOKENS = 4096
 TOKENIZER = "Qwen/Qwen3-1.7B-Base"  # shared by the 0.6B student
-BOILERPLATE_DF = 5  # a 13-gram in more than this many training items is a template
+MIN_COVERAGE = 0.5  # 13-gram hit counts as a copy when it covers half the eval problem
 MISSING_IDS = {"", "nan", "none", "null"}
 DEFAULT_EVALS = (
     "gsm8k",
@@ -310,12 +310,12 @@ def decontaminate(
     n: int = 13,
     fuzzy_threshold: float = 0.9,
     run_fuzzy: bool = True,
-    max_df: int | None = BOILERPLATE_DF,
+    min_coverage: float | None = MIN_COVERAGE,
 ) -> tuple[list[SftExample], dict[str, Any]]:
     """Step 6 (EXP-004): drop every training item that hits any eval problem by any detector;
-    report per eval set the n-gram hits (all, and rare after the boilerplate filter), the fuzzy
-    hits, and ``eval_contaminated`` = rare n-gram or fuzzy, the number that is reported as
-    present in the training data."""
+    report per eval set the n-gram hits (any, and those covering at least ``min_coverage`` of
+    the problem), the fuzzy hits, and ``eval_contaminated`` = covered n-gram or fuzzy, the
+    number reported as present in the training data."""
     train_items = {ex.id: ex.meta.get("problem", "") for ex in examples}
     summary: dict[str, Any] = {}
     to_drop: set[str] = set()
@@ -328,7 +328,7 @@ def decontaminate(
             n=n,
             fuzzy_threshold=fuzzy_threshold,
             run_fuzzy=run_fuzzy,
-            max_df=max_df,
+            min_coverage=min_coverage,
         )
         hit_ids = set(rep.ngram_hits) | set(rep.fuzzy_hits)
         contaminated = rep.contaminated_eval_ids
@@ -336,9 +336,9 @@ def decontaminate(
         summary[name] = {
             "num_eval": rep.num_eval,
             "eval_hit_ngram": len(rep.ngram_hits),
-            "eval_hit_ngram_rare": None
-            if rep.ngram_hits_rare is None
-            else len(rep.ngram_hits_rare),
+            "eval_hit_ngram_covered": None
+            if rep.ngram_hits_covered is None
+            else len(rep.ngram_hits_covered),
             "eval_hit_fuzzy": len(rep.fuzzy_hits),
             "eval_hit_fuzzy_only": len(fuzzy_only),
             "eval_hit_union": len(hit_ids),
@@ -428,8 +428,8 @@ def data_report_markdown(manifest: Mapping[str, Any], overlap: Mapping[str, Any]
         "",
         "## Training-data overlap (EXP-004, D3 part a)",
         "",
-        "| eval set | problems | any 13-gram | rare 13-gram (df <= "
-        f"{BOILERPLATE_DF}) | fuzzy >= 0.9 | fuzzy only | **contaminated** (rare or fuzzy) | % | "
+        "| eval set | problems | any 13-gram | 13-gram covering >= "
+        f"{int(100 * MIN_COVERAGE)} % | fuzzy >= 0.9 | fuzzy only | **contaminated** (covered or fuzzy) | % | "
         "train items dropped (any hit) |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
@@ -437,15 +437,15 @@ def data_report_markdown(manifest: Mapping[str, Any], overlap: Mapping[str, Any]
         if name.startswith("_"):
             continue
         lines.append(
-            f"| {name} | {s['num_eval']} | {s['eval_hit_ngram']} | {s['eval_hit_ngram_rare']} | "
+            f"| {name} | {s['num_eval']} | {s['eval_hit_ngram']} | {s['eval_hit_ngram_covered']} | "
             f"{s['eval_hit_fuzzy']} | {s['eval_hit_fuzzy_only']} | **{s['eval_contaminated']}** | "
             f"{s['eval_contaminated_pct']} | {s['train_items_dropped']} |"
         )
     lines += [
         "",
-        "A 13-gram shared by more than the df threshold of training items is a template sentence "
-        "(AIME's 'relatively prime positive integers, find m + n'), not a copy; those hits are "
-        "still dropped from training but not counted as contamination. Per-eval JSON with the "
+        "A 13-gram hit whose shared windows cover less than half of the eval problem is a template "
+        "sentence (AIME's 'relatively prime positive integers, find m + n'), not a copy; those items "
+        "are still dropped from training but not counted as contamination. Per-eval JSON with the "
         "hit ids: `outputs/reports/phase-2-overlap/`.",
         "",
         "## Sources and problem types kept",
@@ -544,7 +544,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--limit", type=int, default=None, help="rows to read (smoke runs)")
     p.add_argument("--evals", nargs="+", default=list(DEFAULT_EVALS))
     p.add_argument("--no-fuzzy", action="store_true")
-    p.add_argument("--boilerplate-df", type=int, default=BOILERPLATE_DF)
+    p.add_argument("--min-coverage", type=float, default=MIN_COVERAGE)
     p.add_argument("--verify-sample", type=int, default=2000)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=Path, default=None, help="default outputs/data/sft")
@@ -583,7 +583,7 @@ def main(argv: list[str] | None = None) -> None:
         eval_items,
         report_dir=report_dir,
         run_fuzzy=not args.no_fuzzy,
-        max_df=args.boilerplate_df,
+        min_coverage=args.min_coverage,
     )
     for name, s in overlap.items():
         print(f"[overlap] {name}: {s}")
@@ -609,7 +609,7 @@ def main(argv: list[str] | None = None) -> None:
         "limit": args.limit,
         "evals_decontaminated": sorted(eval_items),
         "fuzzy": not args.no_fuzzy,
-        "boilerplate_df": args.boilerplate_df,
+        "min_coverage": args.min_coverage,
         "num_examples": len(examples),
         "content_hash": content_hash(examples),
         "kept_token_stats": token_stats(lengths),
