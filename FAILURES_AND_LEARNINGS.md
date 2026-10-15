@@ -279,6 +279,10 @@ leave an untrained tag frozen is refused. PEFT's `trainable_token_indices` was t
 TRL 1.15's fused LM head reads `lm_head.weight` directly and bypasses (and crashes on) the wrapper.
 `run_info.json` records how far each tag row moved. Tests: tiny tied model with filler rows, CPU and
 GPU; `tests/test_train_sft.py`.
+**Verified.** Second smoke with the fixed trainer, same 400 examples and same 100 problems: both rows
+initialised (norm 0.35 -> 0.56) and moved (delta norm 0.05 and 0.09); `</think>` present in 5 of 100
+outputs (0 before), each one in the training position between the boxed summary and `<answer>`;
+accuracy unchanged within the paired CI (-7 points, [-18, +5]). Journal section 13.
 **Learning.** Before teaching a model a format built from tokens, look at the embedding rows of those
 tokens; a never-trained row is bit-identical to the other never-trained rows. A tag that the
 tokeniser merges into one token the base has not trained is a *new token*: it needs an

@@ -113,6 +113,9 @@ on purpose. The local 0.6B smoke therefore runs with `packing: false`.
   are held in fp32 during the run. PEFT's `trainable_token_indices` was tried first and is bypassed
   by TRL's fused LM head (it reads `lm_head.weight` directly). `run_info.json` records duplicates,
   norms and how far each row moved; a LoRA run that would leave an untrained tag frozen is refused.
+  The second local smoke confirmed the mechanism: on the same 400 examples the checkpoint wrote
+  `</think>` in 5 of 100 outputs (0 before), every one in the training position, and `run_info.json`
+  showed both rows moved (journal, section 13).
 - **Precision.** Full fine-tunes load fp32 master weights (`load_dtype: float32`) with bf16
   autocast; pure-bf16 AdamW at LR 1e-5 rounds most updates away (bf16 spacing at 0.02 is 1.2e-4).
   LoRA configs keep the frozen base in bf16; PEFT holds the adapters in fp32.
@@ -169,6 +172,11 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
   mostly for LoRA, where it should be read as part of the EXP-007 recipe.
 - A LoRA adapter directory alone does not reproduce the checkpoint: the two tag rows live in the merged
   `final/`, not in the adapter.
+- The tag rows train at the run's learning rate, and the masked-row mechanism keeps an fp32 copy, a
+  gradient and two Adam moments for the whole embedding matrix (about 2.5 GB on the 0.6B, 5 GB on the
+  1.7B) in order to move two rows. A separate, higher learning rate for new rows is the usual recipe
+  and a sparse optimiser state the usual saving; neither was added before the rental. Revisit if the
+  EXP-007 format rate lags the full fine-tune's.
 
 ## 10. Results and what they mean *(after the rental)*
 
@@ -199,7 +207,9 @@ compute rows.
   rows (bit-identical to 90-odd filler rows), LoRA cannot move an embedding row, and the tied output
   head made `</think>` unreachable. Fix: initialise the rows from their plain-text pieces, train
   exactly those rows next to the adapters, record the movement. Found for 20 GPU-minutes locally
-  rather than after the rented run.
+  rather than after the rented run. The rerun with the fix wrote `</think>` in 5 of 100 outputs, each in the training position,
+  with accuracy unchanged within the paired CI; the low count is 50 LoRA steps on 400 examples, not
+  the mechanism.
 - *Why fp32 master weights when everyone says "train in bf16"?* Because recipes that say so run
   DeepSpeed or FSDP with an fp32 master copy. On a single GPU with the plain Trainer, bf16 weights are
   the master copy, and an Adam step at LR 1e-5 is below the bf16 spacing of a typical weight.

@@ -20,8 +20,9 @@ or W&B. Appended at the end of each session.
 | 2026-10-15 | 2 | trainer GPU smoke, tiny model (d73e206) | RTX 4060 Laptop 8 GB | 0.01 | 0 | 0 | 0 | 2 steps, 18 s |
 | 2026-10-15 | 2 | 0.6B LoRA smoke: train on 400 examples + 100-problem GSM8K think-tag eval (e84dba1, fa2f091) | RTX 4060 Laptop 8 GB | 0.17 | 0 | 0.16 M | 0.77 M | smoke, not a result; exposed the untrained think-token rows |
 | 2026-10-15 | 2 | trainer GPU tests x4 (tag rows, LoRA merge, fp32 + autocast) | RTX 4060 Laptop 8 GB | 0.02 | 0 | 0 | 0 | tiny model |
+| 2026-10-15 | 2 | 0.6B LoRA smoke v2 with the fixed trainer: train on 400 examples + 100-problem GSM8K think-tag eval (57625ea) | RTX 4060 Laptop 8 GB | 0.25 | 0 | 0.17 M | 0.77 M | smoke, not a result; tag rows initialised and trained, `</think>` emitted 5/100 (0 before); peak 4.48 GB |
 
-**Running totals.** Rented: 0.0 h, USD 0. Local: 2.53 h.
+**Running totals.** Rented: 0.0 h, USD 0. Local: 2.78 h.
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.

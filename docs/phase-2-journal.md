@@ -306,3 +306,58 @@ survives merge and save). Suite 152 CPU + 4 GPU/slow.
 be compared (train about 5 min, eval about 10 min); commands in the actions log. What to look for:
 `tag_format_rate` well above 0 and `</think>` present in `samples.jsonl`; in `run_info.json`,
 `tag_tokens` → `train_delta_norm` above 0 for both tags.
+
+## 13. Local smoke, step 3: the fixed trainer closes the think block (15 Oct, your terminal)
+
+Same recipe as step 1 (0.6B, LoRA r 16, 400 examples, 50 steps) under the 57625ea trainer, written to
+`sft_0p6b_lora_smoke_v2`, then the same 100 GSM8K problems with the think-tag template at 2048 tokens.
+Greedy and batch-invariant on both sides, so the two smokes are a paired comparison on identical inputs.
+
+**Training.** The two `[rlvr-sft] tag token` lines reported `"untrained": true, "initialised": true`
+for both tags (290 duplicate rows in the 0.6B; norm 0.35 -> 0.56 after the mean-of-pieces init), and
+`run_info.json` closed with `train_delta_norm` 0.054 for `<think>` and 0.095 for `</think>` and
+`duplicate_rows_final` 0 for both: the rows left the filler cluster and moved during training. Loss
+0.77 -> 0.62 as before (final 0.659 against 0.66 in step 1). Peak memory 4.48 GB against 1.62 GB:
+the whole 0.6B embedding matrix now carries an fp32 copy, a gradient and two Adam moments (about
+0.6 GB each) so that two rows can train; on the 1.7B that is about 5 GB extra, nothing on an A100.
+Training took 362 s against 305 s.
+
+**Eval, paired with step 2.**
+
+| | step 2 (e84dba1 trainer) | step 3 (57625ea trainer) |
+|---|---|---|
+| pass@1 | 53.0 [43.0, 63.0] | 46.0 [36.0, 56.0] |
+| truncated at 2048 (%) | 66 | 76 |
+| outputs with `</think>` | 0 | 5 |
+| outputs with `<answer>` | 7 | 11 |
+| tag-format rate (%) | 0 | 5 |
+| extraction: tag / boxed / last-number / phrase | 2 / 30 / 44 / 24 | 5 / 16 / 40 / 39 |
+| tokens mean / median | 1,619 / 2,048 | 1,741 / 2,048 |
+
+Paired accuracy difference (step 3 minus step 2) -7 points, bootstrap 95 % CI [-18, +5]: 32 problems
+right in both, 21 only in step 2, 14 only in step 3. Noise between two 50-step runs on 400 examples;
+the step-3 run also truncated ten more outputs, and 30 of its 76 truncated outputs were graded correct
+by the last-number fallback (27 of 66 in step 2).
+
+The five `</think>` outputs follow the training layout byte for byte: the reflection ends, then
+`**Final Answer**`, the boxed number, a blank line, `</think>`, newline, `<answer> N </answer>`.
+Of the 24 outputs that finished under the cap, 5 have the full format, 6 go from the boxed summary
+straight to `<answer>` (the step-2 habit), 13 end with end-of-text after the boxed summary. In step 2
+the same count was 0 of 34 with `</think>`.
+
+**Reading.** The mechanism does what it was built for: `</think>` is reachable, and when the model
+uses it, it uses it in the right place. Five of 100 after 400 examples and 50 LoRA steps is not a
+format rate anyone would ship; it is the expected amount of learning for one gradient signal per
+example on a row that started at a third of a trained row's norm. The real runs give the rows 46,000
+signals (two epochs of 23,000; in the full fine-tune every weight moves, so the network can also meet
+the row halfway) or, for EXP-007, a LoRA learning rate twenty times the main run's. The 76 %
+truncation is the 0.6B-on-olympiad-traces story from step 2 and says nothing about the 1.7B at 4096.
+
+**Not done, on purpose.** A separate, higher learning rate for the two new rows is a known recipe for
+new tokens and would have shown a larger movement in this smoke; it adds a parameter group and a
+config knob to a trainer that is about to run for money, and EXP-007 already measures LoRA with the
+rows at the adapter learning rate. Written down as a debt in the engineering notes (section 9), to be
+revisited if the rented LoRA run's format rate lags the full fine-tune's.
+
+Smoke step 3 closes the local part of Phase 2. Next: your draft PR from `../PR_BODY_phase2.md`, then
+the rental session (`docs/rental-setup.md`, `scripts/phase2_rental.sh`).
