@@ -224,3 +224,17 @@ Code complete and pushed. Three things need a GPU, in this order:
    pasted back here and into `experiments.md`.
 
 The exact commands are in the actions log and in the chat message of 15 Oct.
+
+## 11. Local smoke, step 1: the trainer runs end to end (15 Oct, your terminal)
+
+`rlvr-sft --config configs/train/sft_0p6b_lora_smoke.yaml` at e84dba1: manifest hash checked
+(45b3fa4862b11e2a, 400 of 23,000 examples used), 50 optimiser steps in 305 s, loss 0.78 → 0.62,
+grad norm 0.9 → 0.25, token accuracy 0.78 → 0.81, peak GPU memory 1.6 GB (LoRA r 16, batch 1,
+gradient checkpointing), merged checkpoint written to `outputs/train/sft_0p6b_lora_smoke/final`,
+`run_info.json` complete. Two things worth noting for the real run, neither a problem here:
+
+- TRL's token counter reached 0.77 M tokens while the data said 1.07 M: the smoke's `max_length`
+  is 2048 and the examples go up to 4096, so TRL truncated the long ones. The real configs use
+  4096, equal to the data cap, so nothing is truncated there.
+- The loss plateaued around 0.62 after half an epoch at LR 2e-4 on 400 examples: the format is
+  learned fast; the content needs the full set.
