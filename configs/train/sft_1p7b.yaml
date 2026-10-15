@@ -22,6 +22,7 @@ packing: true
 attn_implementation: flash_attention_2
 gradient_checkpointing: true
 bf16: true
+load_dtype: float32  # fp32 master weights, bf16 autocast
 save_steps: 250
 save_total_limit: 4
 logging_steps: 10

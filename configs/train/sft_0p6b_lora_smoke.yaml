@@ -24,6 +24,7 @@ packing: false
 attn_implementation: sdpa
 gradient_checkpointing: true
 bf16: true
+load_dtype: bfloat16  # frozen base in bf16; LoRA adapters and the tag rows train in fp32
 lora:
   r: 16
   alpha: 32

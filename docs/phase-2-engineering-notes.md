@@ -15,13 +15,14 @@ the sections marked *after the rental* are filled in when the training runs have
 | Coverage-based n-gram contamination | `src/rlvr/data/contamination.py` (`ngram_overlap(min_coverage=)`) | `tests/test_contamination_and_runinfo.py` (+2) |
 | Dev split and MATH-train loader | `src/rlvr/eval/datasets.py` (`gsm8k_dev`, `math_dev`, `math_train`) | `tests/test_sft_data.py` |
 | Reference SFT loss and packing masks | `src/rlvr/ref/sft_loss.py` | `tests/test_ref_sft_loss.py` (6) |
-| Trainer | `src/rlvr/train/sft.py` (`rlvr-sft`) | `tests/test_train_sft.py` (5 CPU + 2 GPU/slow) |
+| Trainer, incl. the untrained-tag-row handling | `src/rlvr/train/sft.py` (`rlvr-sft`) | `tests/test_train_sft.py` (8 CPU + 2 GPU + 2 slow) |
 | Paired checkpoint comparison | `scripts/compare_checkpoints.py` | `tests/test_phase2_scripts.py` |
 | LR choice, data-scaling figure, model card and uploads | `scripts/pick_lr.py`, `scripts/plot_data_scaling.py`, `scripts/push_to_hub.py` | `tests/test_phase2_scripts.py` |
 | Rental session | `scripts/phase2_rental.sh` (resumable, 8 steps) | `bash -n`; exercised on the box |
 | Configs | `configs/train/*.yaml` (8), `configs/eval/{sft_*,ckpt_think_tag_dev,base_1.7b_think_tag_4096}.yaml`, `configs/sample/sft_*.yaml` | config loading tested |
 
-Suite at the end of the code phase: 149 tests on CPU (about 22 s), 2 GPU-marked trainer tests.
+Suite at the end of the code phase: 152 tests on CPU (about 20 s), 2 GPU-marked and 2 slow trainer
+tests (all four pass on the laptop's RTX 4060).
 
 ## 2. The data pipeline: what each stage is for
 
@@ -102,11 +103,27 @@ on purpose. The local 0.6B smoke therefore runs with `packing: false`.
 - LoRA through PEFT, merged into the base weights at the end so vLLM evaluates a plain checkpoint;
   the adapter is saved too.
 - The trainer's log history, wall clock, peak memory and tokens per epoch saved next to the model.
+- **Untrained format tokens.** `<think>` and `</think>` are single added tokens whose embedding rows
+  in Qwen3-*Base* are the untouched filler vector shared by every unused row (94 identical rows in
+  the 1.7B, 291 in the 0.6B; found by the local smoke, whose LoRA checkpoint never emitted
+  `</think>`). Before training, `rlvr-sft` detects such a row (bit-identical to other rows) and sets
+  it to the mean of its plain-text pieces (`</`, `think`, `>`). Full fine-tunes then train it like
+  any weight. LoRA runs train exactly those rows next to the adapters: the embedding matrix gets
+  gradients, a hook zeroes every other row, the matrix leaves the weight-decay group, and the rows
+  are held in fp32 during the run. PEFT's `trainable_token_indices` was tried first and is bypassed
+  by TRL's fused LM head (it reads `lm_head.weight` directly). `run_info.json` records duplicates,
+  norms and how far each row moved; a LoRA run that would leave an untrained tag frozen is refused.
+- **Precision.** Full fine-tunes load fp32 master weights (`load_dtype: float32`) with bf16
+  autocast; pure-bf16 AdamW at LR 1e-5 rounds most updates away (bf16 spacing at 0.02 is 1.2e-4).
+  LoRA configs keep the frozen base in bf16; PEFT holds the adapters in fp32.
 
 **Tests.** Config defaults, overrides and unknown keys; the nested-subset property; the manifest check
-accepting and rejecting; subset-then-limit; the packing guard; a two-step training smoke on a tiny
-model with a tiny word-level tokeniser (GPU only: TRL 1.15's SFT loss is a fused Triton LM-head
-kernel without a CPU path); the refusal of unsafe packing.
+accepting and rejecting; subset-then-limit; the packing guard; tag-row detection and initialisation
+on a tiny tied Qwen3 with filler rows; masked-row gradients touching only the tag rows; two-step
+training smokes on that tiny model (GPU only: TRL 1.15's SFT loss is a fused Triton LM-head kernel
+without a CPU path) for the full fine-tune in fp32 + autocast and for LoRA, where the tag rows must
+move and the tie must survive merge and save; the refusals of unsafe packing and of frozen untrained
+tags.
 
 ## 6. The dev split and the LR rule
 
@@ -143,6 +160,15 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
   trainer → merged checkpoint → `rlvr-eval`) is the 0.6B LoRA smoke on the laptop.
 - The contamination coverage threshold (50 %) is a judgement; the per-eval JSON keeps every hit so the
   threshold can be re-read later.
+- The base model's think-tag rows (Phase 1 and the 4096-token reference) measure a base that reads an
+  untrained token after `Assistant:`; the paired think-tag comparison therefore flatters SFT by
+  construction, and the fair base row is 4-shot-CoT (EXP-006 amendment). Every trained checkpoint has
+  trained rows, so comparisons between checkpoints are unaffected.
+- The mean-of-pieces initialisation is a heuristic (Hewitt-style mean-plus-noise would be the other
+  common choice); the full fine-tune trains the rows for 46k examples afterwards, so the choice matters
+  mostly for LoRA, where it should be read as part of the EXP-007 recipe.
+- A LoRA adapter directory alone does not reproduce the checkpoint: the two tag rows live in the merged
+  `final/`, not in the adapter.
 
 ## 10. Results and what they mean *(after the rental)*
 
@@ -168,6 +194,16 @@ compute rows.
   written before the runs; never on a test set.
 - *Why nested subsets for the scaling curve?* So the points differ only in quantity; a fresh sample per
   point would confound quantity with composition.
-- *What would you do differently?* Verify the flash-attention wheel before the rental; build the
-  coverage rule into the contamination module from the start; keep multi-part answers with a
-  structured answer block.
+- *Your SFT smoke scored 53 % on GSM8K and never closed the think block. What happened?* The format
+  rate (0 %) said what the accuracy column hid. Qwen3-Base has never trained the `<think>`/`</think>`
+  rows (bit-identical to 90-odd filler rows), LoRA cannot move an embedding row, and the tied output
+  head made `</think>` unreachable. Fix: initialise the rows from their plain-text pieces, train
+  exactly those rows next to the adapters, record the movement. Found for 20 GPU-minutes locally
+  rather than after the rented run.
+- *Why fp32 master weights when everyone says "train in bf16"?* Because recipes that say so run
+  DeepSpeed or FSDP with an fp32 master copy. On a single GPU with the plain Trainer, bf16 weights are
+  the master copy, and an Adam step at LR 1e-5 is below the bf16 spacing of a typical weight.
+- *What would you do differently?* Look at the embedding rows of every token in the format before
+  designing the prompt (Phase 1's `<think>` garbage was the same bug, diagnosed one layer too shallow);
+  verify the flash-attention wheel before the rental; build the coverage rule into the contamination
+  module from the start; keep multi-part answers with a structured answer block.

@@ -76,6 +76,14 @@ never `main` or its evals.
 Set `HF_DRY_RUN=1` to run the report step without uploading; `HF_REPO_SFT` and `HF_REPO_SAMPLES`
 override the repo names.
 
+**Memory.** The full fine-tunes keep fp32 master weights (`load_dtype: float32`, bf16 autocast):
+about 27 GB for weights, gradients and Adam states of the 1.7B before activations, which fits the
+80 GB card with room for the 4 x 4096-token packed micro-batch. On a 40 GB card halve
+`per_device_batch` and double `grad_accum` (`--set per_device_batch=2 --set grad_accum=32`).
+Watch the first log lines of every training step: `[rlvr-sft] tag token '</think>'` must say
+`"untrained": true, "initialised": true`, and `run_info.json` must end with `train_delta_norm` above
+0 for both tags; otherwise the checkpoint cannot close its think block (journal, section 12).
+
 ## 3a. The EXP-002 part on its own (about 3 hours of A100)
 
 ```bash

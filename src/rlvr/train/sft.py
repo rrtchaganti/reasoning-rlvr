@@ -15,6 +15,18 @@ What this wrapper adds on top of TRL:
   an error unless ``allow_unsafe_packing: true`` is set on purpose;
 - optional LoRA (PEFT), merged into the base weights at the end so vLLM evaluates a plain
   checkpoint;
+- **format tags the base has never trained**: ``<think>`` and ``</think>`` are single added tokens
+  in the Qwen3 tokeniser whose embedding rows in the *Base* checkpoints are the untouched filler
+  vector shared by every unused row (15 Oct 2026 probe: 94 identical rows in 1.7B, 291 in 0.6B).
+  A LoRA run cannot change them, so the smoke checkpoint never emitted ``</think>``. Here each such
+  row is initialised to the mean of its plain-text pieces (``</``, ``think``, ``>``) before training;
+  LoRA runs train exactly those rows as well (the embedding matrix gets gradients, a hook zeroes
+  every other row, the matrix is excluded from weight decay; PEFT's ``trainable_token_indices`` is
+  bypassed by TRL's fused LM head, which reads ``lm_head.weight`` directly); ``run_info.json``
+  records how far each row moved;
+- **fp32 master weights for full fine-tunes** (``load_dtype: float32`` with ``bf16: true`` autocast):
+  a bf16 weight of magnitude 0.02 has a spacing of 1.2e-4, so pure-bf16 AdamW at LR 1e-5 rounds
+  most updates to nothing. LoRA runs load the frozen base in bf16 (PEFT keeps adapters in fp32);
 - the trainer log history, wall clock, peak memory and token count written next to the model.
 
 Usage::
@@ -29,6 +41,7 @@ import argparse
 import json
 import math
 import random
+import re
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -64,8 +77,13 @@ DEFAULTS: dict[str, Any] = {
     "allow_unsafe_packing": False,
     "attn_implementation": "flash_attention_2",
     "gradient_checkpointing": True,
-    "bf16": True,
-    "lora": None,  # or {"r": 64, "alpha": 128, "dropout": 0.05, "target_modules": "all-linear", "merge": true}
+    "bf16": True,  # autocast; the weights' own dtype is load_dtype
+    "load_dtype": "float32",  # full fine-tunes keep fp32 master weights; LoRA configs use bfloat16
+    # or {"r": 64, "alpha": 128, "dropout": 0.05, "target_modules": "all-linear", "merge": true,
+    #     "train_tags": true}; train_tags also trains the embedding rows of the tag tokens below
+    "lora": None,
+    "tag_tokens": ["<think>", "</think>"],  # format tags that may be single, never-trained tokens
+    "init_tag_tokens": True,  # initialise an untrained tag row from its plain-text pieces
     "save_steps": 500,
     "save_total_limit": 3,
     "logging_steps": 10,
@@ -210,6 +228,125 @@ def make_peft_config(lora: dict[str, Any] | None):
     )
 
 
+def decay_parameter_names(names: Sequence[str], exclude_suffixes: Sequence[str]) -> list[str]:
+    """Drop parameters whose name ends with one of ``exclude_suffixes`` from the weight-decay group
+    (the embedding matrix when only a few of its rows are trained: decaying the frozen rows would
+    silently shrink the whole vocabulary)."""
+    return [n for n in names if not any(n.endswith(s) for s in exclude_suffixes)]
+
+
+EMBED_SUFFIXES = ("embed_tokens.weight", "lm_head.weight")
+
+
+# --------------------------------------------------------------------------- format tag tokens
+
+_TAG_RE = re.compile(r"^(</?)([A-Za-z_]+)(>)$")
+
+
+def single_token_ids(tok, tags: Sequence[str]) -> dict[str, int]:
+    """The tags that the tokeniser maps to exactly one token (``<answer>`` is three pieces and
+    needs nothing; ``<think>`` and ``</think>`` are one added token each in Qwen3)."""
+    out: dict[str, int] = {}
+    for tag in tags:
+        ids = tok(tag, add_special_tokens=False)["input_ids"]
+        if len(ids) == 1:
+            out[tag] = int(ids[0])
+    return out
+
+
+def plain_piece_ids(tok, tag: str) -> list[int]:
+    """Token ids of the tag written as ordinary text: ``</think>`` -> pieces of ``</``, ``think``,
+    ``>``. These are what the base model would have seen for the tag in plain text."""
+    m = _TAG_RE.match(tag)
+    parts = list(m.groups()) if m else [tag[:1], tag[1:-1], tag[-1:]]
+    ids: list[int] = []
+    for part in parts:
+        ids.extend(int(i) for i in tok(part, add_special_tokens=False)["input_ids"])
+    return ids
+
+
+def duplicate_row_count(weight, idx: int) -> int:
+    """How many *other* rows of an embedding matrix are bit-identical to row ``idx``. Trained rows
+    are never identical; the never-trained rows of Qwen3-Base all equal one filler vector."""
+    return int((weight == weight[idx]).all(dim=1).sum().item()) - 1
+
+
+def init_tag_embeddings(model, tok, tags: Sequence[str], *, apply: bool = True) -> dict[str, Any]:
+    """Report every single-token tag whose embedding row is untrained (identical to other rows)
+    and, with ``apply``, set that row (and the output-head row if untied) to the mean of the rows of
+    its plain-text pieces. Returns ``{tag: {id, duplicate_rows, untrained, initialised, ...}}``."""
+    import torch
+
+    emb = model.get_input_embeddings().weight
+    head = model.get_output_embeddings()
+    tied = head is None or head.weight.data_ptr() == emb.data_ptr()
+    report: dict[str, Any] = {}
+    with torch.no_grad():
+        for tag, idx in single_token_ids(tok, tags).items():  # detect first, on untouched rows
+            dups = duplicate_row_count(emb.data, idx)
+            report[tag] = {
+                "id": idx,
+                "duplicate_rows": dups,
+                "untrained": dups > 0,
+                "initialised": False,
+                "norm_before": round(float(emb.data[idx].float().norm()), 4),
+            }
+        for tag, rec in report.items():
+            idx = rec["id"]
+            if rec["untrained"] and apply:
+                pieces = plain_piece_ids(tok, tag)
+                vec = emb.data[pieces].float().mean(0).to(emb.dtype)
+                emb.data[idx] = vec
+                if not tied:
+                    head.weight.data[idx] = vec
+                rec.update(
+                    initialised=True,
+                    init_from=pieces,
+                    norm_after_init=round(float(vec.float().norm()), 4),
+                )
+    return report
+
+
+def enable_tag_row_training(model, ids: Sequence[int]) -> None:
+    """Train only the embedding rows ``ids`` of an otherwise frozen (LoRA) model: the embedding
+    matrix gets ``requires_grad`` and a hook that zeroes every other row's gradient. The tied output
+    head shares the storage, so the model learns to *emit* the tags as well as read them; an untied
+    head is treated the same way. Works with TRL's fused LM head because that kernel reads
+    ``lm_head.weight`` directly (which is why PEFT's ``trainable_token_indices`` cannot be used)."""
+    import torch
+
+    idx = torch.as_tensor(sorted(set(int(i) for i in ids)))
+    emb = model.get_input_embeddings().weight
+    head = model.get_output_embeddings()
+    params = [emb]
+    if head is not None and head.weight.data_ptr() != emb.data_ptr():
+        params.append(head.weight)
+    for p in params:
+        p.data = p.data.float()  # fp32 master rows: bf16 would round LR-sized updates away
+        mask = torch.zeros(p.shape[0], 1, dtype=p.dtype, device=p.device)
+        mask[idx.to(p.device)] = 1
+
+        def _keep_rows(grad, mask=mask):
+            return grad * mask.to(device=grad.device, dtype=grad.dtype)
+
+        p.requires_grad_(True)
+        p.register_hook(_keep_rows)
+
+
+def snapshot_rows(model, ids: Sequence[int]) -> dict[int, Any]:
+    emb = model.get_input_embeddings().weight.data
+    return {int(i): emb[int(i)].detach().float().cpu().clone() for i in ids}
+
+
+def tag_training_delta(model, snapshot: dict[int, Any]) -> dict[int, float]:
+    """L2 distance each tag row moved during training (0.0 means the row was frozen)."""
+    emb = model.get_input_embeddings().weight.data
+    return {
+        i: round(float((emb[i].detach().float().cpu() - row).norm()), 4)
+        for i, row in snapshot.items()
+    }
+
+
 def load_model_and_tokenizer(cfg: dict[str, Any]):
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -217,9 +354,10 @@ def load_model_and_tokenizer(cfg: dict[str, Any]):
     tok = AutoTokenizer.from_pretrained(cfg["tokenizer"])
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    kwargs: dict[str, Any] = {"attn_implementation": cfg["attn_implementation"]}
-    if cfg["bf16"]:
-        kwargs["dtype"] = torch.bfloat16
+    kwargs: dict[str, Any] = {
+        "attn_implementation": cfg["attn_implementation"],
+        "dtype": getattr(torch, cfg["load_dtype"]),
+    }
     model = AutoModelForCausalLM.from_pretrained(cfg["model"], **kwargs)
     return model, tok
 
@@ -263,12 +401,42 @@ def run(cfg: dict[str, Any], *, allow_dirty: bool = False) -> dict[str, Any]:
     (out_dir / "train_ids.json").write_text(json.dumps([r["id"] for r in chosen]))
 
     model, tok = load_model_and_tokenizer(cfg)
-    trainer = SFTTrainer(
+    tag_report = init_tag_embeddings(
+        model, tok, cfg["tag_tokens"] or [], apply=bool(cfg["init_tag_tokens"])
+    )
+    tag_ids = [rec["id"] for rec in tag_report.values()]
+    untrained = [t for t, rec in tag_report.items() if rec["untrained"]]
+    if untrained and cfg["lora"] and not cfg["lora"].get("train_tags", True):
+        raise RuntimeError(
+            f"tag tokens {untrained} have untrained embedding rows and LoRA leaves embeddings "
+            "frozen, so the model could never emit them. Set lora.train_tags: true (default)."
+        )
+    rows0 = snapshot_rows(model, tag_ids)
+    peft_config = make_peft_config(cfg["lora"])
+    train_rows = bool(cfg["lora"]) and cfg["lora"].get("train_tags", True) and bool(tag_ids)
+    no_decay: tuple[str, ...] = ()
+    if train_rows:
+        from peft import get_peft_model
+
+        model = get_peft_model(model, peft_config)  # adapters in fp32 (PEFT default)
+        peft_config = None
+        enable_tag_row_training(model, tag_ids)
+        no_decay = EMBED_SUFFIXES
+    for rec in tag_report.values():
+        rec["trained_via"] = "masked_rows" if train_rows else ("frozen" if cfg["lora"] else "full")
+    for tag, rec in tag_report.items():
+        print(f"[rlvr-sft] tag token {tag!r}: {json.dumps(rec)}")
+
+    class _Trainer(SFTTrainer):
+        def get_decay_parameter_names(self, model):
+            return decay_parameter_names(super().get_decay_parameter_names(model), no_decay)
+
+    trainer = _Trainer(
         model=model,
         args=make_sft_config(cfg, out_dir / "checkpoints"),
         train_dataset=to_hf_dataset(chosen),
         processing_class=tok,
-        peft_config=make_peft_config(cfg["lora"]),
+        peft_config=peft_config,
     )
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
@@ -277,14 +445,27 @@ def run(cfg: dict[str, Any], *, allow_dirty: bool = False) -> dict[str, Any]:
     wall = time.time() - t0
 
     final_dir = out_dir / "final"
+    final_model = trainer.model
     if cfg["lora"]:
-        trainer.model.save_pretrained(out_dir / "adapter")
+        trainer.model.save_pretrained(out_dir / "adapter")  # adapters only; tag rows live in final/
         if cfg["lora"].get("merge", True):
-            merged = trainer.model.merge_and_unload()
-            merged.save_pretrained(final_dir)
+            final_model = trainer.model.merge_and_unload()
+            if train_rows:  # back to the checkpoint dtype after fp32 row training
+                emb = final_model.get_input_embeddings().weight
+                emb.data = emb.data.to(getattr(torch, cfg["load_dtype"]))
+                head = final_model.get_output_embeddings()
+                if head is not None and head.weight.data_ptr() != emb.data_ptr():
+                    head.weight.data = head.weight.data.to(emb.dtype)
+            final_model.save_pretrained(final_dir)
     else:
         trainer.save_model(str(final_dir))
     tok.save_pretrained(final_dir)
+    deltas = tag_training_delta(final_model, rows0)
+    for rec in tag_report.values():
+        rec["train_delta_norm"] = deltas[rec["id"]]
+        rec["duplicate_rows_final"] = duplicate_row_count(
+            final_model.get_input_embeddings().weight.data, rec["id"]
+        )
 
     with (out_dir / "train_log.jsonl").open("w", encoding="utf-8", newline="\n") as f:
         for rec in trainer.state.log_history:
@@ -299,6 +480,7 @@ def run(cfg: dict[str, Any], *, allow_dirty: bool = False) -> dict[str, Any]:
         if torch.cuda.is_available()
         else None,
         "final_model": str(final_dir),
+        "tag_tokens": tag_report,
     }
     finish_run_info(out_dir, **summary)
     return {**info, **summary}

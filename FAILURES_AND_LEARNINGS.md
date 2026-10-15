@@ -258,3 +258,44 @@ from training while the manifest counted them.
 **Fix.** `unique_id`: missing uuid -> `row#<index>`, repeated uuid -> `<uuid>#<index>`; rebuilt.
 **Learning.** Assert id uniqueness in every generator (now in the tests) and never trust a source's
 primary key.
+
+## 2026-10-15  The SFT smoke checkpoint never emitted `</think>`: Qwen3-Base's think tokens are untrained rows, and LoRA cannot train them        [phase 2] [training] [tokenizer]
+**Symptom.** Local end-to-end smoke (0.6B, LoRA r 16, 400 examples, then `rlvr-eval` on 100 GSM8K
+problems): pass@1 53 %, but tag-format rate 0 %. No output of 100 contained `</think>`; 26 ended with
+end-of-text right after the boxed summary and 7 jumped from the summary to `<answer>` with a blank
+line where `</think>` sits in every training example.
+**Diagnosis.** Not the detokeniser: the tags are added tokens with `special=False`, and both
+`decode(skip_special_tokens=True)` and vLLM's `DecodeStream` keep them; retokenising the outputs
+accounted for every token. The embedding matrix: rows 151667 (`<think>`) and 151668 (`</think>`) in
+Qwen3-1.7B-Base are bit-identical to `<|im_start|>`, `<|im_end|>`, the tool tokens and the padding
+rows (94 identical rows; 291 in the 0.6B), norm 0.37 against 1.58 for a trained row. The Base
+checkpoints have never trained them. LoRA leaves embeddings frozen and the output head is tied to
+the same matrix, so the logit of `</think>` equals that of every filler token: unreachable. Same root
+cause as the 14 Oct entry "Countdown completions were garbage after the pre-filled `<think>`".
+**Fix.** `rlvr-sft` detects a tag row that is identical to other rows and initialises it to the mean
+of its plain-text pieces (`</`, `think`, `>`); LoRA runs train exactly those rows (gradient hook on
+the embedding matrix, matrix excluded from weight decay, fp32 during training); a LoRA run that would
+leave an untrained tag frozen is refused. PEFT's `trainable_token_indices` was tried first and failed:
+TRL 1.15's fused LM head reads `lm_head.weight` directly and bypasses (and crashes on) the wrapper.
+`run_info.json` records how far each tag row moved. Tests: tiny tied model with filler rows, CPU and
+GPU; `tests/test_train_sft.py`.
+**Learning.** Before teaching a model a format built from tokens, look at the embedding rows of those
+tokens; a never-trained row is bit-identical to the other never-trained rows. A tag that the
+tokeniser merges into one token the base has not trained is a *new token*: it needs an
+initialisation and a trainable row, and an adapter on the linear layers cannot supply either. The
+20-GPU-minute smoke paid for itself: without it the rented LoRA run and every think-tag number of
+the phase would have been wrong in a way the accuracy column hides (53 % looked plausible).
+
+## 2026-10-15  Caught before running: pure-bf16 AdamW at LR 1e-5 cannot move most weights        [phase 2] [training] [precision]
+**Symptom (anticipated).** The full fine-tune configs loaded the model in bf16 and trained it in
+bf16 with no fp32 master copy (the plain HF Trainer does not keep one). A bf16 weight of magnitude
+0.02 has a spacing of 1.2e-4; an Adam step at LR 1e-5 is a tenth of that and rounds to no change.
+The loss curve would still fall (through the few small-magnitude weights that do move) while most of
+the network stayed put.
+**Fix.** `load_dtype: float32` for every full fine-tune, `bf16: true` as autocast only; about 27 GB
+static for the 1.7B. LoRA configs keep the frozen base in bf16 because PEFT holds the adapters in
+fp32, and the tag rows trained next to them are upcast to fp32 for the run. The GPU trainer test now
+runs the fp32-plus-autocast combination through TRL's fused LM head.
+**Learning.** "bf16 training" in a DeepSpeed recipe means bf16 compute with fp32 master weights; the
+same flags on a single-GPU Trainer mean pure bf16. Check what holds the master copy before copying
+a recipe's precision settings.

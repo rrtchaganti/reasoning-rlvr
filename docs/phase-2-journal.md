@@ -238,3 +238,71 @@ gradient checkpointing), merged checkpoint written to `outputs/train/sft_0p6b_lo
   4096, equal to the data cap, so nothing is truncated there.
 - The loss plateaued around 0.62 after half an epoch at LR 2e-4 on 400 examples: the format is
   learned fast; the content needs the full set.
+
+## 12. Local smoke, step 2: the eval ran, and the checkpoint never wrote `</think>` (15 Oct, your terminal)
+
+`rlvr-eval` on the merged 0.6B LoRA checkpoint, 100 GSM8K problems, think-tag template, 2048 new
+tokens: pass@1 53.0 [43.0, 63.0], truncation 66 %, extraction failure 0 %, tag-format rate **0 %**,
+mean 1,619 tokens with the median at the cap. vLLM loaded the merged safetensors (343 s through the
+9P mount of the Windows drive; the HF cache on ext4 loads in seconds, so a checkpoint that is
+evaluated more than once locally should be copied into the WSL file system first). The pipeline
+works end to end; the numbers are a smoke, not a result. Two observations:
+
+- Not one of the 100 outputs contained `</think>`. Thirty-four finished before the cap: 26 ended
+  with end-of-text right after the boxed summary, 7 went straight from the summary to
+  `<answer> x </answer>` with a blank line exactly where `</think>` sits in the training data, 1 hit
+  the `User:` stop. The 66 truncated ones were R1-style loops ("but just to be sure, let me think
+  again") on problems the model had already solved; 27 of them were still graded correct through the
+  last-number fallback.
+- Truncation at 2048 is expected for a 0.6B after 50 steps on olympiad traces whose mean length is
+  2,689 tokens; it says nothing about the 1.7B at 4096.
+
+**Chasing the missing tag, in order.**
+
+1. First suspicion: vLLM strips `</think>` as a special token. Checked offline: the Qwen3 tokeniser
+   marks `<think>` and `</think>` as added tokens with `special=False`; `decode(skip_special_tokens=True)`
+   and the `tokenizers` `DecodeStream` that vLLM's detokeniser uses both keep the string. Not that.
+2. Retokenising each output and comparing with the reported token count: the 26 end-of-text outputs
+   were exactly one token longer than their text (the EOS id in `token_ids`); nothing else was
+   missing. The model really did not generate `</think>`.
+3. The embedding matrix of the base. Rows 151667 (`<think>`) and 151668 (`</think>`) of
+   Qwen3-1.7B-Base are bit-identical to `<|im_start|>`, `<|im_end|>`, every tool token and dozens of
+   padding rows: 94 identical rows (291 in the 0.6B), norm 0.37 against 1.58 for an average trained
+   row. **The Base checkpoints have never trained these rows.** This also explains the 14 Oct finding
+   that `<think>` as the final prompt token produced garbage: the model was reading a filler vector.
+4. Why the smoke could not fix it: LoRA adapts the linear layers and leaves the embeddings frozen,
+   and the tied output head is the same matrix, so the logit of `</think>` equals the logit of every
+   filler token and the model can never prefer it. The 7 `<answer>` outputs show that it learned to
+   skip the unreachable token instead.
+
+**Decisions.**
+
+- An untrained tag row (detected as "bit-identical to other rows") is initialised to the mean of its
+  plain-text pieces (`</`, `think`, `>`), the tokens the base saw whenever the tag appeared in ordinary
+  text. Done before training; `run_info.json` records duplicates, norms and how far each row moved.
+- LoRA runs train those two rows as well. First attempt: PEFT's `trainable_token_indices`, which ties
+  the delta to the output head. It failed in the GPU test: TRL 1.15's fused LM head reads
+  `lm_head.weight` directly and crashed on the wrapper (`'TrainableTokensWrapper' object has no
+  attribute 'bias'`); without the crash the wrapper would simply have been bypassed and the output
+  side never trained. Replaced by a direct mechanism: the embedding matrix gets gradients, a hook
+  zeroes every row but the tags, and the matrix is removed from the weight-decay group (decay on
+  151k frozen rows would silently shrink the vocabulary). The rows train in fp32 and are cast back
+  for saving. The adapter directory alone is therefore incomplete; `final/` is the checkpoint.
+- A LoRA run with `train_tags: false` while a tag row is untrained is refused, like unsafe packing.
+- While here: full fine-tunes now load fp32 master weights (`load_dtype: float32`) under bf16
+  autocast. A bf16 weight of magnitude 0.02 has a spacing of 1.2e-4, so pure-bf16 AdamW at LR 1e-5
+  rounds most updates to nothing; the main run would have trained far less than its loss curve
+  suggested. About 27 GB static for the 1.7B, fine on the A100. LoRA configs keep the frozen base in
+  bf16 (PEFT holds the adapters in fp32).
+- The base think-tag reference row is now understood as "the base reading an untrained token after
+  `Assistant:`"; the fair base comparison for EXP-006 is its 4-shot-CoT row, which the hypothesis
+  already names. Amendments written into EXP-006 and EXP-007 before any run.
+
+Tests: a tiny tied Qwen3 with filler rows (detection and init on CPU; masked-row gradients touch only
+the tag rows), GPU smokes for the full fine-tune (fp32 + autocast) and for LoRA (rows move, the tie
+survives merge and save). Suite 152 CPU + 4 GPU/slow.
+
+**Your next action**: rerun the smoke with the new trainer into new directories so the two runs can
+be compared (train about 5 min, eval about 10 min); commands in the actions log. What to look for:
+`tag_format_rate` well above 0 and `</think>` present in `samples.jsonl`; in `run_info.json`,
+`tag_tokens` → `train_delta_norm` above 0 for both tags.
