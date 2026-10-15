@@ -76,3 +76,48 @@ contaminated for this model, as EXP-003 said.
 **Config.** `rlvr-perturb-gsm8k --names-only --seed 0` (516 / 1319, manifest hash 4ae8f836dfe6960f); `configs/eval/base_1.7b_few_shot_cot_names_only.yaml`; commit 585a586; local, 3 GPU-minutes.
 **Result.** Names-only gap -0.4 [-3.3, 2.5] (original 73.8, names-only 74.2, flips 28 / 30 = 11 %). Numbers + names on the same 371 problems: 10.8 [6.2, 15.4] (flips 61 / 21).
 **Conclusion.** Hypothesis confirmed: the whole gap comes from the numbers. The 1.7B base is brittle to resampled (on average larger) numbers and does not recall GSM8K problems by their surface form. Side result: 11 % of problems flip under a null change, the per-problem noise floor of a single greedy eval on this model.
+
+## EXP-004  Training-data overlap between OpenR1-Math-220k and every eval set      [phase 2] [status: planned]
+**Question.** D3 part (a), PLAN.md section 4.3 probe 1: how many eval problems appear in the SFT source, and which training items must be dropped before any training run.
+**Hypothesis.** The `default` split of OpenR1-Math-220k (93,733 problems, NuminaMath-1.5 sources) contains 20-40 MATH-500 problems by 13-gram or fuzzy match (published audits found 20-30), under 5 GSM8K-test problems, and 0 AIME24 problems; it also contains a sizeable part of MATH-train (the `math` source), which matters because the dev split is drawn from MATH-train. Countdown is generated and cannot overlap.
+**Metric.** Per eval set: number of eval problems hit by a 13-gram, number hit by normalised Indel similarity >= 0.9, the union, and the number of training items dropped; the ten worst hits printed for reading by eye. Evals: gsm8k, math500, aime24, gsm8k_perturbed, gsm8k_names_only, gsm8k_dev, math_dev.
+**Falsifier.** More than 5 % of MATH-500 (25 problems) hit by the *fuzzy* detector after the 13-gram drop: the dedup is not catching paraphrases and the filter must be tightened before training. More than 1 % of GSM8K-test hit: GSM8K is in the SFT source and the perturbed set carries more weight.
+**Config.** `rlvr-build-sft` (overlap stage writes `outputs/reports/phase-2-overlap/*.json`), source revision pinned in `data/manifests/sft_openr1.json`; CPU only.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-005  SFT learning-rate sweep on a 10 % subset      [phase 2] [status: planned]
+**Question.** PLAN.md Phase 2 step 2: which peak LR for the full fine-tune, chosen on the dev split and never on a test set.
+**Hypothesis.** Over {5e-6, 1e-5, 2e-5} (AdamW 0.9/0.95, wd 0.1, cosine to 10 %, 3 % warmup, 1 epoch on a seeded 10 % subset of the filtered set), 1e-5 gives the best dev accuracy; 2e-5 is within noise on GSM8K-dev but loses on MATH-dev levels 1-2 (the "LR too high erases base knowledge" failure mode from PLAN.md), and 5e-6 under-fits the format (higher tag-format failure rate).
+**Metric.** Greedy think-tag accuracy on the dev split (gsm8k_dev 250 + math_dev 250, max 4096 new tokens) with 95 % CIs, tag-format failure rate, final training loss. The LR with the highest pooled dev accuracy is used for EXP-006, 007 and 008; ties within 2 points go to 1e-5 as pre-registered.
+**Falsifier.** The three dev accuracies are within one CI of each other: LR is not a sensitive knob at this scale and data size, and the sweep is reported as a null result (still 1e-5 for the main run).
+**Config.** `configs/train/sft_1p7b_lr{5e-6,1e-5,2e-5}.yaml` (subset_fraction 0.10, 1 epoch), `configs/eval/ckpt_think_tag_dev.yaml`; rented A100, about 3 x 20 min plus evals; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-006  SFT on distilled traces: what the format and a competent style buy      [phase 2] [status: planned]
+**Question.** Q1 (the SFT term), Q7, Q9, Q10. PLAN.md Phase 2 steps 1-2.
+**Hypothesis.** Full fine-tune of Qwen3-1.7B-Base for 2 epochs on the filtered, decontaminated OpenR1 traces rewritten into the think/answer format (LR from EXP-005) raises think-tag greedy pass@1 on GSM8K from 61.3 to at least 75 (meeting the base's own 4-shot-CoT row), on MATH-500 from 43.0 to at least 50, with the gain concentrated on levels 3-5, and on Countdown from 1.2 to under 10 (the format transfers, the arithmetic search does not). Tag-format failures fall below 1 %. The perturbation gap on GSM8K stays within 3 points of the base's 12.3 (think-tag); the partial-prompt completion rates do not rise (SFT on a MATH-containing source is exactly where recall could enter, which is why the overlap drop in EXP-004 runs first). pass@64 (n = 64, T 0.6) rises by less than pass@1 does: SFT mostly sharpens toward the teacher's style; the ceiling moves little.
+**Metric.** Paired bootstrap difference SFT minus base on every eval, same problems (think-tag at max 4096 new tokens for both, so the base think-tag row is re-run at 4096 locally as the paired reference and the 1024-token Phase 1 row is not reused); MATH-500 by level; truncation and format-failure rates; pass@k and maj@k curves k <= 64 from the same n = 64 sampling as EXP-002; both the 4-shot-CoT and zero-shot rows of the checkpoint for comparability with Phase 1.
+**Falsifier.** GSM8K think-tag pass@1 below 70 or MATH-500 below 46 after 2 epochs with the chosen LR: SFT on this source at this length cap does not deliver the R1-distillation gain at 1.7B, and the recipe comparison in Phase 4 starts from a weaker policy. MATH-500 levels 1-2 falling by more than 3 points with a CI excluding 0: knowledge erasure, LR is lowered and the run repeated once. Perturbation gap widening by more than 3 points or completion rate rising above the Phase 1 numbers: recall entered through the SFT data (Q9).
+**Config.** `configs/train/sft_1p7b.yaml`, data manifest `data/manifests/sft_openr1.json` (content hash recorded), `configs/eval/sft_1.7b_{think_tag,few_shot_cot,zero_shot}.yaml`, `configs/sample/sft_1.7b_n64*.yaml`; rented A100 (training about 3-5 h depending on the kept-token count, which the data report fixes before the run); commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-007  LoRA r = 64 versus full fine-tune at the same data and epochs      [phase 2] [status: planned]
+**Question.** PLAN.md Phase 2 step 3: the LoRA-versus-full number, needed to justify where LoRA is used later (0.6B jobs locally) and where it is not.
+**Hypothesis.** LoRA (r 64, alpha 128, dropout 0.05, all linear layers, LR 2e-4, same data and 2 epochs) lands within 3 points of the full fine-tune on GSM8K think-tag and at least 3 points below it on MATH-500 (LoRA learns less on the harder, more knowledge-heavy eval; Biderman et al. 2024), at a lower peak memory and a similar wall clock.
+**Metric.** Paired difference full minus LoRA on GSM8K, perturbed GSM8K, MATH-500 (by level) and Countdown, think-tag greedy, 95 % paired CIs; peak GPU memory and tokens per second from the trainer logs.
+**Falsifier.** LoRA within 1 point of full on MATH-500 with a CI including 0: at this scale and data size the adapter is enough, and full fine-tunes later in the project are not justified by this evidence.
+**Config.** `configs/train/sft_1p7b_lora.yaml`; rented A100; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-008  SFT data-scaling curve: 25 % / 50 % / 100 % of the filtered set      [phase 2] [status: planned]
+**Question.** PLAN.md Phase 2 step 4: is data the bottleneck of SFT at 1.7B, and where does the curve bend.
+**Hypothesis.** With the same LR and 2 epochs, think-tag accuracy rises roughly log-linearly in the number of traces: from 25 % to 100 % MATH-500 gains at least 5 points while GSM8K gains fewer than 3 (GSM8K-style problems saturate early); Countdown stays flat (no Countdown-like data in the source).
+**Metric.** The three points (25, 50, 100 % = EXP-006 run) on GSM8K, perturbed GSM8K, MATH-500, Countdown, think-tag greedy, with CIs; one figure (`scripts/plot_data_scaling.py`), log-x; the 25 and 50 % subsets are seeded, nested samples of the full set so each is a subset of the next.
+**Falsifier.** MATH-500 difference between 25 % and 100 % under 2 points with a paired CI including 0: more of this data does not help at this scale, and the Phase 3/4 budget should go to RL steps rather than to more SFT traces.
+**Config.** `configs/train/sft_1p7b_data25.yaml`, `sft_1p7b_data50.yaml` (subset_fraction 0.25 / 0.50, same seed); rented A100, about 0.75 x the EXP-006 wall clock together; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
