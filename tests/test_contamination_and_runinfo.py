@@ -88,7 +88,8 @@ def test_ngram_coverage_filter_ignores_template_sentences():
     }
     train = {"template": "Some other problem whose answer " + tail, "copy": evals["aime_a"]}
     every = ngram_overlap(evals, train, n=13)
-    assert set(every) == {"aime_a", "aime_b"} and set(every["aime_b"]) == {"template"}
+    # by the any-gram rule the copy of aime_a also "hits" aime_b through the shared template
+    assert set(every) == {"aime_a", "aime_b"} and set(every["aime_b"]) == {"template", "copy"}
     covered = ngram_overlap(evals, train, n=13, min_coverage=0.5)
     # the 19-token template covers under half of a 45-token problem; the copy covers all of it
     assert covered == {"aime_a": ["copy"]}
