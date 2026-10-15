@@ -1,0 +1,15 @@
+# EXP-006: SFT checkpoint, template few_shot_cot, max 4096 new tokens (PLAN section 4.2). Full eval sets.
+model: outputs/train/sft_1p7b/final
+evals: [gsm8k, gsm8k_perturbed, math500, aime24]
+template: few_shot_cot
+n: 1
+temperature: 0.0
+max_tokens: 4096
+seed: 0
+countdown_n: 500
+backend: vllm
+batch_invariant: true
+dtype: bfloat16
+gpu_memory_utilization: 0.85
+max_model_len: 4096
+out: outputs/eval/sft_1.7b_few_shot_cot

@@ -213,3 +213,18 @@ a new dataset version; either isolate the streams per component or bump the vers
 **Also found while fixing it.** A patch written through a shell heredoc turned the regex `\b` into literal
 backspace bytes, so the name pattern matched nothing and the set changed again (829). Exact-bytes patching
 only, and `cat -A` on any regex line after editing it.
+
+## 2026-10-15  A boolean 4D attention mask is silently *added*, not applied        [phase 2] [training] [masking]
+**Symptom.** The reference packing test (one row holding three sequences, block-diagonal mask,
+positions restarting per sequence) disagreed with the unpacked per-token losses by up to 0.04 nats,
+far above float noise but far below what a real leak between sequences produces.
+**Diagnosis.** The 4D mask was passed as a boolean tensor. transformers 5.17 returns an
+"already prepared" 4D mask as-is, and the eager attention path adds it to the scores: True / False
+became + 1.0 / + 0.0 on the logits instead of 0 / -inf. Nothing was masked; the scores were nudged.
+**Fix.** `rlvr.ref.sft_loss.additive_mask` converts the boolean mask to 0 / finfo.min before it
+reaches the model; with it the packed losses match the unpacked ones to 1e-4 and the plain-causal
+variant of the same row provably differs (`tests/test_ref_sft_loss.py`).
+**Learning.** A mask that is "accepted" is not a mask that is applied. Any hand-built attention
+mask needs an equality test against the unmasked per-sequence computation, not just a shape check.
+The same test is the reason `rlvr-sft` refuses `packing: true` without a flash-attention backend:
+TRL only warns, and the leak is silent.

@@ -1,0 +1,39 @@
+# Local end-to-end smoke on the RTX 4060 (8 GB): Qwen3-0.6B-Base, LoRA r 16, 400 examples capped
+# at 2048 tokens, no packing (no flash-attention locally, so packing would be unsafe), 1 epoch.
+# Purpose: prove the pipeline (data -> trainer -> merged checkpoint -> rlvr-eval think_tag) before
+# renting. Not a reported number.
+model: Qwen/Qwen3-0.6B-Base
+data: outputs/data/sft/train.jsonl
+manifest: data/manifests/sft_openr1.json
+subset_fraction: 1.0
+subset_seed: 0
+limit: 400
+max_length: 2048
+epochs: 1
+learning_rate: 2.0e-4
+lr_scheduler: cosine_with_min_lr
+min_lr_rate: 0.1
+warmup_ratio: 0.05
+weight_decay: 0.1
+adam_beta1: 0.9
+adam_beta2: 0.95
+max_grad_norm: 1.0
+per_device_batch: 1
+grad_accum: 8
+packing: false
+attn_implementation: sdpa
+gradient_checkpointing: true
+bf16: true
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: all-linear
+  merge: true
+save_steps: 1000
+save_total_limit: 1
+logging_steps: 5
+seed: 0
+report_to: none
+run_name: sft_0p6b_lora_smoke
+out: outputs/train/sft_0p6b_lora_smoke

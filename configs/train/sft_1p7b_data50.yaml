@@ -1,0 +1,30 @@
+# EXP-008: data-scaling point, 50 % of the filtered set (nested seeded subset: the 25 % set is
+# contained in the 50 % set, both in the 100 % main run). Same LR, 2 epochs, same everything else.
+model: Qwen/Qwen3-1.7B-Base
+data: outputs/data/sft/train.jsonl
+manifest: data/manifests/sft_openr1.json
+subset_fraction: 0.50
+subset_seed: 0
+max_length: 4096
+epochs: 2
+learning_rate: 1.0e-5
+lr_scheduler: cosine_with_min_lr
+min_lr_rate: 0.1
+warmup_ratio: 0.03
+weight_decay: 0.1
+adam_beta1: 0.9
+adam_beta2: 0.95
+max_grad_norm: 1.0
+per_device_batch: 4
+grad_accum: 16
+packing: true
+attn_implementation: flash_attention_2
+gradient_checkpointing: true
+bf16: true
+save_steps: 500
+save_total_limit: 2
+logging_steps: 10
+seed: 0
+report_to: wandb
+run_name: sft_1p7b_data50
+out: outputs/train/sft_1p7b_data50
