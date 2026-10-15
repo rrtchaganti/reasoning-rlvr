@@ -196,8 +196,31 @@ A100-hours with gradient checkpointing. The whole Phase 2 rental (sweep 0.15×, 
 A100-hours, USD 25-40, within the plan's total budget though above its 3-hour line for SFT alone. If time
 runs short the order of sacrifice is: data-scaling 50 % point, then LoRA, never the main run or its evals.
 
-## 9. Still to do in this phase (code first, then your actions)
+## 9. The rest of the code (afternoon of 15 Oct)
 
-See the end of this file as it grows: HF upload script and model card, data-scaling plot, rental session
-script, engineering notes, report, then the local actions list for you (0.6B LoRA smoke, base think-tag
-rerun at 4096) and the rental session.
+Written in one pass and tested on fake run directories: `compare_checkpoints.py` (paired
+base-vs-checkpoint tables with the flip counts and MATH-500 by level, the shape every later phase's
+D-table takes), `pick_lr.py` (the pre-registered EXP-005 rule, mechanical), `plot_data_scaling.py`,
+`push_to_hub.py` (uploads `final/` with a model card generated from `run_info.json` and the eval
+tables; sample sets to a dataset repo; `--dry-run` writes the card without touching the Hub), and
+`scripts/phase2_rental.sh`, the ordered, resumable session (every step skips when its output exists).
+`docs/rental-setup.md` gained the training extras: a flash-attention wheel (or the kernels-hub build,
+or `packing: false` as the correct-but-slower fallback), W&B login, the session steps with their hours.
+Engineering notes and the report skeleton written; 149 tests. The journals for Phases 0 and 1 were
+reconstructed from the logs the same afternoon, after you asked for the chronological record.
+
+## 10. Where the phase stands, and your actions
+
+Code complete and pushed. Three things need a GPU, in this order:
+
+1. **Local end-to-end smoke (laptop, about 20 min).** Train the 0.6B with LoRA on 400 examples, no
+   packing, then evaluate the merged checkpoint on 100 GSM8K problems with the think-tag template. This
+   proves data → trainer → merged checkpoint → `rlvr-eval` works before any money is spent. Expect the
+   format-failure rate of the 0.6B base (12-34 %) to drop, and GSM8K to move a little; the number is
+   not reported anywhere.
+2. **Base think-tag reference at 4096 tokens (laptop, about 1 h).** `configs/eval/base_1.7b_think_tag_4096.yaml`.
+   The rental script also runs it if it is missing, so this is optional locally.
+3. **The rental session** (`docs/rental-setup.md`, section 3), about 15 A100-hours, with the results
+   pasted back here and into `experiments.md`.
+
+The exact commands are in the actions log and in the chat message of 15 Oct.

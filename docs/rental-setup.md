@@ -1,7 +1,7 @@
-# Rented GPU: setup and the EXP-002 sampling session
+# Rented GPU: setup, and the Phase 2 session (EXP-002 + SFT)
 
-Written during Phase 1 (14 Oct 2026). Applies to every rented session
-in Phases 1-7; the per-phase commands change, the setup does not.
+Written during Phase 1 (14 Oct 2026), extended for Phase 2 (15 Oct). Applies to every rented
+session in Phases 1-7; the per-phase commands change, the setup does not.
 
 ## 1. What to rent
 
@@ -22,7 +22,7 @@ in Phases 1-7; the per-phase commands change, the setup does not.
 
 ```bash
 git clone https://github.com/rrtchaganti/reasoning-rlvr.git && cd reasoning-rlvr
-git checkout phase-1-baselines            # or the phase branch in question
+git checkout phase-2-sft                  # the phase branch in question
 bash scripts/setup_env.sh                 # uv, Python 3.12, vllm, project; prints the Triton check
 source ~/venvs/rlvr/bin/activate
 python scripts/triton_check.py            # must print "triton compile + launch: ok"
@@ -34,7 +34,49 @@ rlvr-perturb-gsm8k --seed 0               # regenerates outputs/data/gsm8k_pertu
 Check the manifest hash printed at the end equals the one in `data/manifests/gsm8k_perturbed.json`
 (`b5afb83e6aacafcf`); if it does not, stop, the eval set is not the same.
 
-## 3. The EXP-002 session (about 3 hours of A100)
+## 2b. Training extras (Phase 2 onward): flash attention and Weights & Biases
+
+The SFT configs pack sequences (`packing: true`), which is only correct with a flash-attention backend
+(`rlvr-sft` refuses to start otherwise; the reason is in `tests/test_ref_sft_loss.py`). Install one:
+
+```bash
+uv pip install flash-attn --no-build-isolation      # prebuilt wheel if one matches torch 2.13/cu13; else it compiles (20-40 min on an A100 box)
+python -c "import flash_attn; print(flash_attn.__version__)"
+```
+
+If no wheel matches and the compile is not worth the time, use the kernels hub build instead:
+`uv pip install kernels` and set `attn_implementation: kernels-community/flash-attn` in the train
+config (the trainer accepts it as a flash variant). Last resort: `packing: false` in every train
+config (correct, about 1.5-2x slower because of padding) and say so in `COMPUTE.md`.
+
+`report_to: wandb` in the train configs needs `wandb login` once (or `WANDB_API_KEY` exported);
+set `WANDB_PROJECT=reasoning-rlvr`. To run without it: `--set report_to=none`.
+
+## 3. The Phase 2 session (about 15 hours of A100, resumable)
+
+One script runs the whole session in order and skips every step whose output already exists, so a
+dropped SSH connection costs nothing: reconnect, `tmux attach`, rerun the same command.
+
+```bash
+tmux new -s phase2
+export HF_TOKEN=... WANDB_API_KEY=... WANDB_PROJECT=reasoning-rlvr
+bash scripts/phase2_rental.sh 2>&1 | tee outputs/phase2_rental.log      # all steps
+bash scripts/phase2_rental.sh sweep                                      # or one step at a time
+```
+
+Steps and rough A100 time: `data` (10 min, CPU: regenerates the perturbed set and the SFT set and
+checks both hashes against the manifests; stop if either differs), `exp002` (3 h: base n = 64
+sampling + the base think-tag reference at 4096 tokens), `sweep` (1.5 h: three LR points on 10 % of
+the data, dev evals, `pick_lr.py` writes `outputs/train/chosen_lr.txt`), `main` (4-6 h: the full
+fine-tune with the chosen LR, three eval templates, perturbation gap, partial-prompt probe), `sample`
+(2 h: n = 64 for the SFT checkpoint), `lora` (3 h), `scaling` (3 h: 25 % and 50 %), `report` (10
+min: paired tables, figures, model card, uploads). If money runs short, drop `scaling`, then `lora`;
+never `main` or its evals.
+
+Set `HF_DRY_RUN=1` to run the report step without uploading; `HF_REPO_SFT` and `HF_REPO_SAMPLES`
+override the repo names.
+
+## 3a. The EXP-002 part on its own (about 3 hours of A100)
 
 ```bash
 tmux new -s sample                        # survive SSH drops
@@ -51,8 +93,7 @@ stored samples are the reproducibility artefact).
 
 ## 4. Before shutting the box down
 
-1. Copy `outputs/samples/**/metrics.json`, `report.md`, `run_info.json` and the figure back to the
-   laptop (`scp` or `rsync`); commit the metrics, report and figure on the phase branch.
+1. Copy back to the laptop (`rsync -av box:reasoning-rlvr/outputs/ outputs/ --include='*/' --include='metrics.json' --include='report.md' --include='run_info.json' --include='train_log.jsonl' --include='*.md' --include='*.png' --include='*.json' --exclude='*'`, or `scp` the same files): every `metrics.json`, `report.md`, `run_info.json`, `train_log.jsonl`, `outputs/reports/**`. Not the weights (on the Hub) and not the samples (on the Hub dataset repo). Commit the reports and figures on the phase branch.
 2. Upload the sample JSONL files to the project's HF dataset repo with the commit hash in the README
    (`huggingface-cli upload`); the files are git-ignored on purpose.
 3. Append `COMPUTE.md`: provider, GPU, wall-clock from `run_info.json` (`wall_clock_s`), the invoice

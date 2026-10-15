@@ -14,6 +14,6 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 |---|---|---|
 | 0 Scaffold, harness, from-scratch references | [`phase-0-engineering-notes.md`](phase-0-engineering-notes.md) | [`phase-0-journal.md`](phase-0-journal.md) |
 | 1 Baselines and pass@k ceiling | [`phase-1-engineering-notes.md`](phase-1-engineering-notes.md) | [`phase-1-journal.md`](phase-1-journal.md) |
-| 2 SFT on distilled traces | (written at the end of the phase) | [`phase-2-journal.md`](phase-2-journal.md) |
+| 2 SFT on distilled traces | [`phase-2-engineering-notes.md`](phase-2-engineering-notes.md) (results section after the rental) | [`phase-2-journal.md`](phase-2-journal.md) |
 
 Also here: [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on.
