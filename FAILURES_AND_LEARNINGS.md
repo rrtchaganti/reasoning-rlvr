@@ -242,6 +242,13 @@ and is ignored for the *reported* count; the conservative drop set still removes
 Reports now show any-13-gram, rare-13-gram, fuzzy, and "contaminated = rare or fuzzy" side by side.
 **Learning.** Read the hit pairs before believing an overlap number. A detector that cannot say
 *which* training item matched is not a detector; the ten worst pairs belong in every overlap report.
+**Update (same day).** The df cutoff did not work on the rebuilt set: the template exists in many variants
+(p/q vs m/n, tfrac vs frac, "n is not divisible by the square of any prime"), and in the 23k kept items
+several variants occur in only four training items, under the cutoff. Replaced by a coverage rule: a pair
+counts as contamination only when the shared 13-gram windows cover at least half of the eval problem's
+words (a copy is covered end to end, a template covers one line). AIME24 went to 0 contaminated, MATH-500
+to 3 of 500. Second learning: a frequency cutoff is a property of the corpus it is computed on; the
+quantity that actually distinguishes a copy from a template is how much of the problem is reproduced.
 
 ## 2026-10-15  Source uuids are not unique: 22 rows are "NaN", 11 uuids repeat        [phase 2] [data]
 **Symptom.** 23,058 rows but 23,026 distinct ids in the built SFT file.
