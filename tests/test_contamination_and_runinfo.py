@@ -71,3 +71,25 @@ def test_dirty_tree_refused_when_not_allowed(tmp_path, monkeypatch):
         write_run_info(tmp_path, config={}, seed=0, allow_dirty=False)
     info = write_run_info(tmp_path, config={}, seed=0, allow_dirty=True)
     assert info["run_tag"].endswith("-dirty")
+
+
+def test_ngram_boilerplate_filter_ignores_template_grams():
+    """A 13-gram shared by many training items is a template, not a copy (the AIME
+    'relatively prime positive integers, find m + n' sentence, 15 Oct 2026)."""
+    tail = "can be written as m over n where m and n are relatively prime positive integers find m plus n"
+    evals = {
+        "aime_a": "Eight circles of radius thirty four are tangent and the inradius " + tail,
+        "aime_b": "Jen picks four distinct numbers and the probability of the grand prize " + tail,
+    }
+    train = {
+        f"t{i}": f"Training problem {i} about something else whose answer {tail}" for i in range(6)
+    }
+    train["copy"] = evals["aime_a"]
+    every = ngram_overlap(evals, train, n=13)
+    assert set(every) == {"aime_a", "aime_b"} and len(every["aime_b"]) >= 6
+    rare = ngram_overlap(evals, train, n=13, max_df=5)
+    assert rare == {"aime_a": ["copy"]}  # only the verbatim copy survives the filter
+    rep = overlap_report("aime", evals, train, run_fuzzy=False, max_df=5)
+    assert rep.summary()["eval_hit_ngram"] == 2 and rep.summary()["eval_hit_ngram_rare"] == 1
+    assert rep.contaminated_eval_ids == {"aime_a"}
+    assert rep.train_ids_to_drop == set(train)  # conservative: every hit item is still dropped

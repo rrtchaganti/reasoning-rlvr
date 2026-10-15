@@ -15,8 +15,14 @@ Pipeline, in this order, every drop counted by reason:
    with the real tokenizer, so nothing is truncated mid-answer at train time.
 5. **Dedup** on the normalised problem text (keep the first).
 6. **Decontaminate** against every eval set and the dev split with the 13-gram and fuzzy
-   detectors from :mod:`rlvr.data.contamination`; the hit items are dropped and reported
+   detectors from :mod:`rlvr.data.contamination`; every hit item is dropped (conservative),
+   while the *reported* contamination counts only rare 13-grams (shared by at most
+   ``BOILERPLATE_DF`` training items) and fuzzy matches, because template sentences such as
+   "where m and n are relatively prime positive integers, find m + n" are 13-grams too
    (EXP-004 / D3 part a).
+
+Ids: the source uuid, made unique (22 rows carry the uuid "NaN" and some uuids repeat), so
+the trainer's id map and the manifest hash never collapse two problems into one.
 
 Outputs: ``outputs/data/sft/train.jsonl`` (git-ignored), ``data/manifests/sft_openr1.json``
 (committed: revision, filters, counts, token statistics, content hash), the per-eval overlap
@@ -47,6 +53,8 @@ SOURCE = "open-r1/OpenR1-Math-220k"
 SOURCE_CONFIG = "default"
 DEFAULT_MAX_TOKENS = 4096
 TOKENIZER = "Qwen/Qwen3-1.7B-Base"  # shared by the 0.6B student
+BOILERPLATE_DF = 5  # a 13-gram in more than this many training items is a template
+MISSING_IDS = {"", "nan", "none", "null"}
 DEFAULT_EVALS = (
     "gsm8k",
     "math500",
@@ -149,7 +157,7 @@ def build_example(
     trace: ParsedTrace,
     source: str,
     problem_type: str,
-    count_tokens: Callable[[str], int],
+    n_tokens: int = 0,
 ) -> SftExample:
     prompt = sft_prompt(problem_text)
     completion = sft_completion(trace)
@@ -160,7 +168,7 @@ def build_example(
         prompt=prompt,
         completion=completion,
         answer=trace.final,
-        n_tokens=count_tokens(prompt) + count_tokens(completion),
+        n_tokens=n_tokens,
     )
 
 
@@ -207,18 +215,43 @@ def pick_correct_generation(row: Mapping[str, Any]) -> tuple[int, str] | None:
     return None
 
 
+def unique_id(raw: Any, row_index: int, seen: set[str]) -> str:
+    """The source uuid when it is present and new; otherwise ``<uuid or row>#<row index>``."""
+    uid = str(raw).strip() if raw is not None else ""
+    if uid.lower() in MISSING_IDS:
+        uid = f"row#{row_index}"
+    elif uid in seen:
+        uid = f"{uid}#{row_index}"
+    seen.add(uid)
+    return uid
+
+
+def count_tokens_batched(
+    texts: Sequence[str], count_many: Callable[[Sequence[str]], list[int]], batch_size: int
+) -> list[int]:
+    out: list[int] = []
+    for i in range(0, len(texts), batch_size):
+        out.extend(count_many(texts[i : i + batch_size]))
+    assert len(out) == len(texts)
+    return out
+
+
 def select_examples(
     rows: Iterable[Mapping[str, Any]],
     *,
-    count_tokens: Callable[[str], int],
+    count_tokens: Callable[[Sequence[str]], list[int]],
     max_tokens: int = DEFAULT_MAX_TOKENS,
     stats: BuildStats | None = None,
+    batch_size: int = 512,
 ) -> list[SftExample]:
-    """Steps 1-5: select, parse, rewrite, cap, dedup. Deterministic in the row order."""
+    """Steps 1-5: select, parse, rewrite, dedup, then count tokens in batches and cap.
+    Deterministic in the row order. ``count_tokens`` maps a list of texts to their lengths."""
     stats = stats if stats is not None else BuildStats()
     seen_problems: set[str] = set()
-    out: list[SftExample] = []
+    seen_ids: set[str] = set()
+    candidates: list[SftExample] = []
     for row in rows:
+        row_index = stats.rows_seen
         stats.rows_seen += 1
         problem = str(row.get("problem") or "").strip()
         if not problem:
@@ -239,20 +272,28 @@ def select_examples(
         if key in seen_problems:
             stats.drops["duplicate_problem"] += 1
             continue
+        seen_problems.add(key)
         ex = build_example(
-            uid=str(row.get("uuid") or f"row-{stats.rows_seen - 1}"),
+            uid=unique_id(row.get("uuid"), row_index, seen_ids),
             problem_text=problem,
             trace=trace,
             source=str(row.get("source") or ""),
             problem_type=str(row.get("problem_type") or ""),
-            count_tokens=count_tokens,
         )
+        ex.meta = {"problem": problem}
+        candidates.append(ex)
+
+    prompt_lens = count_tokens_batched([ex.prompt for ex in candidates], count_tokens, batch_size)
+    completion_lens = count_tokens_batched(
+        [ex.completion for ex in candidates], count_tokens, batch_size
+    )
+    out: list[SftExample] = []
+    for ex, lp, lc in zip(candidates, prompt_lens, completion_lens, strict=True):
+        ex.n_tokens = lp + lc
         stats.candidate_tokens.append(ex.n_tokens)
         if ex.n_tokens > max_tokens:
             stats.drops["too_long"] += 1
             continue
-        seen_problems.add(key)
-        ex.meta = {"problem": problem}
         out.append(ex)
     stats.kept = len(out)
     return out
@@ -269,9 +310,12 @@ def decontaminate(
     n: int = 13,
     fuzzy_threshold: float = 0.9,
     run_fuzzy: bool = True,
+    max_df: int | None = BOILERPLATE_DF,
 ) -> tuple[list[SftExample], dict[str, Any]]:
-    """Step 6 (EXP-004): drop every training item that hits any eval problem; return the kept
-    examples and a per-eval summary (ngram hits, fuzzy hits, union, items dropped)."""
+    """Step 6 (EXP-004): drop every training item that hits any eval problem by any detector;
+    report per eval set the n-gram hits (all, and rare after the boilerplate filter), the fuzzy
+    hits, and ``eval_contaminated`` = rare n-gram or fuzzy, the number that is reported as
+    present in the training data."""
     train_items = {ex.id: ex.meta.get("problem", "") for ex in examples}
     summary: dict[str, Any] = {}
     to_drop: set[str] = set()
@@ -284,16 +328,23 @@ def decontaminate(
             n=n,
             fuzzy_threshold=fuzzy_threshold,
             run_fuzzy=run_fuzzy,
+            max_df=max_df,
         )
         hit_ids = set(rep.ngram_hits) | set(rep.fuzzy_hits)
+        contaminated = rep.contaminated_eval_ids
         fuzzy_only = set(rep.fuzzy_hits) - set(rep.ngram_hits)
         summary[name] = {
             "num_eval": rep.num_eval,
             "eval_hit_ngram": len(rep.ngram_hits),
+            "eval_hit_ngram_rare": None
+            if rep.ngram_hits_rare is None
+            else len(rep.ngram_hits_rare),
             "eval_hit_fuzzy": len(rep.fuzzy_hits),
             "eval_hit_fuzzy_only": len(fuzzy_only),
             "eval_hit_union": len(hit_ids),
             "eval_hit_union_pct": round(100 * len(hit_ids) / max(1, rep.num_eval), 2),
+            "eval_contaminated": len(contaminated),
+            "eval_contaminated_pct": round(100 * len(contaminated) / max(1, rep.num_eval), 2),
             "train_items_dropped": len(rep.train_ids_to_drop),
             "seconds": round(time.time() - t0, 1),
         }
@@ -377,20 +428,25 @@ def data_report_markdown(manifest: Mapping[str, Any], overlap: Mapping[str, Any]
         "",
         "## Training-data overlap (EXP-004, D3 part a)",
         "",
-        "| eval set | problems | hit by 13-gram | hit by fuzzy >= 0.9 | fuzzy only | union | union % | train items dropped |",
-        "|---|---|---|---|---|---|---|---|",
+        "| eval set | problems | any 13-gram | rare 13-gram (df <= "
+        f"{BOILERPLATE_DF}) | fuzzy >= 0.9 | fuzzy only | **contaminated** (rare or fuzzy) | % | "
+        "train items dropped (any hit) |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for name, s in overlap.items():
         if name.startswith("_"):
             continue
         lines.append(
-            f"| {name} | {s['num_eval']} | {s['eval_hit_ngram']} | {s['eval_hit_fuzzy']} | "
-            f"{s['eval_hit_fuzzy_only']} | {s['eval_hit_union']} | {s['eval_hit_union_pct']} | "
-            f"{s['train_items_dropped']} |"
+            f"| {name} | {s['num_eval']} | {s['eval_hit_ngram']} | {s['eval_hit_ngram_rare']} | "
+            f"{s['eval_hit_fuzzy']} | {s['eval_hit_fuzzy_only']} | **{s['eval_contaminated']}** | "
+            f"{s['eval_contaminated_pct']} | {s['train_items_dropped']} |"
         )
     lines += [
         "",
-        "Per-eval JSON with the hit ids and the worst examples: `outputs/reports/phase-2-overlap/`.",
+        "A 13-gram shared by more than the df threshold of training items is a template sentence "
+        "(AIME's 'relatively prime positive integers, find m + n'), not a copy; those hits are "
+        "still dropped from training but not counted as contamination. Per-eval JSON with the "
+        "hit ids: `outputs/reports/phase-2-overlap/`.",
         "",
         "## Sources and problem types kept",
         "",
@@ -436,11 +492,13 @@ def plot_length_hist(lengths: Sequence[int], cap: int, path: Path) -> None:
 # --------------------------------------------------------------------------- CLI
 
 
-def _real_token_counter(name: str) -> Callable[[str], int]:
+def _real_token_counter(name: str) -> Callable[[Sequence[str]], list[int]]:
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(name)
-    return lambda s: len(tok(s, add_special_tokens=False)["input_ids"])
+    return lambda texts: [
+        len(ids) for ids in tok(list(texts), add_special_tokens=False)["input_ids"]
+    ]
 
 
 def _eval_items(names: Sequence[str]) -> dict[str, dict[str, str]]:
@@ -486,6 +544,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--limit", type=int, default=None, help="rows to read (smoke runs)")
     p.add_argument("--evals", nargs="+", default=list(DEFAULT_EVALS))
     p.add_argument("--no-fuzzy", action="store_true")
+    p.add_argument("--boilerplate-df", type=int, default=BOILERPLATE_DF)
     p.add_argument("--verify-sample", type=int, default=2000)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out", type=Path, default=None, help="default outputs/data/sft")
@@ -520,12 +579,20 @@ def main(argv: list[str] | None = None) -> None:
     eval_items = _eval_items(args.evals)
     print(f"[overlap] {len(examples)} items vs {list(eval_items)}")
     examples, overlap = decontaminate(
-        examples, eval_items, report_dir=report_dir, run_fuzzy=not args.no_fuzzy
+        examples,
+        eval_items,
+        report_dir=report_dir,
+        run_fuzzy=not args.no_fuzzy,
+        max_df=args.boilerplate_df,
     )
     for name, s in overlap.items():
         print(f"[overlap] {name}: {s}")
 
-    gold = {str(r["uuid"]): str(r["answer"]) for r in ds} if args.verify_sample else {}
+    gold: dict[str, str] = {}
+    if args.verify_sample:
+        seen_ids: set[str] = set()
+        for i, r in enumerate(ds):
+            gold[unique_id(r.get("uuid"), i, seen_ids)] = str(r["answer"])
     answer_check = (
         _answer_check(examples, gold, args.verify_sample, args.seed) if args.verify_sample else None
     )
@@ -542,6 +609,7 @@ def main(argv: list[str] | None = None) -> None:
         "limit": args.limit,
         "evals_decontaminated": sorted(eval_items),
         "fuzzy": not args.no_fuzzy,
+        "boilerplate_df": args.boilerplate_df,
         "num_examples": len(examples),
         "content_hash": content_hash(examples),
         "kept_token_stats": token_stats(lengths),

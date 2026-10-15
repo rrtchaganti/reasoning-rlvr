@@ -228,3 +228,26 @@ variant of the same row provably differs (`tests/test_ref_sft_loss.py`).
 mask needs an equality test against the unmasked per-sequence computation, not just a shape check.
 The same test is the reason `rlvr-sft` refuses `packing: true` without a flash-attention backend:
 TRL only warns, and the leak is silent.
+
+## 2026-10-15  13-gram overlap fires on template sentences; AIME24 looked 27 % contaminated        [phase 2] [contamination]
+**Symptom.** First SFT data build: 8 of 30 AIME24 problems and 6 MATH-500 problems "hit" by a 13-gram
+in OpenR1-Math-220k, 0 by the fuzzy detector on AIME. Printing the pairs showed every AIME hit pointing
+at the *same* training item, an unrelated AIME problem.
+**Diagnosis.** After punctuation stripping, "can be expressed as m n where m and n are relatively
+prime positive integers find m n" is a 13-gram shared by most AIME-style problems. The GPT-3 n-gram
+convention has no notion of boilerplate; one template sentence in the training set hits every eval
+problem that uses it.
+**Fix.** `ngram_overlap(max_df=5)`: a gram that occurs in more than 5 training items is a template
+and is ignored for the *reported* count; the conservative drop set still removes every hit item.
+Reports now show any-13-gram, rare-13-gram, fuzzy, and "contaminated = rare or fuzzy" side by side.
+**Learning.** Read the hit pairs before believing an overlap number. A detector that cannot say
+*which* training item matched is not a detector; the ten worst pairs belong in every overlap report.
+
+## 2026-10-15  Source uuids are not unique: 22 rows are "NaN", 11 uuids repeat        [phase 2] [data]
+**Symptom.** 23,058 rows but 23,026 distinct ids in the built SFT file.
+**Diagnosis.** OpenR1-Math-220k has rows whose `uuid` is the string "NaN" and a few uuids attached to
+two different problems. `rlvr-sft` keeps a dict by id, so 32 problems would have silently vanished
+from training while the manifest counted them.
+**Fix.** `unique_id`: missing uuid -> `row#<index>`, repeated uuid -> `<uuid>#<index>`; rebuilt.
+**Learning.** Assert id uniqueness in every generator (now in the tests) and never trust a source's
+primary key.

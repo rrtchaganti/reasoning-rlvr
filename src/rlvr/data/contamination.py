@@ -19,7 +19,7 @@ from __future__ import annotations
 import bisect
 import json
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,12 +53,24 @@ class OverlapReport:
     fuzzy_hits: dict[str, list[tuple[str, float]]] = field(
         default_factory=dict
     )  # eval_id -> (train id, score)
+    # n-gram hits that survive the boilerplate filter (grams shared by at most ``max_df``
+    # training items); None when the filter was not run
+    ngram_hits_rare: dict[str, list[str]] | None = None
+    max_df: int | None = None
 
     @property
     def train_ids_to_drop(self) -> set[str]:
+        """Conservative: every training item that hit by any detector, boilerplate included."""
         ids = {t for ts in self.ngram_hits.values() for t in ts}
         ids |= {t for ts in self.fuzzy_hits.values() for t, _ in ts}
         return ids
+
+    @property
+    def contaminated_eval_ids(self) -> set[str]:
+        """Eval problems counted as present in the training data: a *rare* n-gram hit (when the
+        boilerplate filter ran, else any n-gram hit) or a fuzzy hit."""
+        grams = self.ngram_hits if self.ngram_hits_rare is None else self.ngram_hits_rare
+        return set(grams) | set(self.fuzzy_hits)
 
     def summary(self) -> dict:
         return {
@@ -67,8 +79,13 @@ class OverlapReport:
             "num_eval": self.num_eval,
             "num_train": self.num_train,
             "eval_hit_ngram": len(self.ngram_hits),
+            "eval_hit_ngram_rare": None
+            if self.ngram_hits_rare is None
+            else len(self.ngram_hits_rare),
+            "max_df": self.max_df,
             "eval_hit_fuzzy": len(self.fuzzy_hits),
             "eval_hit_any": len(set(self.ngram_hits) | set(self.fuzzy_hits)),
+            "eval_contaminated": len(self.contaminated_eval_ids),
             "train_to_drop": len(self.train_ids_to_drop),
         }
 
@@ -79,17 +96,35 @@ def ngram_overlap(
     *,
     n: int = 13,
     max_hits_per_eval: int = 20,
+    max_df: int | None = None,
 ) -> dict[str, list[str]]:
-    """Map eval id -> training ids sharing at least one n-gram with it."""
+    """Map eval id -> training ids sharing at least one n-gram with it.
+
+    ``max_df``: ignore n-grams that occur in more than this many *training* items. Such grams
+    are templates, not copies ("where m and n are relatively prime positive integers find m n"
+    is a 13-gram shared by most AIME problems; found 15 Oct 2026, it made 8 of 30 AIME24
+    problems "hit" through one unrelated training item). None keeps every gram.
+    """
     index: dict[tuple[str, ...], list[str]] = defaultdict(list)
     for eid, text in eval_items.items():
         for g in set(ngrams(normalize_text(text).split(), n)):
             index[g].append(eid)
-    hits: dict[str, list[str]] = defaultdict(list)
+    # grams of each training item that occur in the eval index (small: only shared grams)
+    shared: list[tuple[str, set[tuple[str, ...]]]] = []
+    df: Counter[tuple[str, ...]] = Counter()
     for tid, text in train_items.items():
+        gs = {g for g in ngrams(normalize_text(text).split(), n) if g in index}
+        if gs:
+            shared.append((tid, gs))
+            if max_df is not None:
+                df.update(gs)
+    hits: dict[str, list[str]] = defaultdict(list)
+    for tid, gs in shared:
         seen: set[str] = set()
-        for g in ngrams(normalize_text(text).split(), n):
-            for eid in index.get(g, ()):
+        for g in gs:
+            if max_df is not None and df[g] > max_df:
+                continue
+            for eid in index[g]:
                 if eid not in seen:
                     seen.add(eid)
                     if len(hits[eid]) < max_hits_per_eval:
@@ -137,9 +172,12 @@ def overlap_report(
     n: int = 13,
     fuzzy_threshold: float = 0.9,
     run_fuzzy: bool = True,
+    max_df: int | None = None,
 ) -> OverlapReport:
-    rep = OverlapReport(eval_name, n, len(eval_items), len(train_items))
+    rep = OverlapReport(eval_name, n, len(eval_items), len(train_items), max_df=max_df)
     rep.ngram_hits = ngram_overlap(eval_items, train_items, n=n)
+    if max_df is not None:
+        rep.ngram_hits_rare = ngram_overlap(eval_items, train_items, n=n, max_df=max_df)
     if run_fuzzy:
         rep.fuzzy_hits = fuzzy_overlap(eval_items, train_items, threshold=fuzzy_threshold)
     return rep
@@ -151,7 +189,11 @@ def write_report(rep: OverlapReport, path: str | Path, *, examples: int = 10) ->
     payload = {
         "summary": rep.summary(),
         "ngram_hits": dict(list(rep.ngram_hits.items())[:examples]),
+        "ngram_hits_rare": None
+        if rep.ngram_hits_rare is None
+        else dict(list(rep.ngram_hits_rare.items())[:examples]),
         "fuzzy_hits": dict(list(rep.fuzzy_hits.items())[:examples]),
+        "contaminated_eval_ids": sorted(rep.contaminated_eval_ids),
         "train_ids_to_drop": sorted(rep.train_ids_to_drop),
     }
     path.write_text(json.dumps(payload, indent=2))

@@ -19,6 +19,7 @@ from rlvr.data.sft_data import (
     sft_completion,
     sft_prompt,
     token_stats,
+    unique_id,
     write_jsonl,
 )
 from rlvr.eval.datasets import DEV_SEED, DEV_SIZE_PER_SOURCE, EvalSet, Problem, _dev_split
@@ -26,8 +27,8 @@ from rlvr.eval.extraction import extract_answer, tag_format_ok
 from rlvr.eval.prompts import build_prompt
 
 
-def words(s: str) -> int:
-    return len(s.split())
+def words(texts) -> list[int]:
+    return [len(t.split()) for t in texts]
 
 
 GEN_OK = (
@@ -123,8 +124,8 @@ def test_select_examples_funnel_counts_every_drop():
     # the long candidate is counted in the pre-cap length distribution; the duplicate is
     # dropped before tokenising (dedup is cheap, the tokenizer is not), so two candidates
     assert len(stats.candidate_tokens) == 2 and max(stats.candidate_tokens) > 200
-    assert out[0].answer == "180" and out[0].n_tokens == words(out[0].prompt) + words(
-        out[0].completion
+    assert out[0].answer == "180" and out[0].n_tokens == sum(
+        words([out[0].prompt, out[0].completion])
     )
 
 
@@ -140,9 +141,7 @@ def test_decontaminate_drops_hits_and_reports_per_eval(tmp_path):
     exs = []
     for uid, prob in [("copy", copy), ("swap", swapped), ("clean", clean)]:
         t = parse_generation(GEN_OK)
-        ex = build_example(
-            uid=uid, problem_text=prob, trace=t, source="s", problem_type="t", count_tokens=words
-        )
+        ex = build_example(uid=uid, problem_text=prob, trace=t, source="s", problem_type="t")
         ex.meta = {"problem": prob}
         exs.append(ex)
     evals = {
@@ -156,6 +155,7 @@ def test_decontaminate_drops_hits_and_reports_per_eval(tmp_path):
     assert [ex.id for ex in kept] == ["clean"]
     g = summary["gsm8k"]
     assert g["eval_hit_ngram"] == 1 and g["eval_hit_fuzzy"] == 2 and g["eval_hit_union"] == 2
+    assert g["eval_hit_ngram_rare"] == 1 and g["eval_contaminated"] == 2  # df 1: the copy is rare
     assert g["eval_hit_fuzzy_only"] == 1 and g["train_items_dropped"] == 2
     assert summary["math500"]["eval_hit_union"] == 0
     assert summary["_total"]["train_items_dropped_union"] == 2
@@ -165,9 +165,7 @@ def test_decontaminate_drops_hits_and_reports_per_eval(tmp_path):
 
 def test_jsonl_round_trip_and_hash_is_content_based(tmp_path):
     t = parse_generation(GEN_OK)
-    ex = build_example(
-        uid="a", problem_text="P", trace=t, source="s", problem_type="t", count_tokens=words
-    )
+    ex = build_example(uid="a", problem_text="P", trace=t, source="s", problem_type="t")
     ex.meta = {"problem": "P"}
     write_jsonl([ex], tmp_path / "train.jsonl")
     rows = read_jsonl(tmp_path / "train.jsonl")
@@ -200,6 +198,9 @@ def test_token_stats_and_report_render():
         "gsm8k": {
             "num_eval": 2,
             "eval_hit_ngram": 1,
+            "eval_hit_ngram_rare": 0,
+            "eval_contaminated": 1,
+            "eval_contaminated_pct": 50.0,
             "eval_hit_fuzzy": 1,
             "eval_hit_fuzzy_only": 0,
             "eval_hit_union": 1,
@@ -209,7 +210,10 @@ def test_token_stats_and_report_render():
         "_total": {"train_items_dropped_union": 1, "kept_after_decontamination": 1},
     }
     md = data_report_markdown(manifest, overlap)
-    assert "| dropped: too_long | 4 |" in md and "| gsm8k | 2 | 1 | 1 | 0 | 1 | 50.0 | 1 |" in md
+    assert (
+        "| dropped: too_long | 4 |" in md
+        and "| gsm8k | 2 | 1 | 0 | 1 | 0 | **1** | 50.0 | 1 |" in md
+    )
 
 
 def test_dev_split_is_deterministic_and_disjoint_from_the_rest():
@@ -221,3 +225,33 @@ def test_dev_split_is_deterministic_and_disjoint_from_the_rest():
     assert [p.id for p in a.problems] == [p.id for p in b.problems]  # order-independent
     assert a.content_hash() == b.content_hash()
     assert DEV_SEED == 20261015  # changing the seed changes the dev split: a new dataset version
+
+
+def test_unique_ids_disambiguate_missing_and_repeated_uuids():
+    seen: set[str] = set()
+    assert unique_id("abc", 0, seen) == "abc"
+    assert unique_id("abc", 1, seen) == "abc#1"  # repeated uuid in the source
+    assert unique_id("NaN", 2, seen) == "row#2"
+    assert unique_id(None, 3, seen) == "row#3"
+    assert unique_id("", 4, seen) == "row#4"
+    rows = [
+        _row("NaN", "P1 one.", [GEN_OK], [True]),
+        _row("NaN", "P2 two.", [GEN_OK], [True]),
+        _row("dup", "P3 three.", [GEN_OK], [True]),
+        _row("dup", "P4 four.", [GEN_OK], [True]),
+    ]
+    out = select_examples(rows, count_tokens=words, max_tokens=10_000)
+    assert [ex.id for ex in out] == ["row#0", "row#1", "dup", "dup#3"]
+    assert len({ex.id for ex in out}) == 4
+
+
+def test_select_examples_counts_tokens_in_batches():
+    calls: list[int] = []
+
+    def counting(texts):
+        calls.append(len(texts))
+        return [len(t.split()) for t in texts]
+
+    rows = [_row(f"u{i}", f"Problem number {i}.", [GEN_OK], [True]) for i in range(7)]
+    out = select_examples(rows, count_tokens=counting, max_tokens=10_000, batch_size=3)
+    assert len(out) == 7 and calls == [3, 3, 1, 3, 3, 1]  # prompts, then completions
