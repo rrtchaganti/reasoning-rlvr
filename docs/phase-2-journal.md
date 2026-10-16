@@ -408,3 +408,47 @@ throughput measured at that context length, not a remembered number. Logged in t
 **Next.** The reference folder `outputs/eval/base_1.7b_think_tag_4096/` must be on the rental box
 before `scripts/phase2_rental.sh` runs (the `exp002` step skips the reference when its `metrics.json`
 exists); `docs/rental-setup.md` section 3 says how. Nothing else is left to run locally.
+
+## 15. Compute provider chosen: E2E Networks, one volume, nodes come and go (16 Oct)
+
+You asked for the cheapest way to run the remaining phases on E2E Networks (on-demand only, no H100
+on offer), switching between the laptop and rented nodes, with one persistent volume moved between a
+small and a big instance. Your worry: the low-compute stretches are longer than the training bursts.
+
+Facts from E2E's documentation, read 16 Oct: a powered-off GPU node on MyAccount keeps billing until
+it is terminated (TIR's billing page says the opposite for TIR nodes; we use MyAccount nodes and
+terminate); block-storage volumes outlive nodes, attach to GPU and C3 plans and re-attach elsewhere;
+saved images need a powered-off node and are billed for the whole root disk. Prices in INR per hour:
+L4 24 GB 49, A40 48 GB 96, L40S 48 GB 102, A100 40 GB 179, A100 80 GB 189. The A100 image reports
+CUDA 12.8, so the lock file's CUDA 13 torch will not load there; the setup script takes
+`UV_TORCH_BACKEND=cu128` and the versions go into `COMPUTE.md`. The number that shapes everything: a
+cold start (uv, wheels, flash-attn, model and dataset downloads, data builds) costs about one
+A100-hour, INR 190, so it happens once, on the INR 49 L4, with the volume attached.
+
+Options laid out: (A) one volume, nodes come and go: 5-10 min per switch, no re-setup, storage only
+between sessions; (B) a saved image: no attach step, but 100+ GB of billed image, and the outputs
+still have to leave the node before Terminate; (C) stateless, git plus the Hub: 30-60 min and about
+INR 190 of setup per session, fine for two sessions, bad for five; (D) the laptop as the small instance
+for everything low-compute. Chosen: A plus D. The long low-compute stretches cost nothing because they
+run on the 4060 and the editor, and the volume just sits there. One correction to the plan's split:
+after section 14, 4096-token greedy evals of checkpoints are not laptop work (4 h each); they run
+inside the session, where they take about ten minutes.
+
+Phase to node: Phase 2 on the A100 80 GB (15 h, about INR 2,850), with the option to run the sweep,
+main, LoRA and scaling steps on the L40S if a measured speed check passes; Phase 3 RFT on the A100,
+3 h; Phase 4 GRPO on the A100 80 GB only (vLLM colocated with an fp32-master 1.7B policy), 36 h,
+about INR 6,800, seed repeat first to drop; Phase 5 DPO 3 h; Phase 6 sampling 3 h; Phase 7
+distillation of the 0.6B on an L4 or L40S. About 42 A100-hours plus 10-15 cheaper hours, INR
+9,300-10,700 before storage, inside the USD 100-170 budget. Five sessions, each: launch from the same
+image, attach, mount, source, run the phase script in tmux, confirm the uploads, terminate.
+
+Built for it: `scripts/e2e_attach.sh` (finds the volume, formats once after a typed YES, mounts at
+`/mnt/rlvr`, fstab entry), `scripts/e2e_env.sh` (fixed paths on the volume for the venv, uv's
+CPython, the wheel cache and `HF_HOME`, so the environment built on the L4 runs unchanged on the
+A100), `scripts/project_run_time.py` plus a `speed` step in `scripts/phase2_rental.sh` (runs the
+first sweep run, measures tokens per second, projects the main run; rule fixed in advance: stay on
+the cheaper card if the main run projects to at most 8 h, else move the volume to the A100; the
+finished sweep run is reused either way), and `RLVR_TRAIN_EXTRA` for the 48 GB cards
+(`--set per_device_batch=2 --set grad_accum=32`). Rental guide section 2c has the click-by-click cold
+start and the per-session routine. Unverified until the first node: the cu128 install of vLLM 0.31;
+it is done on the L4 and checked with `triton_check.py` and a 20-problem eval before any A100 exists.

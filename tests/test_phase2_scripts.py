@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import compare_checkpoints
 import pick_lr
 import plot_data_scaling
+import project_run_time
 import push_to_hub
 
 
@@ -142,3 +143,43 @@ def test_model_card_renders_from_run_info(tmp_path):
     assert "| think_tag | 78.0 [73.0, 83.0] | - | 52.0 [47.0, 57.0] | - | - |" in card
     push_to_hub.main(["model", "--run", str(run), "--repo", "x/y", "--evals", str(ev), "--dry-run"])
     assert (run / "final" / "README.md").exists()
+
+
+def _short_run_info(**over):
+    info = {
+        "gpu": "NVIDIA L40S",
+        "config": {"subset_fraction": 0.1, "epochs": 2, "limit": None},
+        "tokens_per_epoch": 6.18e6,
+        "epochs_done": 2.0,
+        "train_runtime_s": 1800.0,
+    }
+    info.update(over)
+    return info
+
+
+def test_project_run_time_rule():
+    p = project_run_time.project(_short_run_info(), main_epochs=2, max_hours=8, rate=102)
+    assert abs(p["tokens_per_s"] - 2 * 6.18e6 / 1800) < 1e-6
+    assert abs(p["main_tokens"] - 123.6e6) < 1
+    assert 4.9 < p["projected_hours"] < 5.1 and p["stay"]
+    assert abs(p["projected_cost"] - p["projected_hours"] * 102) < 1e-6
+    assert "STAY" in project_run_time.render(p)
+    slow = project_run_time.project(
+        _short_run_info(train_runtime_s=3600.0), main_epochs=2, max_hours=8, rate=102
+    )
+    assert not slow["stay"] and "MOVE" in project_run_time.render(slow)
+    with pytest.raises(ValueError):
+        project_run_time.project(
+            _short_run_info(config={"subset_fraction": 1.0, "limit": 400}),
+            main_epochs=2,
+            max_hours=8,
+            rate=102,
+        )
+
+
+def test_project_run_time_cli(tmp_path, capsys):
+    f = tmp_path / "run_info.json"
+    f.write_text(json.dumps(_short_run_info()))
+    project_run_time.main([str(f), "--json", "--rate", "189"])
+    out = json.loads(capsys.readouterr().out)
+    assert out["stay"] and abs(out["rate_per_hour"] - 189) < 1e-9

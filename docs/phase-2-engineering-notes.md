@@ -19,10 +19,11 @@ the sections marked *after the rental* are filled in when the training runs have
 | Paired checkpoint comparison | `scripts/compare_checkpoints.py` | `tests/test_phase2_scripts.py` |
 | LR choice, data-scaling figure, model card and uploads | `scripts/pick_lr.py`, `scripts/plot_data_scaling.py`, `scripts/push_to_hub.py` | `tests/test_phase2_scripts.py` |
 | Context-budget guard in the eval harness | `src/rlvr/eval/sampler.py` (`context_budget`), `run_eval.py` | `tests/test_eval_harness_end_to_end.py` (+1, +1 slow) |
-| Rental session | `scripts/phase2_rental.sh` (resumable, 8 steps) | `bash -n`; exercised on the box |
+| Rental session | `scripts/phase2_rental.sh` (resumable, 8 steps + `speed`) | `bash -n`; exercised on the box |
+| E2E volume routine and the cheaper-card rule | `scripts/e2e_attach.sh`, `scripts/e2e_env.sh`, `scripts/project_run_time.py` | `tests/test_phase2_scripts.py` (+2); shell scripts exercised on the box |
 | Configs | `configs/train/*.yaml` (8), `configs/eval/{sft_*,ckpt_think_tag_dev,base_1.7b_think_tag_4096}.yaml`, `configs/sample/sft_*.yaml` | config loading tested |
 
-Suite at the end of the code phase: 153 tests on CPU (about 40 s), 2 GPU-marked and 3 slow tests
+Suite at the end of the code phase: 155 tests on CPU (about 40 s), 2 GPU-marked and 3 slow tests
 (the trainer's four pass on the laptop's RTX 4060).
 
 ## 2. The data pipeline: what each stage is for

@@ -15,8 +15,9 @@ session in Phases 1-7; the per-phase commands change, the setup does not.
   the matching `vllm` wheel for cu128; record the versions in `COMPUTE.md` because they differ from the
   lock file and the run_info of those runs will say so.
 - Disk: 60 GB is enough (weights 3.4 GB, HF cache, 64-sample outputs about 2-3 GB per eval set).
-- Providers used before on this machine: none yet. RunPod and Lambda both offer 580-series images at
-  the time of writing; check the template's driver line before paying.
+- Provider chosen 16 Oct 2026: E2E Networks (MyAccount GPU nodes, on-demand, INR billing). Section 2c
+  has the volume layout, the prices and the per-session routine. Its A100 image reports CUDA 12.8,
+  so the cu128 route in section 2 applies unless an image with a 580-series driver is offered.
 
 ## 2. First ten minutes on the box
 
@@ -51,6 +52,114 @@ config (correct, about 1.5-2x slower because of padding) and say so in `COMPUTE.
 
 `report_to: wandb` in the train configs needs `wandb login` once (or `WANDB_API_KEY` exported);
 set `WANDB_PROJECT=reasoning-rlvr`. To run without it: `--set report_to=none`.
+
+## 2c. E2E Networks: one volume, nodes come and go (chosen 16 Oct 2026)
+
+**Facts that shape the routine** (E2E documentation, read 16 Oct 2026; re-check before the first
+invoice):
+
+- A powered-off GPU node on MyAccount keeps billing until it is **terminated**. End every session
+  with Terminate, never Power off. (TIR, E2E's managed platform, says stopped nodes are free; we do
+  not use TIR.)
+- Block-storage volumes outlive the node: create once, attach to a running or powered-off node, detach,
+  re-attach to another node (GPU and C3 CPU plans). Attach plus mount is a few minutes.
+- Saved images need a powered-off node and are billed for the whole root disk; not used.
+- Prices (INR per hour, on-demand, 16 Oct 2026): L4 24 GB 49; A30 24 GB 90; A40 48 GB 96; V100 32 GB
+  100 (no bf16, unusable); L40S 48 GB 102; A100 40 GB 179; A100 80 GB 189; H100 not offered. The
+  USD 100-170 budget is about INR 8,400-14,300.
+- A cold start (uv, wheels, flash-attn, model and dataset downloads, data builds) costs about one
+  A100-hour. It happens **once, on the L4**, with the volume attached; every later node mounts the
+  volume and is ready in ten minutes.
+
+**Layout on the volume** (mounted at `/mnt/rlvr`; fixed paths so the venv works on any node):
+
+```
+/mnt/rlvr/reasoning-rlvr   the repo clone; outputs/ inside it holds checkpoints, samples, logs
+/mnt/rlvr/venv             the Python environment            (RLVR_VENV)
+/mnt/rlvr/uv-python        uv's CPython, which the venv points at by path   (UV_PYTHON_INSTALL_DIR)
+/mnt/rlvr/uv-cache         wheel cache                       (UV_CACHE_DIR)
+/mnt/rlvr/hf               models and datasets               (HF_HOME)
+```
+
+`scripts/e2e_env.sh` exports these and activates the venv; `scripts/e2e_attach.sh` finds and
+mounts the volume. Secrets never go on the volume: export `HF_TOKEN` and `WANDB_API_KEY` in the
+shell of each session.
+
+**Cold start, once, on an L4 (about 1.5 h, INR 75):**
+
+1. MyAccount -> Storage -> Block Storage -> create 250 GB in the region the GPU nodes use.
+2. Launch an L4 node from an Ubuntu 22.04 (or 24.04) CUDA image. Write the image name down: every
+   later node uses the same image, so the venv's assumptions hold. Attach the volume (Block Storage ->
+   Action -> Attach -> this node).
+3. In the SSH session (the clone asks for your GitHub user name and a personal access token, the repo
+   is private):
+
+```bash
+sudo apt-get install -y git tmux
+git clone https://github.com/rrtchaganti/reasoning-rlvr.git /tmp/rr      # for the mount script only
+sudo bash /tmp/rr/scripts/e2e_attach.sh         # finds the blank disk, asks YES before formatting, mounts /mnt/rlvr
+git clone https://github.com/rrtchaganti/reasoning-rlvr.git /mnt/rlvr/reasoning-rlvr
+cd /mnt/rlvr/reasoning-rlvr && git checkout phase-2-sft
+source scripts/e2e_env.sh
+nvidia-smi | head -4                            # read "CUDA Version": 13.x or 12.8
+bash scripts/setup_env.sh                       # CUDA 13.x driver: exactly the laptop's environment
+UV_TORCH_BACKEND=cu128 bash scripts/setup_env.sh   # CUDA 12.8 driver instead: cu128 torch; note versions in COMPUTE.md
+python scripts/triton_check.py                  # must print "triton compile + launch: ok"
+uv pip install flash-attn --no-build-isolation  # section 2b; a compile here is 20-40 min at INR 49/h, not INR 189/h
+bash scripts/phase2_rental.sh data              # perturbed set + SFT set, both hashes checked
+hf download Qwen/Qwen3-1.7B-Base && hf download Qwen/Qwen3-0.6B-Base
+rlvr-eval --model Qwen/Qwen3-1.7B-Base --evals gsm8k --template few_shot_cot --limit 20 --max-tokens 256 --out outputs/eval/e2e_smoke
+```
+
+The cu128 line is the one step not verified before the first node: if `import vllm` fails with a
+CUDA or ABI error after it, install the cu128 variant of the same vLLM version
+(`uv pip install vllm==0.31.0 --torch-backend=cu128`, see the vLLM GPU installation page for the
+index of that release) and record the versions in `COMPUTE.md`. Do this on the L4, never on the A100.
+
+4. From the laptop, copy the local base reference so the session skips it:
+   `scp -r outputs/eval/base_1.7b_think_tag_4096 <user>@<node-ip>:/mnt/rlvr/reasoning-rlvr/outputs/eval/`
+5. Terminate the L4 (MyAccount -> Node -> Terminate). The volume stays.
+
+**Every session:**
+
+```bash
+# MyAccount: launch the node (same image), attach the volume, ssh in
+git clone https://github.com/rrtchaganti/reasoning-rlvr.git /tmp/rr && sudo bash /tmp/rr/scripts/e2e_attach.sh
+cd /mnt/rlvr/reasoning-rlvr && source scripts/e2e_env.sh && git pull
+export HF_TOKEN=...  WANDB_API_KEY=...
+tmux new -s phase2
+bash scripts/phase2_rental.sh 2>&1 | tee outputs/phase2_rental.log
+```
+
+Before Terminate: the report step's uploads finished; `metrics.json`, `report.md`, `run_info.json`,
+`train_log.jsonl` and `outputs/reports/**` copied to the laptop (section 4); the `COMPUTE.md` row
+written from the invoice line. An idle A100 hour is four L4 hours: write the next phase's code on
+the laptop while a session runs, never on the node.
+
+**Which node for which phase** (hours are the plan's A100 estimates):
+
+| phase | work | node | hours | INR |
+|---|---|---|---|---|
+| once | cold start | L4 | 1.5 | 75 |
+| 2 | EXP-002, sweep, main, SFT sampling, LoRA, scaling, report | A100 80 GB | 15 | 2,850 |
+| 2 (option) | sweep, main, LoRA, scaling on the L40S if the speed check passes | L40S | 10 of the 15 | saves about 900 |
+| 3 | RFT sampling + train | A100 80 GB | 3 | 570 |
+| 4 | GRPO main, three ablations, seed repeat (vLLM colocated with an fp32-master 1.7B policy: 80 GB only) | A100 80 GB | 36 | 6,800 |
+| 5 | DPO | A100 80 GB or L40S | 3 | 300-570 |
+| 6 | test-time-compute sampling | A100 80 GB | 3 | 570 |
+| 7 | 0.6B distillation | L4 or L40S | 2-3 | 100-300 |
+
+About 42 A100-hours plus 10-15 cheaper hours: INR 9,300-10,700 before storage. The GRPO seed repeat
+(INR 1,500) is the first run to drop.
+
+**The L40S option, with its rule.** On an L40S (48 GB), start with
+`RLVR_TRAIN_EXTRA="--set per_device_batch=2 --set grad_accum=32" bash scripts/phase2_rental.sh speed`:
+it runs the first sweep run (10 % of the data) and `scripts/project_run_time.py` projects the main
+run from the measured tokens per second. Rule, fixed before any run: stay on the L40S if the main
+run projects to at most 8 hours (overnight, about INR 800 against INR 760-1,130 on the A100),
+otherwise terminate, attach the volume to an A100 80 GB and continue with `bash scripts/phase2_rental.sh`;
+the finished sweep run is reused either way (same effective batch of 64 sequences). The `RLVR_TRAIN_EXTRA`
+line stays on for every training step on a 48 GB card.
 
 ## 3. The Phase 2 session (about 15 hours of A100, resumable)
 

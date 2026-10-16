@@ -28,3 +28,9 @@ or W&B. Appended at the end of each session.
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.
+
+**Rates (E2E Networks, MyAccount on-demand, INR per hour, 16 Oct 2026).** L4 24 GB 49; A30 24 GB 90;
+A40 48 GB 96; V100 32 GB 100; L40S 48 GB 102; A100 40 GB 179; A100 80 GB 189; H100 not offered. About
+INR 84 per USD. A powered-off node still bills: sessions end with Terminate. Plan and per-phase
+node choice: `docs/rental-setup.md`, section 2c. Rented rows below quote the invoice line in INR with
+the USD conversion of the day.

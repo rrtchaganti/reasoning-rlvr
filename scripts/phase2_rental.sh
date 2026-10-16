@@ -12,10 +12,15 @@
 #   lora      EXP-007: LoRA r = 64 + think-tag eval
 #   scaling   EXP-008: 25 % and 50 % runs + think-tag evals + the figure
 #   report    paired comparisons, pass@k figure, data-scaling figure, model card, uploads
+#   speed     (not in `all`) on a cheaper card: run the first sweep run, measure tokens/s, project the
+#             main run; stay if it projects to at most RLVR_MAX_MAIN_HOURS (8), else move to the A100
+# RLVR_TRAIN_EXTRA adds --set overrides to every rlvr-sft call, e.g. on a 48 GB card:
+#   RLVR_TRAIN_EXTRA="--set per_device_batch=2 --set grad_accum=32" bash scripts/phase2_rental.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 STEP="${1:-all}"
 LR_FILE="outputs/train/chosen_lr.txt"
+TRAIN_EXTRA="${RLVR_TRAIN_EXTRA:-}"   # unquoted below on purpose: word-split into --set pairs
 
 run_if_missing() {  # run_if_missing <marker path> <command...>
   local marker="$1"; shift
@@ -52,7 +57,7 @@ step_exp002() {
 step_sweep() {
   for lr in 5e-6 1e-5 2e-5; do
     run_if_missing "outputs/train/sft_1p7b_lr${lr}/final/config.json" \
-      rlvr-sft --config "configs/train/sft_1p7b_lr${lr}.yaml"
+      rlvr-sft --config "configs/train/sft_1p7b_lr${lr}.yaml" $TRAIN_EXTRA
     run_if_missing "outputs/eval/sft_1p7b_lr${lr}_dev/metrics.json" \
       rlvr-eval --config configs/eval/ckpt_think_tag_dev.yaml \
         --model "outputs/train/sft_1p7b_lr${lr}/final" --out "outputs/eval/sft_1p7b_lr${lr}_dev"
@@ -63,12 +68,20 @@ step_sweep() {
   echo "chosen LR: $(cat "$LR_FILE")"
 }
 
+step_speed() {  # the lr5e-6 sweep run doubles as the speed check; step_sweep reuses it
+  run_if_missing outputs/train/sft_1p7b_lr5e-6/final/config.json \
+    rlvr-sft --config configs/train/sft_1p7b_lr5e-6.yaml $TRAIN_EXTRA
+  python scripts/project_run_time.py outputs/train/sft_1p7b_lr5e-6/run_info.json \
+    --main-epochs 2 --max-hours "${RLVR_MAX_MAIN_HOURS:-8}" --rate "${RLVR_RATE:-102}" --currency INR \
+    | tee outputs/train/speed_check.md
+}
+
 chosen_lr() { if [[ -f "$LR_FILE" ]]; then cat "$LR_FILE"; else echo "1e-5"; fi; }
 
 step_main() {
   local lr; lr="$(chosen_lr)"
   run_if_missing outputs/train/sft_1p7b/final/config.json \
-    rlvr-sft --config configs/train/sft_1p7b.yaml --set "learning_rate=${lr}"
+    rlvr-sft --config configs/train/sft_1p7b.yaml --set "learning_rate=${lr}" $TRAIN_EXTRA
   for t in think_tag few_shot_cot zero_shot; do
     run_if_missing "outputs/eval/sft_1.7b_${t}/metrics.json" rlvr-eval --config "configs/eval/sft_1.7b_${t}.yaml"
   done
@@ -85,7 +98,7 @@ step_sample() {
 }
 
 step_lora() {
-  run_if_missing outputs/train/sft_1p7b_lora/final/config.json rlvr-sft --config configs/train/sft_1p7b_lora.yaml
+  run_if_missing outputs/train/sft_1p7b_lora/final/config.json rlvr-sft --config configs/train/sft_1p7b_lora.yaml $TRAIN_EXTRA
   run_if_missing outputs/eval/sft_1.7b_lora_think_tag/metrics.json \
     rlvr-eval --config configs/eval/sft_1.7b_think_tag.yaml --model outputs/train/sft_1p7b_lora/final --out outputs/eval/sft_1.7b_lora_think_tag
 }
@@ -94,7 +107,7 @@ step_scaling() {
   local lr; lr="$(chosen_lr)"
   for frac in 25 50; do
     run_if_missing "outputs/train/sft_1p7b_data${frac}/final/config.json" \
-      rlvr-sft --config "configs/train/sft_1p7b_data${frac}.yaml" --set "learning_rate=${lr}"
+      rlvr-sft --config "configs/train/sft_1p7b_data${frac}.yaml" --set "learning_rate=${lr}" $TRAIN_EXTRA
     run_if_missing "outputs/eval/sft_1.7b_data${frac}_think_tag/metrics.json" \
       rlvr-eval --config configs/eval/sft_1.7b_think_tag.yaml \
         --model "outputs/train/sft_1p7b_data${frac}/final" --out "outputs/eval/sft_1.7b_data${frac}_think_tag"
@@ -136,7 +149,7 @@ step_report() {
 
 case "$STEP" in
   all) step_data; step_exp002; step_sweep; step_main; step_sample; step_lora; step_scaling; step_report ;;
-  data|exp002|sweep|main|sample|lora|scaling|report) "step_$STEP" ;;
+  data|exp002|sweep|main|sample|lora|scaling|report|speed) "step_$STEP" ;;
   *) echo "unknown step $STEP"; exit 2 ;;
 esac
 echo "== phase2_rental.sh $STEP finished"
