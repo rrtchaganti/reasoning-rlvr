@@ -536,6 +536,19 @@ def _answer_check(examples: Sequence[SftExample], gold: Mapping[str, str], n: in
     }
 
 
+def same_data_as(manifest_path: Path, manifest: dict[str, Any]) -> bool:
+    """True when the manifest on disk describes the same examples (hash and count) as ``manifest``."""
+    if not manifest_path.exists():
+        return False
+    try:
+        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return existing.get("content_hash") == manifest.get("content_hash") and existing.get(
+        "num_examples"
+    ) == manifest.get("num_examples")
+
+
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description="Build the Phase 2 SFT set from OpenR1-Math-220k.")
     p.add_argument("--revision", default=None, help="dataset revision (commit sha) to pin")
@@ -623,16 +636,32 @@ def main(argv: list[str] | None = None) -> None:
     }
     if answer_check:
         manifest["answer_check"] = answer_check
-    args.manifest.parent.mkdir(parents=True, exist_ok=True)
-    args.manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8", newline="\n")
-    args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(data_report_markdown(manifest, overlap), encoding="utf-8", newline="\n")
-    if stats.candidate_tokens:
-        plot_length_hist(
-            stats.candidate_tokens,
-            args.max_tokens,
-            args.report.parent / "figures" / "sft_length_hist.png",
+    if same_data_as(args.manifest, manifest):
+        # A rebuild on a box that reproduces the committed set must not touch the tracked manifest,
+        # report or figure: the timings and commit inside them differ, the tree goes dirty, and the
+        # harness then refuses every run (first E2E node, 17 Oct 2026). This build's own manifest
+        # lands next to the data instead.
+        (out_dir / "rebuild_manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8", newline="\n"
         )
+        print(
+            f"[rlvr-build-sft] {args.manifest} already describes this data "
+            f"(hash {manifest['content_hash']}); tracked files left untouched, "
+            f"this build's manifest at {out_dir / 'rebuild_manifest.json'}"
+        )
+    else:
+        args.manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8", newline="\n")
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(
+            data_report_markdown(manifest, overlap), encoding="utf-8", newline="\n"
+        )
+        if stats.candidate_tokens:
+            plot_length_hist(
+                stats.candidate_tokens,
+                args.max_tokens,
+                args.report.parent / "figures" / "sft_length_hist.png",
+            )
     print(
         f"[done] {len(examples)} examples, hash {manifest['content_hash']}, "
         f"{manifest['kept_token_stats'].get('total', 0)} tokens, {manifest['built_in_s']} s"

@@ -15,6 +15,7 @@ from rlvr.data.sft_data import (
     parse_generation,
     read_jsonl,
     reject_reason,
+    same_data_as,
     select_examples,
     sft_completion,
     sft_prompt,
@@ -255,3 +256,16 @@ def test_select_examples_counts_tokens_in_batches():
     rows = [_row(f"u{i}", f"Problem number {i}.", [GEN_OK], [True]) for i in range(7)]
     out = select_examples(rows, count_tokens=counting, max_tokens=10_000, batch_size=3)
     assert len(out) == 7 and calls == [3, 3, 1, 3, 3, 1]  # prompts, then completions
+
+
+def test_same_data_as_matches_on_hash_and_count_only(tmp_path):
+    # A rebuild on a box reproduces the committed set: the tracked manifest must be left alone even
+    # though timings, commit and paths differ (first E2E node, 17 Oct 2026).
+    path = tmp_path / "m.json"
+    assert not same_data_as(path, {"content_hash": "abc", "num_examples": 3})
+    path.write_text(json.dumps({"content_hash": "abc", "num_examples": 3, "built_in_s": 1.0}))
+    assert same_data_as(path, {"content_hash": "abc", "num_examples": 3, "built_in_s": 99.0})
+    assert not same_data_as(path, {"content_hash": "abd", "num_examples": 3})
+    assert not same_data_as(path, {"content_hash": "abc", "num_examples": 4})
+    path.write_text("not json")
+    assert not same_data_as(path, {"content_hash": "abc", "num_examples": 3})
