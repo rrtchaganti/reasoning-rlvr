@@ -263,8 +263,8 @@ lock file stays untouched. Claude Code is a native binary in `/root/.local/bin`,
 3. Node, start JupyterLab in its own tmux session (survives SSH drops), then print its URL:
 
    ```bash
-   tmux new -d -s jupyter 'source /mnt/rlvr/reasoning-rlvr/scripts/e2e_env.sh && jupyter lab --no-browser --ip=127.0.0.1 --port=8888 --allow-root --ServerApp.root_dir=/mnt/rlvr'
-   sleep 5 && jupyter lab list
+   tmux new -d -s jupyter 'source /mnt/rlvr/reasoning-rlvr/scripts/e2e_env.sh && jupyter-lab --no-browser --ip=127.0.0.1 --port=8888 --allow-root --ServerApp.root_dir=/mnt/rlvr'
+   sleep 5 && jupyter-lab list
    ```
 
 4. Laptop browser: open the printed `http://localhost:8888/lab?token=...` URL.
@@ -279,3 +279,6 @@ lock file stays untouched. Claude Code is a native binary in `/root/.local/bin`,
    First time: type `/login` inside Claude Code, open the printed URL on the laptop, paste the code back.
    Detach with Ctrl-b then d; `tmux attach -t claude` returns. If the browser tab or the tunnel drops, the
    tmux sessions keep running; reconnect the tunnel and reopen the URL.
+
+   `uv tool install` exposes only the package's own executables (`jupyter-lab`), not the generic `jupyter`
+   launcher from jupyter-core, so the commands above use `jupyter-lab` (17 Oct 2026).
