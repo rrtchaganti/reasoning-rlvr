@@ -55,9 +55,11 @@ they also loop it is the same again.
 Options, in the order the laptop session recommends:
 
 1. Keep the pre-registered config and measure: run Countdown first on the A100 (section 3, step 4
-   runs it first anyway). After ten minutes read the "output: N toks/s" figure from the progress
-   line; remaining hours = (32,000 - done) x 2,700 / N / 3,600. Above 8 hours: stop (Ctrl-C in the
-   tmux pane, the step is resumable from zero) and ask the user.
+   runs it first anyway). After ten minutes, from a second tmux pane:
+   `python scripts/project_sampling.py outputs/a100_exp002.log --from-metrics outputs/eval/base_1.7b_think_tag_4096/countdown/metrics.json --rate 189 --max-hours 8`
+   (remaining sequences x the greedy run's mean length / this set's output rate; tqdm's ETA
+   underestimates because the short completions finish first). On "STOP": Ctrl-C in the job's pane
+   (the step restarts from zero later) and ask the user.
 2. Reduce the problem count (`--set countdown_n=200`), keeping n = 64 and the cap: the pass@k curve
    keeps its shape, the CI widens (500 -> 200 problems). Recorded as a deviation in `experiments.md`.
 3. Cut `max_tokens` to 2048 (the L4 session's rejected patch 0002): halves the cost; the evidence
@@ -70,7 +72,9 @@ Whichever option runs is written into `outputs/<node>_session_notes.md` with the
 
 1. Done on 18 Oct: samples in `outputs/samples/base_1.7b_n64_few_shot_cot/`, figure
    `outputs/reports/figures/phase-1-pass-at-k.png`, journal section 17, `COMPUTE.md` rows, EXP-002
-   partial result in `experiments.md`, Phase 1 report addendum.
+   partial result in `experiments.md`, Phase 1 report addendum. Also on 18 Oct: `scripts/project_sampling.py`
+   (the ten-minute rule of section 1, option 1), and `--all-samples` modes of `perturbation_gap.py` and
+   `compare_checkpoints.py` (paired pass@k; the `report` step runs them on the base and SFT samples).
 2. Done on 18 Oct: the L4 node's invoice (10 h 33 min, INR 516.95, 17 Oct 13:28 to 18 Oct 00:01 IST)
    is in `COMPUTE.md`.
 3. When the node is up, from the laptop (PowerShell, repo folder; about 160 MB):

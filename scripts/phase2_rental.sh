@@ -128,9 +128,16 @@ step_report() {
   fi
   python scripts/plot_pass_at_k.py outputs/samples/base_1.7b_n64_few_shot_cot outputs/samples/base_1.7b_n64_countdown \
     --greedy outputs/eval/base_1.7b_few_shot_cot --out outputs/reports/figures/phase-1-pass-at-k.png
+  python scripts/perturbation_gap.py outputs/samples/base_1.7b_n64_few_shot_cot --all-samples \
+    --out outputs/reports/phase-1-perturbation-gap-n64.json
   if [[ -e outputs/samples/sft_1.7b_n64_few_shot_cot/metrics.json ]]; then
     python scripts/plot_pass_at_k.py outputs/samples/sft_1.7b_n64_few_shot_cot outputs/samples/sft_1.7b_n64_countdown \
       --greedy outputs/eval/sft_1.7b_few_shot_cot --out outputs/reports/figures/phase-2-pass-at-k-sft.png
+    python scripts/perturbation_gap.py outputs/samples/sft_1.7b_n64_few_shot_cot --all-samples \
+      --out outputs/reports/phase-2-perturbation-gap-sft-n64.json
+    python scripts/compare_checkpoints.py --ref outputs/samples/base_1.7b_n64_few_shot_cot \
+      --new outputs/samples/sft_1.7b_n64_few_shot_cot --all-samples --label-ref base --label-new sft \
+      --out outputs/reports/phase-2-compare-pass_at_k.md
   fi
   if [[ -e outputs/eval/sft_1.7b_data50_think_tag/metrics.json ]]; then
     python scripts/plot_data_scaling.py 0.25=outputs/eval/sft_1.7b_data25_think_tag 0.5=outputs/eval/sft_1.7b_data50_think_tag \

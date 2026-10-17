@@ -551,8 +551,10 @@ in `experiments.md` and the Phase 1 report's addendum):
 - Perturbed GSM8K stays behind the original at every k: 64.5 vs 71.6 at pass@1, 90.2 vs 98.8 at
   pass@64 (different problem sets, 830 vs 1,319, so unpaired). Ten per cent of the perturbed problems
   are never solved in 64 tries against 1.2 % of the originals: the brittleness to resampled numbers
-  found in EXP-003 is a capability gap, not a decoding accident. The paired version on the 830 shared
-  ids belongs in the `report` step.
+  found in EXP-003 is a capability gap, not a decoding accident. (Paired on the 830 shared ids on
+  18 Oct, with the new `--all-samples` mode of `perturbation_gap.py`: 10.2 [8.3, 12.0] at pass@1,
+  8.6 [6.6, 10.6] at pass@64; 74 originals solved at least once whose twin never is, 3 the other way.
+  The greedy gap of EXP-003, 10.1, holds at every k.)
 - MATH-500 mean sample accuracy by level: 62.8, 61.1, 45.7, 25.0, 10.4 (levels 1-5). 8.9 % of the
   MATH samples carried no boxed answer and count as wrong; the SFT comparison reads the format rate next
   to the accuracy.

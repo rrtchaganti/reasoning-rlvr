@@ -59,3 +59,59 @@ def test_gap_pairs_by_original_id_and_counts_flips(tmp_path):
 def test_gap_requires_pairs(tmp_path):
     with pytest.raises(ValueError):
         mod.perturbation_gap({"a": (True, {})}, {"b": (True, {"original_id": "zzz"})})
+
+
+def _write_n(path: Path, counts: dict[str, int], n: int, original_of=None) -> None:
+    rows = []
+    for pid, c in counts.items():
+        for j in range(n):
+            r = {"problem_id": pid, "sample_idx": j, "correct": j < c}
+            if original_of is not None:
+                r["meta"] = {"original_id": original_of[pid]}
+            rows.append(r)
+    _write(path, rows)
+
+
+def test_pass_at_k_gap_pairs_counts_and_reports_per_k(tmp_path):
+    n = 4
+    orig = {f"g{i}": c for i, c in enumerate([4, 4, 2, 0, 1])}
+    pert = {f"g{i}-p": c for i, c in enumerate([4, 0, 1, 0, 3])}  # g4 flips up, g1 collapses
+    _write_n(tmp_path / "gsm8k" / "samples.jsonl", orig, n)
+    _write_n(
+        tmp_path / "gsm8k_perturbed" / "samples.jsonl",
+        pert,
+        n,
+        {f"g{i}-p": f"g{i}" for i in range(5)},
+    )
+    o = mod.sample_counts(tmp_path / "gsm8k" / "samples.jsonl")
+    p = mod.sample_counts(tmp_path / "gsm8k_perturbed" / "samples.jsonl")
+    assert o["g2"][:2] == (4, 2)
+    g = mod.perturbation_gap_pass_at_k(o, p, ks=(1, 4, 64))
+    assert g["n"] == 4 and g["num_pairs"] == 5 and set(g["by_k"]) == {1, 4}
+    r1 = g["by_k"][1]
+    assert r1["pass_at_k_original"]["mean"] == pytest.approx(11 / 20)
+    assert r1["pass_at_k_perturbed"]["mean"] == pytest.approx(8 / 20)
+    assert r1["gap_original_minus_perturbed"]["mean"] == pytest.approx(3 / 20)
+    assert g["by_k"][4]["gap_original_minus_perturbed"]["mean"] == pytest.approx((4 - 3) / 5)
+    assert g["ever_solved"] == {"both": 3, "only_original": 1, "only_perturbed": 0, "neither": 1}
+    md = mod.markdown_pass_at_k("base", g)
+    assert "| base | 5 | 1 |" in md and "only original 1" in md
+    with pytest.raises(ValueError):
+        mod.perturbation_gap_pass_at_k(o, {"x": (8, 1, {"original_id": "g0"})})
+
+
+def test_pass_at_k_gap_cli(tmp_path, capsys):
+    n = 2
+    _write_n(tmp_path / "gsm8k" / "samples.jsonl", {"a": 2, "b": 0}, n)
+    _write_n(
+        tmp_path / "gsm8k_perturbed" / "samples.jsonl",
+        {"a-p": 1, "b-p": 0},
+        n,
+        {"a-p": "a", "b-p": "b"},
+    )
+    out = tmp_path / "rep" / "gap.json"
+    mod.main([str(tmp_path), "--all-samples", "--out", str(out), "--ks", "1,2"])
+    assert out.exists() and out.with_suffix(".md").exists()
+    assert json.loads(out.read_text())["by_k"]["1"]["gap_original_minus_perturbed"][
+        "mean"
+    ] == pytest.approx(0.25)

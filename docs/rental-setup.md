@@ -233,7 +233,9 @@ Token budget, measured on an L4 on 17 Oct 2026 (journal, section 17): the four 4
 completions average about 2,700 tokens (two thirds hit the 4096 cap), so 500 x 64 is about 87 M tokens;
 the L4 did 816 tokens/s on it (22 h), and an A100 80 GB with four times the KV cache should do
 3,000-5,000 tokens/s, 5-8 hours. The rate depends on the completion length, not only on the GPU and the
-window: estimate per set, and read the rate from each set's own progress line. The `--no-batch-invariant` default in these configs is deliberate (throughput; the
+window: estimate per set, and read the rate from each set's own progress line
+(`python scripts/project_sampling.py <log> --from-metrics <nearest metrics.json> --rate <INR/h> --max-hours 8`
+prints the projection and a continue/stop verdict). The `--no-batch-invariant` default in these configs is deliberate (throughput; the
 stored samples are the reproducibility artefact).
 
 ## 4. Before shutting the box down

@@ -161,10 +161,8 @@ later phases. maj@k flattens by k = 16 while pass@k keeps rising: the gap betwee
 (13 points on GSM8K, 30 on MATH-500) is the room a sharpening-only RL method has. AIME24 is reachable
 (6 of 30 problems solved at least once) and never by majority (maj@64 = 0; 11 correct samples of 1,920),
 and one sample in six hits the 4096 cap, so the base loops on hard problems in the plain CoT format,
-not only behind the untrained `<think>` token of the think-tag rows. Perturbed GSM8K stays 7-9 points
-behind the original at every k (unpaired, 830 vs 1,319 problems; 9.8 % of perturbed problems are never
-solved in 64 tries against 1.2 % of originals): EXP-003's number brittleness is a capability gap, not a
-decoding accident. The paired version on the 830 shared ids is produced by the Phase 2 `report` step.
+not only behind the untrained `<think>` token of the think-tag rows. Perturbed GSM8K stays behind the original at every k.
+Paired on the 830 shared ids (`phase-1-perturbation-gap-n64.md`, same folder), the gap is 10.2 [8.3, 12.0] points at pass@1 and 8.6 [6.6, 10.6] at pass@64, the greedy gap of EXP-003 (10.1) reproduced at every k; 74 originals are solved at least once in 64 tries while their perturbed twin never is, against 3 the other way. EXP-003's number brittleness is a capability gap, not a decoding accident.
 
 Not yet: Countdown at n = 64 (think-tag, 500 problems). On the L4 it ran at 816 output tokens/s
 (the base's Countdown completions average about 2,700 tokens; 87 M tokens in total) and was stopped

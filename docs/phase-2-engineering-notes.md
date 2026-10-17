@@ -13,6 +13,8 @@ the sections marked *after the rental* are filled in when the training runs have
 |---|---|---|
 | SFT data pipeline from OpenR1-Math-220k | `src/rlvr/data/sft_data.py` (`rlvr-build-sft`) | `tests/test_sft_data.py` (12) |
 | Coverage-based n-gram contamination | `src/rlvr/data/contamination.py` (`ngram_overlap(min_coverage=)`) | `tests/test_contamination_and_runinfo.py` (+2) |
+| Paired pass@k of two n-sample runs (perturbed vs original; base vs SFT curves) | `rlvr.eval.metrics.paired_pass_at_k`; `scripts/perturbation_gap.py --all-samples`; `scripts/compare_checkpoints.py --all-samples` | `tests/test_eval_metrics.py`, `tests/test_perturbation_gap.py`, `tests/test_phase2_scripts.py` (+3) |
+| Sampling-run projection from the vLLM progress line (the ten-minute rule) | `scripts/project_sampling.py` | `tests/test_project_sampling.py` (7) |
 | Dev split and MATH-train loader | `src/rlvr/eval/datasets.py` (`gsm8k_dev`, `math_dev`, `math_train`) | `tests/test_sft_data.py` |
 | Reference SFT loss and packing masks | `src/rlvr/ref/sft_loss.py` | `tests/test_ref_sft_loss.py` (6) |
 | Trainer, incl. the untrained-tag-row handling | `src/rlvr/train/sft.py` (`rlvr-sft`) | `tests/test_train_sft.py` (8 CPU + 2 GPU + 2 slow) |

@@ -1,5 +1,9 @@
 """Paired comparison of two ``rlvr-eval`` runs on the same problems (checkpoint minus reference).
 
+With ``--all-samples`` the two runs are n-sample runs (``configs/sample/*``) and the comparison is
+the paired pass@k curve: per k, both means and the paired CI of the difference, plus the
+"ever solved in n tries" table. Without it, only the first sample per problem is used (greedy runs).
+
 The D-tables of every phase from here on are "base vs checkpoint with paired CIs" (PLAN.md section
 4.2): the problems are shared, so the per-problem correctness difference is bootstrapped, which is
 much tighter than two independent CIs. Per eval set: accuracy of both runs, the paired difference with
@@ -17,9 +21,10 @@ import argparse
 import json
 from pathlib import Path
 
-from rlvr.eval.metrics import bootstrap_ci, paired_bootstrap_diff
+from rlvr.eval.metrics import bootstrap_ci, paired_bootstrap_diff, paired_pass_at_k
 
 EVAL_ORDER = ("gsm8k", "gsm8k_perturbed", "math500", "countdown", "aime24")
+DEFAULT_KS = (1, 4, 16, 64)
 
 
 def first_sample(samples_path: Path) -> dict[str, tuple[bool, dict]]:
@@ -31,6 +36,40 @@ def first_sample(samples_path: Path) -> dict[str, tuple[bool, dict]]:
             r = json.loads(line)
             if r.get("sample_idx", 0) == 0:
                 out[r["problem_id"]] = (bool(r["correct"]), r.get("meta") or {})
+    return out
+
+
+def sample_counts(samples_path: Path) -> dict[str, tuple[int, int, dict]]:
+    """Per problem id: (samples, correct samples, meta) over every sample in the file."""
+    n: dict[str, int] = {}
+    c: dict[str, int] = {}
+    meta: dict[str, dict] = {}
+    with Path(samples_path).open(encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            pid = r["problem_id"]
+            n[pid] = n.get(pid, 0) + 1
+            c[pid] = c.get(pid, 0) + int(bool(r["correct"]))
+            meta.setdefault(pid, r.get("meta") or {})
+    return {pid: (n[pid], c[pid], meta[pid]) for pid in n}
+
+
+def paired_samples(
+    ref: dict[str, tuple[int, int, dict]],
+    new: dict[str, tuple[int, int, dict]],
+    ks: tuple[int, ...] = DEFAULT_KS,
+) -> dict:
+    """Paired pass@k on the shared ids of two n-sample runs (same n on both sides)."""
+    ids = sorted(set(ref) & set(new))
+    if not ids:
+        raise ValueError("no shared problem ids between the two runs")
+    ns = {ref[i][0] for i in ids} | {new[i][0] for i in ids}
+    if len(ns) != 1:
+        raise ValueError(f"both runs must have the same n for every problem; found {sorted(ns)}")
+    out = paired_pass_at_k([ref[i][1] for i in ids], [new[i][1] for i in ids], ns.pop(), ks)
+    out["unpaired"] = len(set(ref) ^ set(new))
     return out
 
 
@@ -98,13 +137,44 @@ def markdown(
     return "\n".join(lines) + "\n"
 
 
-def compare_runs(ref_dir: Path, new_dir: Path) -> tuple[dict[str, dict], dict[int, dict]]:
+def markdown_samples(results: dict[str, dict], label_ref: str, label_new: str) -> str:
+    lines = [
+        f"| eval | pairs | k | {label_ref} pass@k | {label_new} pass@k | "
+        f"{label_new} - {label_ref} [paired CI] |",
+        "|---|---|---|---|---|---|",
+    ]
+    for ev in sorted(results, key=lambda e: EVAL_ORDER.index(e) if e in EVAL_ORDER else 99):
+        g = results[ev]
+        for k, r in sorted(g["by_k"].items()):
+            lines.append(
+                f"| {ev} | {g['num_pairs']} | {k} | {_f(r['ref'])} | {_f(r['new'])} | "
+                f"**{_f(r['diff_new_minus_ref'])}** |"
+            )
+    lines += ["", f"Solved at least once in n tries, {label_ref} / {label_new}:", ""]
+    lines += [
+        f"| eval | n | both | only {label_ref} | only {label_new} | neither |",
+        "|---|---|---|---|---|---|",
+    ]
+    for ev in sorted(results, key=lambda e: EVAL_ORDER.index(e) if e in EVAL_ORDER else 99):
+        g, t = results[ev], results[ev]["ever_solved"]
+        lines.append(
+            f"| {ev} | {g['n']} | {t['both']} | {t['only_ref']} | {t['only_new']} | {t['neither']} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def compare_runs(
+    ref_dir: Path, new_dir: Path, *, all_samples: bool = False, ks: tuple[int, ...] = DEFAULT_KS
+) -> tuple[dict[str, dict], dict[int, dict]]:
     results: dict[str, dict] = {}
     levels: dict[int, dict] = {}
     for sp in sorted(Path(ref_dir).glob("*/samples.jsonl")):
         ev = sp.parent.name
         other = Path(new_dir) / ev / "samples.jsonl"
         if not other.exists():
+            continue
+        if all_samples:
+            results[ev] = paired_samples(sample_counts(sp), sample_counts(other), ks)
             continue
         ref, new = first_sample(sp), first_sample(other)
         results[ev] = paired(ref, new)
@@ -122,9 +192,22 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--label-ref", default="ref")
     ap.add_argument("--label-new", default="new")
     ap.add_argument("--out", type=Path, default=None, help="Markdown; JSON written next to it")
+    ap.add_argument(
+        "--all-samples",
+        action="store_true",
+        help="n-sample runs: paired pass@k curves instead of first-sample accuracy",
+    )
+    ap.add_argument(
+        "--ks", default=",".join(map(str, DEFAULT_KS)), help="k values, comma-separated"
+    )
     args = ap.parse_args(argv)
-    results, levels = compare_runs(args.ref, args.new)
-    md = markdown(results, levels, args.label_ref, args.label_new)
+    ks = tuple(int(k) for k in args.ks.split(","))
+    results, levels = compare_runs(args.ref, args.new, all_samples=args.all_samples, ks=ks)
+    md = (
+        markdown_samples(results, args.label_ref, args.label_new)
+        if args.all_samples
+        else markdown(results, levels, args.label_ref, args.label_new)
+    )
     print(md)
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

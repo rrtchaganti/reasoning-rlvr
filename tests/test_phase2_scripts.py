@@ -183,3 +183,33 @@ def test_project_run_time_cli(tmp_path, capsys):
     project_run_time.main([str(f), "--json", "--rate", "189"])
     out = json.loads(capsys.readouterr().out)
     assert out["stay"] and abs(out["rate_per_hour"] - 189) < 1e-9
+
+
+def _samples_dir_n(tmp_path, name, counts_by_id, n):
+    d = tmp_path / name / "gsm8k"
+    d.mkdir(parents=True)
+    with (d / "samples.jsonl").open("w") as f:
+        for pid, c in counts_by_id.items():
+            for j in range(n):
+                f.write(json.dumps({"problem_id": pid, "sample_idx": j, "correct": j < c}) + "\n")
+    return tmp_path / name
+
+
+def test_compare_checkpoints_all_samples_gives_paired_pass_at_k(tmp_path):
+    n = 4
+    ref = {"a": 0, "b": 1, "c": 4, "d": 0}
+    new = {"a": 2, "b": 4, "c": 4, "d": 0, "e": 4}  # e has no pair
+    rd = _samples_dir_n(tmp_path, "ref", ref, n)
+    nd = _samples_dir_n(tmp_path, "new", new, n)
+    results, levels = compare_checkpoints.compare_runs(rd, nd, all_samples=True, ks=(1, 4, 8))
+    g = results["gsm8k"]
+    assert levels == {} and g["num_pairs"] == 4 and g["unpaired"] == 1 and set(g["by_k"]) == {1, 4}
+    assert g["by_k"][1]["diff_new_minus_ref"]["mean"] == pytest.approx((10 - 5) / 4 / 4)
+    assert g["by_k"][4]["ref"]["mean"] == pytest.approx(2 / 4)
+    assert g["by_k"][4]["new"]["mean"] == pytest.approx(3 / 4)
+    assert g["ever_solved"] == {"both": 2, "only_ref": 0, "only_new": 1, "neither": 1}
+    md = compare_checkpoints.markdown_samples(results, "base", "sft")
+    assert "| gsm8k | 4 | 1 |" in md and "| gsm8k | 4 | 2 | 0 | 1 | 1 |" in md
+    bad = _samples_dir_n(tmp_path, "bad", {"a": 1}, 2)
+    with pytest.raises(ValueError):
+        compare_checkpoints.compare_runs(rd, bad, all_samples=True)
