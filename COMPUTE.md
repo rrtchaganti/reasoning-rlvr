@@ -23,8 +23,16 @@ or W&B. Appended at the end of each session.
 | 2026-10-15 | 2 | 0.6B LoRA smoke v2 with the fixed trainer: train on 400 examples + 100-problem GSM8K think-tag eval (57625ea) | RTX 4060 Laptop 8 GB | 0.25 | 0 | 0.17 M | 0.77 M | smoke, not a result; tag rows initialised and trained, `</think>` emitted 5/100 (0 before); peak 4.48 GB |
 
 | 2026-10-15 | 2 | EXP-006 paired reference: base 1.7B think-tag at the 4096 window, 5 evals (c994bde) | RTX 4060 Laptop 8 GB | 3.92 | 0 | 5.3 M | 0 | 372 output tok/s (KV cache holds ~6 sequences at 4096; 1,216 tok/s at 1024 in Phase 1); estimated 1 h, took 3 h 55 min; truncated outputs end at 3,865-3,994 tokens (window minus prompt, journal 14) |
+| 2026-10-17 | 2 | E2E L4 node: environment (cu129 route), data build, model downloads, smoke eval (ade4f6a) | E2E L4 24 GB | 1.5 | INR 75 (USD 0.9) | <0.01 M | 0 | first E2E node, root disk, no volume; torch 2.13.0+cu129, vllm 0.31.0+cu129, trl 1.15.0 pinned; data step dirtied the tree (fixed in b34c25b) |
+| 2026-10-17 | 1 (deferred) | EXP-002 four sets: base 1.7B n = 64, 4-shot-CoT on GSM8K, perturbed, MATH-500, AIME24 (ade4f6a) | E2E L4 24 GB | 5.16 | INR 253 (USD 3.0) | 34.3 M | 0 | output tok/s per set 3,134 / 3,082 / 1,171 / 964 (mean sample length 154 / 151 / 359 / 926); KV cache 15.3 GiB, 23 sequences at 6,144 |
+| 2026-10-17 | 1 (deferred) | EXP-002 Countdown, stopped at 2,368 / 32,000 sequences (ade4f6a) | E2E L4 24 GB | 1.60 | INR 78 (USD 0.9) | ~4.7 M, discarded | 0 | 816 tok/s at about 2,700 tokens a sample, 21 h more projected; rerun on the A100 from zero |
 
-**Running totals.** Rented: 0.0 h, USD 0. Local: 6.70 h.
+Node row (pending the console figure): the L4 node existed from 17 Oct 2026 about 14:30 IST to its
+termination on 18 Oct; the invoice bills every hour of that, including setup, the archive and idle
+time, at INR 49/h. The GPU-time rows above sum to 8.3 h (INR 405); the node hours are the real cost.
+
+**Running totals.** Rented: 8.26 GPU-h of runs, about INR 405 (USD 4.8); node-hours pending the
+invoice. Local: 6.70 h.
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.

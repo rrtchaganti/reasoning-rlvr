@@ -332,3 +332,23 @@ output tokens/s because the 8 GB KV cache holds about six 4096-token sequences i
 that GPU, plus engine start-up. `COMPUTE.md` carries the measured throughput.
 **Learning.** Throughput is not a constant of the GPU; it falls with the context length through the
 KV-cache concurrency. Re-derive the estimate whenever the budget or the window changes.
+
+## 2026-10-17  EXP-002 projected at 5-6 h; four sets took 5 h and the fifth wanted 22 more        [phase 2] [eval] [process]
+**Symptom.** On the L4, EXP-002's GSM8K set ran at 3,134 output tokens/s and the whole experiment
+(about 60 M tokens by the old count) was projected at 5-6 hours. The four 4-shot-CoT sets took 5 h
+10 min; the Countdown set (think-tag, 500 problems x 64) then ran at 816 tokens/s with 21 hours left
+after 1 h 36 min, and was stopped with nothing to keep (INR 78).
+**Diagnosis.** Two errors. The throughput was measured on the right GPU at the right window (the
+15 Oct rule) but on the wrong set: vLLM's rate falls with the completion length through KV-cache
+concurrency, 3,134 tokens/s at 154 tokens a sample down to 816 at 2,700, so a single rate cannot
+cover sets whose mean lengths differ by 18x. And the token count was anchored on a 600-token guess
+for Countdown; the base's Countdown completions average 2,716 tokens (65.6 % hit the cap in the
+greedy run, data that existed since 15 Oct), so the set is 87 M tokens, not 19 M.
+**Fix.** Countdown moved to the A100 with three options recorded in `docs/e2e-session-handoff.md`
+(keep and measure in the first ten minutes; fewer problems; shorter cap, rejected). Estimate rule
+extended: per eval set, tokens = problems x n x the mean length seen for that set in the nearest run
+(for a base model on Countdown or think-tag, two thirds of the cap), divided by the rate measured on
+a set of similar length; read the rate off every set's progress line, not the first one.
+**Learning.** The cheapest set finishes first and sets the mood. Before a multi-set run, write the
+per-set token estimate down and find the most expensive set; run it first when the budget is tight,
+so a stop costs the least.

@@ -49,7 +49,20 @@ model, two 0.6B LoRA smokes with their 100-problem evals (0.4 h), and the base t
 the 4096 window on all five eval sets (3.9 h; 5.3 M generated tokens). The rental budget set by the data: about 15 A100-hours for the whole session
 (section 8 of the engineering notes).
 
-## 3. Deferred from Phase 1: EXP-002, the base model's pass@k ceiling *(after the rental)*
+Rented so far (E2E Networks L4 24 GB, INR 49/h, 17 Oct 2026): environment build, data build and smoke
+(1.5 h), the four 4-shot-CoT sets of EXP-002 (5.2 h, 34.3 M generated tokens), and a stopped Countdown
+run (1.6 h, discarded). About INR 405 of GPU time plus the node's idle hours.
+
+## 3. Deferred from Phase 1: EXP-002, the base model's pass@k ceiling *(four of five sets done)*
+
+Four sets ran on the L4 on 17 Oct 2026 (commit ade4f6a); the full table, the figure
+(`figures/phase-1-pass-at-k.png`) and the reading are in the Phase 1 report's addendum (section 7)
+and in `experiments.md`. The numbers this phase uses: pass@64 of the base is 98.8 [98.2, 99.4] on
+GSM8K, 90.2 [88.2, 92.2] on perturbed GSM8K, 87.8 [84.6, 90.4] on MATH-500 and 20.0 [6.7, 36.7] on
+AIME24; maj@64 85.7, 77.0, 57.6 and 0.0; mean sample accuracy at T = 0.6 is 3-5 points below greedy
+(71.6 vs 74.5 on GSM8K, 36.3 vs 41.4 on MATH-500). The SFT checkpoint's curves (the `sample` step) are
+read against these. Countdown at n = 64 is pending: the base's Countdown completions average about
+2,700 tokens, 87 M tokens for the set, and the L4 would have needed 22 hours; it runs on the A100.
 
 ## 4. EXP-005: learning-rate sweep on the dev split *(after the rental)*
 

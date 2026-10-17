@@ -188,8 +188,9 @@ bash scripts/phase2_rental.sh sweep                                      # or on
 ```
 
 Steps and rough A100 time: `data` (10 min, CPU: regenerates the perturbed set and the SFT set and
-checks both hashes against the manifests; stop if either differs), `exp002` (3 h: base n = 64
-sampling + the base think-tag reference at 4096 tokens), `sweep` (1.5 h: three LR points on 10 % of
+checks both hashes against the manifests; stop if either differs), `exp002` (base n = 64
+sampling; the four 4-shot-CoT sets and the base think-tag reference already exist and are copied in, so only
+Countdown runs: 87 M tokens, 5-8 A100-hours by the measurement in section 3a), `sweep` (1.5 h: three LR points on 10 % of
 the data, dev evals, `pick_lr.py` writes `outputs/train/chosen_lr.txt`), `main` (4-6 h: the full
 fine-tune with the chosen LR, three eval templates, perturbation gap, partial-prompt probe), `sample`
 (2 h: n = 64 for the SFT checkpoint), `lora` (3 h), `scaling` (3 h: 25 % and 50 %), `report` (10
@@ -226,9 +227,13 @@ python scripts/plot_pass_at_k.py outputs/samples/base_1.7b_n64_few_shot_cot outp
     --greedy outputs/eval/base_1.7b_few_shot_cot --out outputs/reports/figures/phase-1-pass-at-k.png
 ```
 
-Token budget estimate: 2679 problems x 64 samples x about 250 tokens plus Countdown 500 x 64 x about
-600 tokens, roughly 60 M generated tokens; vLLM on an A100 does 5-10 k tokens/s for a 1.7B model, so
-2-3.5 hours. The `--no-batch-invariant` default in these configs is deliberate (throughput; the
+Token budget, measured on an L4 on 17 Oct 2026 (journal, section 17): the four 4-shot-CoT sets are
+34.3 M generated tokens (mean sample length 154 on GSM8K, 359 on MATH-500, 926 on AIME24) and took
+5 h 10 min at 3,134 down to 964 output tokens/s. Countdown is the expensive one: the base's think-tag
+completions average about 2,700 tokens (two thirds hit the 4096 cap), so 500 x 64 is about 87 M tokens;
+the L4 did 816 tokens/s on it (22 h), and an A100 80 GB with four times the KV cache should do
+3,000-5,000 tokens/s, 5-8 hours. The rate depends on the completion length, not only on the GPU and the
+window: estimate per set, and read the rate from each set's own progress line. The `--no-batch-invariant` default in these configs is deliberate (throughput; the
 stored samples are the reproducibility artefact).
 
 ## 4. Before shutting the box down

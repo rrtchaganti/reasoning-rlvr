@@ -485,3 +485,84 @@ Without the volume, the layout goes on the root disk at the same paths; when the
 rsync moves it (rental guide, section 2c). The L4 earns its INR 49/h with the data build, the model
 downloads, the smoke, the base n = 64 sampling overnight (EXP-002; 24 GB is enough) and possibly the
 LoRA run; the full fine-tunes wait for the 80 GB card.
+
+## 17. The L4 session: four of EXP-002's five sets done, Countdown stopped at 7 % (17-18 Oct, the node session)
+
+A second Claude Code session ran on the node itself, inside JupyterLab over an SSH tunnel, with the
+17 Oct handoff file as its brief. Its two files (`outputs/e2e_session_log.md`,
+`outputs/e2e_session_notes.md`) and the metrics came back in a 12 MB archive and, after the node was
+emptied, a full copy of the node's repo folder next to this one. Everything below is read from those
+files and from `metrics.json`; the node session's own summary was wrong in one place (it reported the
+four sets as 4 h 40 min; the per-eval wall clocks sum to 5 h 10 min, and the engine logs agree).
+
+What happened, in order:
+
+1. `git pull` on the node failed (no credential in the shell); harmless, the clone was already at the
+   laptop's HEAD (ade4f6a). Model downloads fine. The data step reproduced both hashes
+   (`b5afb83e6aacafcf`, `45b3fa4862b11e2a`) in 371 s.
+2. The smoke eval refused to start: "working tree has uncommitted changes". The data step had
+   rewritten the committed manifest and data report with new timings and the build commit. The node
+   session restored both with `git checkout`, kept copies, and wrote the finding down; it later drafted
+   a patch for it in a scratch clone (its "patch 0001"). The same fix was written here independently on
+   the same afternoon and is commit b34c25b (section 16); the node's patch is superseded and was not
+   applied. Two sessions, one finding, one fix: the handoff file now says so, so the A100 session does
+   not try to apply the patch again.
+3. Smoke: 20 GSM8K problems, 4-shot-CoT, greedy, pass@1 0.75 [0.55, 0.90]. Environment confirmed.
+4. EXP-002, 4-shot-CoT config (GSM8K, perturbed, MATH-500, AIME24), in tmux. vLLM engine up in 75 s;
+   KV cache 15.3 GiB = 143k tokens, so 23 sequences of 6,144 tokens run at once on the 24 GB card.
+
+   | set | sequences | wall clock | output tok/s | mean tokens / sample | hit the 4096 cap |
+   |---|---|---|---|---|---|
+   | GSM8K | 84,416 | 69 min | 3,134 | 154 | 0.1 % |
+   | GSM8K perturbed | 53,120 | 43 min | 3,082 | 151 | 0.1 % |
+   | MATH-500 | 32,000 | 2 h 44 min | 1,171 | 359 | 4.3 % |
+   | AIME24 | 1,920 | 31 min | 964 | 926 | 15.9 % |
+   | Countdown (stopped) | 2,368 of 32,000 | 1 h 36 min | 816 | about 2,700 expected | 65.6 % expected |
+
+   Four sets: 5 h 10 min, 34.3 M generated tokens, INR 253 at the L4's rate.
+5. Countdown (think-tag, 500 problems x 64): 2.55 s per sequence and 21 hours still to go after 1 h
+   36 min. You stopped it. The node session proposed cutting `max_tokens` to 2048 for Countdown with
+   evidence from the greedy run (every correct answer under 711 tokens); you rejected that so the SFT
+   checkpoint is not short-changed, and moved the Countdown half to the A100. The partial run left no
+   samples: 1.6 L4-hours and about 4.7 M tokens discarded (INR 78).
+6. On 18 Oct, with the archive verified on the laptop, the node's environments were deleted and the
+   node terminated.
+
+What the four sets say (the figure is `outputs/reports/figures/phase-1-pass-at-k.png`, the table is
+in `experiments.md` and the Phase 1 report's addendum):
+
+- The pre-registered hypothesis holds where it can be checked. pass@64 minus greedy pass@1: GSM8K
+  +24.3 points (98.8 vs 74.5), MATH-500 +46.4 (87.8 vs 41.4), against bars of 15 and 25. maj@64 minus
+  greedy: +11.2 and +16.2, against a bar of 5. The falsifier (MATH-500 gap under 10) is nowhere near.
+  The Countdown clause (pass@64 above 10 %) waits for the A100.
+- Sampling at T = 0.6 costs about 3 points on GSM8K and 5 on MATH-500 against greedy (mean sample
+  accuracy 71.6 and 36.3). That is the single-sample noise reference every later pass@1 row is read
+  against: a checkpoint sampled at 0.6 is not compared with a greedy base.
+- maj@k flattens by k = 16 (GSM8K 84.4 at 16, 85.7 at 64) while pass@k keeps climbing. Majority vote
+  is bounded by what the model prefers; pass@k by what it can produce at all. The gap between the two
+  curves (13 points on GSM8K, 30 on MATH-500 at k = 64) is the room RL has to work with if it only
+  sharpens.
+- AIME24: 6 of 30 problems solved at least once in 64 tries (pass@64 20 % [6.7, 36.7]), 11 correct
+  samples out of 1,920, and maj@64 = 0: on every solved problem the right answer is never the
+  plurality. One sample in six hit the 4096 cap: the base loops on hard problems in the plain CoT
+  format too, not only behind an untrained `<think>` token.
+- Perturbed GSM8K stays behind the original at every k: 64.5 vs 71.6 at pass@1, 90.2 vs 98.8 at
+  pass@64 (different problem sets, 830 vs 1,319, so unpaired). Ten per cent of the perturbed problems
+  are never solved in 64 tries against 1.2 % of the originals: the brittleness to resampled numbers
+  found in EXP-003 is a capability gap, not a decoding accident. The paired version on the 830 shared
+  ids belongs in the `report` step.
+- MATH-500 mean sample accuracy by level: 62.8, 61.1, 45.7, 25.0, 10.4 (levels 1-5). 8.9 % of the
+  MATH samples carried no boxed answer and count as wrong; the SFT comparison reads the format rate next
+  to the accuracy.
+
+The estimate was wrong again, in a new way. Section 14 fixed the rule "tokens divided by the throughput
+measured at that context length"; this time the throughput was measured on the node and the projection
+(5-6 h for everything, from the GSM8K rate) still missed by a factor of four, because the rate is a
+property of the completion length, not of the run: 3,134 tokens/s at 154 tokens a sample, 1,171 at
+359, 964 at 926, 816 at 2,700. The rule now has two parts: estimate per eval set from that set's
+expected completion length (for a base model, Countdown and think-tag mean about two thirds of the
+cap), and read the rate off the progress line of each set, not the first one. For the A100,
+Countdown is 32,000 x 2,700 = 87 M tokens, more than the four sets together; at a guessed 3,000-5,000
+tokens/s that is 5-8 hours, and the `sample` step does it again for the SFT checkpoint. The handoff
+file puts the three options (keep and measure, fewer problems, shorter cap) in front of you before
+the A100 is launched; the pre-registered config stays the default.

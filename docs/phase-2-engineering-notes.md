@@ -188,13 +188,19 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
   1.7B) in order to move two rows. A separate, higher learning rate for new rows is the usual recipe
   and a sparse optimiser state the usual saving; neither was added before the rental. Revisit if the
   EXP-007 format rate lags the full fine-tune's.
+- Countdown at n = 64 under the 4096 cap costs about 87 M generated tokens per checkpoint for a model
+  whose completions loop (the base: 2,716 tokens a sample on average). Pre-registered and kept; the
+  options if the A100 rate makes it unaffordable are in `docs/e2e-session-handoff.md`, section 1.
 - The think-tag window is 4096 tokens in total, not 4096 new tokens (section 7). A true 4096 would
   need `max_model_len: 6144` in the four paired configs and a rerun of the base reference (about half
   an A100-hour); not done because the base's loops never end and the pair shares the cap.
 
 ## 10. Results and what they mean *(after the rental)*
 
-To be written from `outputs/reports/phase-2.md` once EXP-005 to EXP-008 and the deferred EXP-002 have
+Done so far: EXP-002's four 4-shot-CoT sets (L4, 17 Oct 2026; Phase 1 report addendum, section 7):
+pass@64 of the base 98.8 on GSM8K, 90.2 on perturbed GSM8K, 87.8 on MATH-500, 20.0 on AIME24; maj@k
+saturates by k = 16; sampling at T = 0.6 costs 3-5 points against greedy. The rest is written from
+`outputs/reports/phase-2.md` once EXP-005 to EXP-008 and EXP-002's Countdown half have
 run: the LR sweep table, the base-vs-SFT paired table with MATH-500 by level, the pass@k curves for base
 and SFT, LoRA vs full, the data-scaling curve, the contamination probes on the SFT checkpoint, and the
 compute rows.
@@ -236,3 +242,18 @@ compute rows.
   designing the prompt (Phase 1's `<think>` garbage was the same bug, diagnosed one layer too shallow);
   verify the flash-attention wheel before the rental; build the coverage rule into the contamination
   module from the start; keep multi-part answers with a structured answer block.
+- *Your base model has pass@64 of 99 % on GSM8K. What is left for RL to do?* Separate the two
+  curves: maj@64 is 85.7 and flattens by k = 16, so the model already prefers the right answer on
+  most problems and sharpening alone has about 13 points of room on GSM8K, 30 on MATH-500. The
+  perturbed set and AIME24 say where capability, not preference, is the limit: 10 % of perturbed
+  problems are never solved in 64 tries, and on AIME24 the right answer is reachable (pass@64 20 %)
+  but never the plurality (maj@64 0).
+- *Why is your sampled pass@1 below your greedy pass@1?* Temperature 0.6 spreads mass away from the
+  argmax; mean sample accuracy is 3-5 points under greedy on this model. The pre-registered metric
+  names it as the noise reference, so every later sampled row is read against the sampled base, not
+  the greedy one.
+- *You estimated the sampling run twice and were wrong twice. What changed?* The first miss was the
+  context window (throughput falls with the window through KV-cache concurrency); the second was the
+  completion length within one window (3,134 tokens/s at 154 tokens a sample, 816 at 2,700). The
+  rule is now per set: tokens from the nearest run's mean length, rate from a set of similar length,
+  most expensive set first when the budget is tight.

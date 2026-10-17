@@ -3,7 +3,7 @@
 Branch `phase-1-baselines`, 14 Oct 2026. Local RTX 4060 (WSL2) for every number here; all runs at
 commit `ffd3018` (greedy baselines, probe) and `585a586` (names-only control), batch-invariant vLLM,
 seed 0, so every row regenerates bit-for-bit. Full tables: `phase-1-baselines.md` (same folder).
-The n = 64 sampling (EXP-002, pass@k ceiling) needs a rented A100 and is **not in this report**.
+The n = 64 sampling (EXP-002, pass@k ceiling) ran on a rented L4 on 17 Oct 2026 for four of its five sets; section 7 (addendum) carries it. Its Countdown half runs in the Phase 2 A100 session.
 
 ## 1. Calibration against the Qwen3 technical report (EXP-001 falsifier)
 
@@ -118,8 +118,8 @@ exist; the probe (`rlvr.data.contamination`) is built and tested.
 
 ## 4. What this phase did not do
 
-- EXP-002 (n = 64 sampling, pass@k and maj@k curves, the figure): needs about three A100 hours;
-  configs, plotting script and the rental guide (`docs/rental-setup.md`) are ready.
+- EXP-002 (n = 64 sampling, pass@k and maj@k curves, the figure): not in the local part; done for four
+  of five sets on 17 Oct 2026 (section 7), Countdown pending.
 - No HF Hub uploads yet (nothing sampled at n = 64 to upload).
 
 ## 5. Compute
@@ -132,3 +132,41 @@ Local RTX 4060 only: 1.3 GPU-hours for Phase 1 (eight greedy runs 1.1 h, probe 2
 The 4-shot-CoT and zero-shot rows above as the paired reference for every checkpoint; the perturbed
 set (regenerated from its seed, hash checked) and the names-only noise floor; the n = 64 samples,
 once produced, for DPO pairs and the sharpening analysis.
+
+## 7. Addendum (18 Oct 2026): EXP-002, the base model's pass@k ceiling, four of five sets
+
+Run on an E2E Networks L4 24 GB on 17 Oct 2026 at commit `ade4f6a` (vLLM 0.31.0+cu129, bf16, not
+batch-invariant: the stored samples are the reproducibility artefact). Qwen3-1.7B-Base, 4-shot-CoT,
+n = 64, T = 0.6, top-p 0.95, up to 4096 new tokens, seed 0. 5 h 10 min, 34.3 M generated tokens,
+INR 253. Unbiased pass@k with bootstrap CIs over problems; maj@k by plurality of extracted answers;
+greedy pass@1 from section 2 (same prompt).
+
+| eval | n | greedy pass@1 | pass@1 (mean sample) | pass@4 | pass@16 | pass@64 [95% CI] | maj@4 | maj@16 | maj@64 | hit cap | tokens mean / p90 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| GSM8K (1319) | 64 | 74.5 | 71.6 [69.8, 73.1] | 89.5 | 96.1 | 98.8 [98.2, 99.4] | 78.7 | 84.4 | 85.7 | 0.1 % | 154 / 250 |
+| GSM8K perturbed (830) | 64 | 67.8 | 64.5 [62.0, 67.0] | 80.5 | 86.9 | 90.2 [88.2, 92.2] | 71.0 | 76.0 | 77.0 | 0.1 % | 151 / 242 |
+| MATH-500 (500) | 64 | 41.4 | 36.3 [33.4, 39.2] | 59.3 | 76.6 | 87.8 [84.6, 90.4] | 44.9 | 53.7 | 57.6 | 4.3 % | 359 / 457 |
+| AIME24 (30) | 64 | 0.0 | 0.6 [0.2, 1.0] | 2.2 | 8.0 | 20.0 [6.7, 36.7] | 0.7 | 0.2 | 0.0 | 15.9 % | 926 / 4096 |
+
+![pass@k and maj@k against k](figures/phase-1-pass-at-k.png)
+
+MATH-500 mean sample accuracy by level: 62.8, 61.1, 45.7, 25.0, 10.4 (levels 1 to 5; 43, 90, 105,
+128, 134 problems). 8.9 % of MATH-500 samples carry no boxed answer and count as wrong.
+
+Reading. The pre-registered hypothesis holds on every set it can be checked on: pass@64 exceeds greedy
+by 24.3 points on GSM8K and 46.4 on MATH-500 (bars 15 and 25); maj@64 exceeds greedy by 11.2 and 16.2
+(bar 5); the falsifier (MATH-500 gap under 10) is far off. Sampling at T = 0.6 costs 3 to 5 points of
+single-sample accuracy against greedy, which is the noise reference for every sampled pass@1 row in
+later phases. maj@k flattens by k = 16 while pass@k keeps rising: the gap between the curves at k = 64
+(13 points on GSM8K, 30 on MATH-500) is the room a sharpening-only RL method has. AIME24 is reachable
+(6 of 30 problems solved at least once) and never by majority (maj@64 = 0; 11 correct samples of 1,920),
+and one sample in six hits the 4096 cap, so the base loops on hard problems in the plain CoT format,
+not only behind the untrained `<think>` token of the think-tag rows. Perturbed GSM8K stays 7-9 points
+behind the original at every k (unpaired, 830 vs 1,319 problems; 9.8 % of perturbed problems are never
+solved in 64 tries against 1.2 % of originals): EXP-003's number brittleness is a capability gap, not a
+decoding accident. The paired version on the 830 shared ids is produced by the Phase 2 `report` step.
+
+Not yet: Countdown at n = 64 (think-tag, 500 problems). On the L4 it ran at 816 output tokens/s
+(the base's Countdown completions average about 2,700 tokens; 87 M tokens in total) and was stopped
+after 1 h 36 min with 21 hours projected; it runs on the A100 in the Phase 2 session. Compute rows in
+`COMPUTE.md`; the session's record in `docs/phase-2-journal.md`, section 17.

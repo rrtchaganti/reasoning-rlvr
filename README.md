@@ -9,8 +9,8 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 | Phase | Branch | State | Report |
 |---|---|---|---|
 | 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 deferred to the Phase 2 rental session (decision 14 Oct) | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
-| 2 SFT | `phase-2-sft` | code complete 15 Oct 2026 (data built: 23,000 traces, hash 45b3fa48; EXP-004 closed); training runs wait for the rental | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
+| 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 four of five sets done 17 Oct 2026 on a rented L4 (report addendum; base pass@64 98.8 GSM8K, 87.8 MATH-500); Countdown half runs in the A100 session | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
+| 2 SFT | `phase-2-sft` | code complete 15 Oct 2026 (data built: 23,000 traces, hash 45b3fa48; EXP-004 closed); first E2E session 17 Oct (environment, data, EXP-002); training runs wait for the A100 session | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
 | 3 RFT | | | |
 | 4 GRPO + ablations | | | |
 | 5 DPO | | | |
