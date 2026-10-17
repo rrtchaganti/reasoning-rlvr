@@ -5,7 +5,7 @@
 #   bash scripts/setup_env.sh --cpu      # CI-style environment: package + dev tools only
 #   RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh
 #                                        # driver older than CUDA 13 (e.g. E2E's 570 driver, CUDA 12.8):
-#                                        # vLLM's +cu129 release wheel and torch from the cu129 index,
+#                                        # vLLM's +cu129 release wheel, torch family via uv's cu129 backend,
 #                                        # same vLLM version as the lock file (docs/rental-setup.md 2c)
 #   RLVR_WRITE_LOCK=1 bash scripts/setup_env.sh
 #                                        # laptop only: rewrite the tracked requirements-lock.txt
@@ -53,11 +53,13 @@ if [ "$MODE" == "--cpu" ]; then
 else
   if [ -n "$VLLM_CUDA" ]; then
     [ -n "$VLLM_VERSION" ] || { echo "RLVR_VLLM_VERSION needed (no vllm== line in requirements-lock.txt)"; exit 1; }
-    # The PyTorch index for this CUDA build takes priority over PyPI for torch and its companions;
-    # the vLLM wheel is the matching release asset (vllm-<ver>+<cuda>-...manylinux_2_28_<arch>.whl).
-    export UV_EXTRA_INDEX_URL="https://download.pytorch.org/whl/${VLLM_CUDA}"
+    # uv's torch backend sends only the torch family (torch, triton, nvidia-*) to the PyTorch index
+    # for this CUDA build and everything else to PyPI. An --extra-index-url would not do: that index
+    # also hosts an old `packaging`, and uv stops at the first index that has a package (17 Oct).
+    # The vLLM wheel is the matching release asset (vllm-<ver>+<cuda>-...manylinux_2_28_<arch>.whl).
+    export UV_TORCH_BACKEND="$VLLM_CUDA"
     WHEEL="https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+${VLLM_CUDA}-cp38-abi3-manylinux_2_28_$(uname -m).whl"
-    echo "== installing vllm ${VLLM_VERSION}+${VLLM_CUDA} from the release wheel; torch from ${UV_EXTRA_INDEX_URL}"
+    echo "== installing vllm ${VLLM_VERSION}+${VLLM_CUDA} from the release wheel; torch backend ${UV_TORCH_BACKEND}"
     uv pip install "$WHEEL"
   else
     echo "== installing vllm ${VLLM_VERSION:-latest} (brings its pinned torch)"
