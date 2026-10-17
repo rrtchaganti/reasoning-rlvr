@@ -11,13 +11,15 @@ session in Phases 1-7; the per-phase commands change, the setup does not.
   (`nvidia-smi` must show "CUDA Version: 13.x"). The vLLM wheel we pin (`vllm 0.31.0`) brings a CUDA 13
   build of torch; on a 535/550/570 driver it fails at the first CUDA call with "driver too old", exactly
   as it did on the laptop before the driver update. If no such image exists on the provider, run
-  `scripts/setup_env.sh` and then re-pin torch with `uv pip install torch --torch-backend=cu128` plus
-  the matching `vllm` wheel for cu128; record the versions in `COMPUTE.md` because they differ from the
-  lock file and the run_info of those runs will say so.
+  `RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh`: it installs vLLM's `+cu129` release wheel of the
+  locked version with torch from the cu129 index (torch 2.13 has no cu128 build; CUDA 12.9 binaries run
+  on a 12.8 driver through minor-version compatibility); record the versions in `COMPUTE.md` because
+  they differ from the lock file and the run_info of those runs will say so.
 - Disk: 60 GB is enough (weights 3.4 GB, HF cache, 64-sample outputs about 2-3 GB per eval set).
 - Provider chosen 16 Oct 2026: E2E Networks (MyAccount GPU nodes, on-demand, INR billing). Section 2c
-  has the volume layout, the prices and the per-session routine. Its A100 image reports CUDA 12.8,
-  so the cu128 route in section 2 applies unless an image with a 580-series driver is offered.
+  has the volume layout, the prices and the per-session routine. Its images (checked 17 Oct on the L4:
+  Ubuntu 24.04.3, driver 570.133.20, CUDA 12.8, toolkit 12.6 on `LD_LIBRARY_PATH`, system Python 3.12.3,
+  no pip, no torch) take the cu129 route above.
 
 ## 2. First ten minutes on the box
 
@@ -103,18 +105,23 @@ cd /mnt/rlvr/reasoning-rlvr && git checkout phase-2-sft
 source scripts/e2e_env.sh
 nvidia-smi | head -4                            # read "CUDA Version": 13.x or 12.8
 bash scripts/setup_env.sh                       # CUDA 13.x driver: exactly the laptop's environment
-UV_TORCH_BACKEND=cu128 bash scripts/setup_env.sh   # CUDA 12.8 driver instead: cu128 torch; note versions in COMPUTE.md
+RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh  # CUDA 12.8 driver (E2E, 17 Oct): vLLM +cu129 wheel, torch cu129
 python scripts/triton_check.py                  # must print "triton compile + launch: ok"
-uv pip install flash-attn --no-build-isolation  # section 2b; a compile here is 20-40 min at INR 49/h, not INR 189/h
+# flash-attn: no prebuilt wheel exists for torch 2.13 (Dao-AILab 2.8.3.post2 stops at torch 2.8) and the image's
+# toolkit (12.6) does not match torch's CUDA (12.9), so a source build fails. Training on E2E runs with
+# RLVR_TRAIN_EXTRA="--set packing=false" (correct, about 1.5-2x slower; COMPUTE.md says so) unless the
+# kernels-hub build works: uv pip install kernels, then --set attn_implementation=kernels-community/flash-attn
 bash scripts/phase2_rental.sh data              # perturbed set + SFT set, both hashes checked
 hf download Qwen/Qwen3-1.7B-Base && hf download Qwen/Qwen3-0.6B-Base
 rlvr-eval --model Qwen/Qwen3-1.7B-Base --evals gsm8k --template few_shot_cot --limit 20 --max-tokens 256 --out outputs/eval/e2e_smoke
 ```
 
-The cu128 line is the one step not verified before the first node: if `import vllm` fails with a
-CUDA or ABI error after it, install the cu128 variant of the same vLLM version
-(`uv pip install vllm==0.31.0 --torch-backend=cu128`, see the vLLM GPU installation page for the
-index of that release) and record the versions in `COMPUTE.md`. Do this on the L4, never on the A100.
+The cu129 line is the one step not verified before the first node (the wheel
+`vllm-0.31.0+cu129-cp38-abi3-manylinux_2_28_x86_64.whl` and `torch-2.13.0+cu129` both exist, checked
+17 Oct). If `import vllm` or the Triton check fails afterwards, paste the error before trying anything
+else. Do this on the L4, never on the A100. `setup_env.sh` writes its freeze to
+`outputs/requirements-lock.<hostname>.txt` (ignored) and prints the torch/vllm lines that differ from
+the tracked lock: those go into the `COMPUTE.md` row.
 
 4. From the laptop, copy the local base reference so the session skips it:
    `scp -r outputs/eval/base_1.7b_think_tag_4096 <user>@<node-ip>:/mnt/rlvr/reasoning-rlvr/outputs/eval/`
@@ -135,6 +142,13 @@ Before Terminate: the report step's uploads finished; `metrics.json`, `report.md
 `train_log.jsonl` and `outputs/reports/**` copied to the laptop (section 4); the `COMPUTE.md` row
 written from the invoice line. An idle A100 hour is four L4 hours: write the next phase's code on
 the laptop while a session runs, never on the node.
+
+**Without the volume** (ticket pending, 17 Oct): the same layout on the root disk. `mkdir -p /mnt/rlvr`
+and run the cold start as written; when the volume arrives, attach it, then as root:
+`mkdir /mnt/rlvr_vol && mkfs.ext4 -q -L rlvr /dev/vdb && mount /dev/vdb /mnt/rlvr_vol && rsync -aH /mnt/rlvr/ /mnt/rlvr_vol/`,
+then `umount /mnt/rlvr_vol && mv /mnt/rlvr /mnt/rlvr_rootdisk && bash scripts/e2e_attach.sh` (it mounts
+the labelled disk at `/mnt/rlvr`). Paths do not change, so the venv keeps working. Until that copy exists,
+everything on the node is lost if the node is terminated: push samples and checkpoints to the Hub first.
 
 **Which node for which phase** (hours are the plan's A100 estimates):
 

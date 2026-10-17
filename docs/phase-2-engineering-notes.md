@@ -167,8 +167,9 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
 - The length cap removes 60 % of the correct traces; the kept set skews toward shorter problems. The
   data-scaling curve measures "more of the same kind of trace", not "longer traces".
 - Multi-part answers are dropped rather than reformatted; the SFT set has no "a and b" style answers.
-- No flash-attention wheel was verified for torch 2.13 / CUDA 13 before the rental; the fallback
-  (`packing: false`) is correct but slower, and `docs/rental-setup.md` says how to record it.
+- No flash-attention wheel exists for torch 2.13 (checked 17 Oct: Dao-AILab 2.8.3.post2 stops at torch
+  2.8), and E2E's images carry a 12.6 toolkit against torch's 12.9, so no source build either; the
+  fallback (`packing: false`) is correct but slower, and `docs/rental-setup.md` says how to record it.
 - The local trainer smoke runs on a random tiny model; the first real end-to-end check (data →
   trainer → merged checkpoint → `rlvr-eval`) is the 0.6B LoRA smoke on the laptop.
 - The contamination coverage threshold (50 %) is a judgement; the per-eval JSON keeps every hit so the

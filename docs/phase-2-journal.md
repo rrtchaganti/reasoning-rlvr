@@ -452,3 +452,36 @@ finished sweep run is reused either way), and `RLVR_TRAIN_EXTRA` for the 48 GB c
 (`--set per_device_batch=2 --set grad_accum=32`). Rental guide section 2c has the click-by-click cold
 start and the per-session routine. Unverified until the first node: the cu128 install of vLLM 0.31;
 it is done on the L4 and checked with `triton_check.py` and a 20-problem eval before any A100 exists.
+
+## 16. First E2E node: what the image actually has, and what that changes (17 Oct, your terminal)
+
+You launched an L4 and asked, rightly, that nothing be installed until the drivers and libraries were
+known. The read-only check: Ubuntu 24.04.3, kernel 6.8, driver 570.133.20 (CUDA 12.8), a CUDA 12.6
+toolkit at `/usr/local/cuda` and on `LD_LIBRARY_PATH`, system Python 3.12.3 with no pip, no torch, no
+conda, 25 vCPU, 100 GB RAM, one 233 GB root disk, no volume yet (ticket open).
+
+Three consequences, each checked against the real artefacts rather than assumed:
+
+- *The route is cu129, not cu128.* The PyTorch cu128 index stops at torch 2.11; torch 2.13 (what
+  vLLM 0.31 pins) exists for cu129 and cu130. vLLM 0.31.0's release assets carry exactly one CUDA
+  variant besides the CUDA 13 default: `vllm-0.31.0+cu129-cp38-abi3-manylinux_2_28_x86_64.whl`.
+  CUDA 12.9 binaries run on a 12.8 driver through minor-version compatibility; Triton compiles with
+  its own bundled ptxas, so the driver never JIT-compiles PTX. `setup_env.sh` now takes
+  `RLVR_VLLM_CUDA=cu129`: the release wheel plus the cu129 torch index, same vLLM version as the
+  laptop's lock. The verification is `triton_check.py` and a 20-problem eval on the L4.
+- *No flash-attn on E2E.* Dao-AILab's newest wheels (2.8.3.post2) stop at torch 2.8, and a source
+  build would use the image's 12.6 toolkit against torch's 12.9: the build refuses the mismatch.
+  Training on E2E therefore runs `packing: false` (the trainer's own guard; correct, 1.5-2x slower)
+  unless the kernels-hub flash-attn build works, which is tried once and recorded either way.
+- *The image's `LD_LIBRARY_PATH` is unset by `e2e_env.sh`.* torch and vLLM bring the CUDA libraries
+  they were built against; a system libcudart 12.6 ahead of them is the mismatch to avoid.
+
+Also fixed while here: `setup_env.sh` used to install the newest vLLM and rewrite the tracked lock
+file at the end, which on a box would both drift from the laptop and dirty the tree (the harness
+refuses a dirty tree). It now installs the locked version and writes its freeze to an ignored
+per-host file, printing the torch/vllm lines that differ, which is what the `COMPUTE.md` row records.
+
+Without the volume, the layout goes on the root disk at the same paths; when the volume arrives, one
+rsync moves it (rental guide, section 2c). The L4 earns its INR 49/h with the data build, the model
+downloads, the smoke, the base n = 64 sampling overnight (EXP-002; 24 GB is enough) and possibly the
+LoRA run; the full fine-tunes wait for the 80 GB card.
