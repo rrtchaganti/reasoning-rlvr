@@ -239,3 +239,43 @@ stored samples are the reproducibility artefact).
 3. Append `COMPUTE.md`: provider, GPU, wall-clock from `run_info.json` (`wall_clock_s`), the invoice
    line, tokens generated (sum of `tokens.mean x num_problems x n` per eval).
 4. Note anything that differed from the lock file (driver, torch build) in the same row.
+
+## 5. JupyterLab as the node UI, and Claude Code inside it (added 17 Oct 2026)
+
+A browser file manager and terminals for the node, reached through an SSH tunnel so port 8888 is never
+open to the internet. JupyterLab is installed as an isolated uv tool, outside the project venv, so the
+lock file stays untouched. Claude Code is a native binary in `/root/.local/bin`, also outside the venv.
+
+1. Laptop, PowerShell (keep this window open; it is the tunnel and a shell on the node):
+
+   ```
+   ssh -L 8888:localhost:8888 root@<node-ip>
+   ```
+
+2. Node, once per node:
+
+   ```bash
+   cd /mnt/rlvr/reasoning-rlvr && source scripts/e2e_env.sh
+   curl -fsSL https://claude.ai/install.sh | bash && claude --version
+   uv tool install jupyterlab
+   ```
+
+3. Node, start JupyterLab in its own tmux session (survives SSH drops), then print its URL:
+
+   ```bash
+   tmux new -d -s jupyter 'source /mnt/rlvr/reasoning-rlvr/scripts/e2e_env.sh && jupyter lab --no-browser --ip=127.0.0.1 --port=8888 --allow-root --ServerApp.root_dir=/mnt/rlvr'
+   sleep 5 && jupyter lab list
+   ```
+
+4. Laptop browser: open the printed `http://localhost:8888/lab?token=...` URL.
+
+5. In JupyterLab: File, New, Terminal. In that terminal:
+
+   ```bash
+   tmux new -s claude
+   cd /mnt/rlvr/reasoning-rlvr && source scripts/e2e_env.sh && claude
+   ```
+
+   First time: type `/login` inside Claude Code, open the printed URL on the laptop, paste the code back.
+   Detach with Ctrl-b then d; `tmux attach -t claude` returns. If the browser tab or the tunnel drops, the
+   tmux sessions keep running; reconnect the tunnel and reopen the URL.
