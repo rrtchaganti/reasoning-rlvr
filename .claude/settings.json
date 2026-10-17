@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/*)",
+      "Bash(python scripts/*)",
+      "Bash(pytest *)",
+      "Bash(rlvr-eval *)",
+      "Bash(rlvr-sft *)",
+      "Bash(rlvr-build-sft*)",
+      "Bash(rlvr-perturb-gsm8k*)",
+      "Bash(rlvr-probe-partial *)",
+      "Bash(hf download *)",
+      "Bash(git pull*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(tmux *)",
+      "Bash(nvidia-smi*)",
+      "Bash(df *)",
+      "Bash(lsblk*)",
+      "Bash(free *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(grep *)"
+    ]
+  }
+}
