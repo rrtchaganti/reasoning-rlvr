@@ -71,8 +71,8 @@ Whichever option runs is written into `outputs/<node>_session_notes.md` with the
 1. Done on 18 Oct: samples in `outputs/samples/base_1.7b_n64_few_shot_cot/`, figure
    `outputs/reports/figures/phase-1-pass-at-k.png`, journal section 17, `COMPUTE.md` rows, EXP-002
    partial result in `experiments.md`, Phase 1 report addendum.
-2. Pending from the user: the L4 node's hours from the E2E console (created 17 Oct about 14:30 IST,
-   terminated 18 Oct) for the `COMPUTE.md` node row.
+2. Done on 18 Oct: the L4 node's invoice (10 h 33 min, INR 516.95, 17 Oct 13:28 to 18 Oct 00:01 IST)
+   is in `COMPUTE.md`.
 3. When the node is up, from the laptop (PowerShell, repo folder; about 160 MB):
 
    ```powershell

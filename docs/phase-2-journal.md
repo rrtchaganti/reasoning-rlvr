@@ -526,7 +526,9 @@ What happened, in order:
    checkpoint is not short-changed, and moved the Countdown half to the A100. The partial run left no
    samples: 1.6 L4-hours and about 4.7 M tokens discarded (INR 78).
 6. On 18 Oct, with the archive verified on the laptop, the node's environments were deleted and the
-   node terminated.
+   node terminated at 00:01 IST. Invoice: 10 h 33 min at INR 49, INR 516.95, of which 8.3 h ran jobs
+   and 2.3 h were setup, the archive and idle time (two consecutive invoice lines, 13:28-16:01 and
+   16:01-00:01; the console's "2 vCPU, 6 GB" plan label does not describe the node).
 
 What the four sets say (the figure is `outputs/reports/figures/phase-1-pass-at-k.png`, the table is
 in `experiments.md` and the Phase 1 report's addendum):

@@ -27,12 +27,13 @@ or W&B. Appended at the end of each session.
 | 2026-10-17 | 1 (deferred) | EXP-002 four sets: base 1.7B n = 64, 4-shot-CoT on GSM8K, perturbed, MATH-500, AIME24 (ade4f6a) | E2E L4 24 GB | 5.16 | INR 253 (USD 3.0) | 34.3 M | 0 | output tok/s per set 3,134 / 3,082 / 1,171 / 964 (mean sample length 154 / 151 / 359 / 926); KV cache 15.3 GiB, 23 sequences at 6,144 |
 | 2026-10-17 | 1 (deferred) | EXP-002 Countdown, stopped at 2,368 / 32,000 sequences (ade4f6a) | E2E L4 24 GB | 1.60 | INR 78 (USD 0.9) | ~4.7 M, discarded | 0 | 816 tok/s at about 2,700 tokens a sample, 21 h more projected; rerun on the A100 from zero |
 
-Node row (pending the console figure): the L4 node existed from 17 Oct 2026 about 14:30 IST to its
-termination on 18 Oct; the invoice bills every hour of that, including setup, the archive and idle
-time, at INR 49/h. The GPU-time rows above sum to 8.3 h (INR 405); the node hours are the real cost.
+| 2026-10-17 | 2 | E2E L4 node, whole life (invoice: two consecutive lines, 13:28-16:01 INR 124.95 and 16:01-00:01 INR 392) | E2E L4 24 GB | 10.55 | INR 516.95 (USD 6.2) | - | - | the three rows above are inside this one; 2.3 h of it was setup, archive and idle time; terminated 18 Oct 00:01 IST |
 
-**Running totals.** Rented: 8.26 GPU-h of runs, about INR 405 (USD 4.8); node-hours pending the
-invoice. Local: 6.70 h.
+The invoice line is the cost; the three run rows above break the same hours down and are not added
+again. The console labels the plan "2 vCPU and 6 GB RAM"; the node had 25 vCPU and 100 GB.
+
+**Running totals.** Rented: 10.55 node-hours, INR 516.95 (USD 6.2), of which 8.26 h ran jobs.
+Local: 6.70 h. Budget used: about 4 % of the INR 8,400-14,300.
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.
