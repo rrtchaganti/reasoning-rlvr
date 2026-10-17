@@ -66,7 +66,14 @@ else
     uv pip install "vllm${VLLM_VERSION:+==$VLLM_VERSION}"
   fi
   echo "== installing package + dev + gpu extras"
-  uv pip install -e ".[dev,gpu]"
+  if [ "${RLVR_WRITE_LOCK:-0}" != "1" ] && [ -f requirements-lock.txt ]; then
+    # Pin the extras to the laptop's lock (the first E2E node picked up trl 1.16 against the tested
+    # 1.15). `==2.13.0` in the lock still accepts the box's torch 2.13.0+cu129: a local version label
+    # satisfies a plain == specifier, so torch's CUDA build is the one difference allowed to remain.
+    uv pip install -e ".[dev,gpu]" --constraint requirements-lock.txt
+  else
+    uv pip install -e ".[dev,gpu]"
+  fi
   echo "== verify"
   python - <<'PY'
 import torch, vllm, transformers, trl, math_verify, datasets
@@ -90,8 +97,9 @@ else
   mkdir -p outputs
   LOCK_OUT="outputs/requirements-lock.$(hostname).txt"
   uv pip freeze | grep -v '^rlvr' > "$LOCK_OUT"
-  echo "== wrote $LOCK_OUT; differences from the tracked lock in torch/vllm/triton lines:"
-  diff <(grep -E '^(torch|vllm|triton|transformers|trl|peft)==' requirements-lock.txt) \
-       <(grep -E '^(torch|vllm|triton|transformers|trl|peft)==' "$LOCK_OUT") || true
+  echo "== wrote $LOCK_OUT; every difference from the tracked lock (nvidia-* libraries excluded):"
+  diff <(grep -v -E '^(nvidia-|rlvr)' requirements-lock.txt | sed 's/+cu[0-9]*//') \
+       <(grep -v -E '^(nvidia-|rlvr)' "$LOCK_OUT" | sed 's#^vllm @ .*/vllm-\([0-9.]*\)+.*#vllm==\1#; s/+cu[0-9]*//') \
+    || true
 fi
 echo "== done. Activate with:  source $VENV/bin/activate"
