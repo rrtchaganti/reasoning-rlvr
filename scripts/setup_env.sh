@@ -70,8 +70,12 @@ else
     # Pin the extras to the laptop's lock (the first E2E node picked up trl 1.16 against the tested
     # 1.15). `==2.13.0` in the lock still accepts the box's torch 2.13.0+cu129: a local version label
     # satisfies a plain == specifier, so torch's CUDA build is the one difference allowed to remain.
+    # Named pins only, minus the families that differ by CUDA build and are pinned by the vllm
+    # wheel itself (torch*, triton, nvidia-*, cuda-*, flashinfer, xformers): on the first node the
+    # lock's cuda-bindings 13.x clashed with torch+cu129's 12.9 requirement.
     mkdir -p outputs
-    grep -E '^[A-Za-z0-9_.-]+==' requirements-lock.txt > outputs/constraints.txt   # named pins only
+    grep -E '^[A-Za-z0-9_.-]+==' requirements-lock.txt \
+      | grep -v -i -E '^(torch|triton|nvidia-|cuda-|flashinfer|xformers|vllm)' > outputs/constraints.txt
     uv pip install -e ".[dev,gpu]" --constraint outputs/constraints.txt
   else
     uv pip install -e ".[dev,gpu]"
@@ -99,9 +103,9 @@ else
   mkdir -p outputs
   LOCK_OUT="outputs/requirements-lock.$(hostname).txt"
   uv pip freeze | grep -v -E '^(rlvr|-e |file:)' > "$LOCK_OUT"
-  echo "== wrote $LOCK_OUT; every difference from the tracked lock (nvidia-* libraries excluded):"
-  diff <(grep -v -E '^(nvidia-|rlvr)' requirements-lock.txt | sed 's/+cu[0-9]*//') \
-       <(grep -v -E '^(nvidia-|rlvr)' "$LOCK_OUT" | sed 's#^vllm @ .*/vllm-\([0-9.]*\)+.*#vllm==\1#; s/+cu[0-9]*//') \
+  echo "== wrote $LOCK_OUT; every difference from the tracked lock (nvidia-* and cuda-* libraries excluded):"
+  diff <(grep -v -i -E '^(nvidia-|cuda-|rlvr)' requirements-lock.txt | sed 's/+cu[0-9]*//') \
+       <(grep -v -i -E '^(nvidia-|cuda-|rlvr)' "$LOCK_OUT" | sed 's#^vllm @ .*/vllm-\([0-9.]*\)+.*#vllm==\1#; s/+cu[0-9]*//') \
     || true
 fi
 echo "== done. Activate with:  source $VENV/bin/activate"
