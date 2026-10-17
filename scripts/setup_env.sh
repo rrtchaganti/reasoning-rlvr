@@ -70,7 +70,9 @@ else
     # Pin the extras to the laptop's lock (the first E2E node picked up trl 1.16 against the tested
     # 1.15). `==2.13.0` in the lock still accepts the box's torch 2.13.0+cu129: a local version label
     # satisfies a plain == specifier, so torch's CUDA build is the one difference allowed to remain.
-    uv pip install -e ".[dev,gpu]" --constraint requirements-lock.txt
+    mkdir -p outputs
+    grep -E '^[A-Za-z0-9_.-]+==' requirements-lock.txt > outputs/constraints.txt   # named pins only
+    uv pip install -e ".[dev,gpu]" --constraint outputs/constraints.txt
   else
     uv pip install -e ".[dev,gpu]"
   fi
@@ -89,14 +91,14 @@ fi
 
 if [ "${RLVR_WRITE_LOCK:-0}" = "1" ]; then
   echo "== lock file (tracked)"
-  uv pip freeze | grep -v '^rlvr' > requirements-lock.txt
+  uv pip freeze | grep -v -E '^(rlvr|-e |file:)' > requirements-lock.txt   # no editable-install line
   echo "wrote requirements-lock.txt ($(wc -l < requirements-lock.txt) lines)"
 else
   # Never dirty the tree on a box: the harness refuses to run on uncommitted changes. The freeze
   # goes to an ignored file; its torch/vllm lines are what COMPUTE.md records for the session.
   mkdir -p outputs
   LOCK_OUT="outputs/requirements-lock.$(hostname).txt"
-  uv pip freeze | grep -v '^rlvr' > "$LOCK_OUT"
+  uv pip freeze | grep -v -E '^(rlvr|-e |file:)' > "$LOCK_OUT"
   echo "== wrote $LOCK_OUT; every difference from the tracked lock (nvidia-* libraries excluded):"
   diff <(grep -v -E '^(nvidia-|rlvr)' requirements-lock.txt | sed 's/+cu[0-9]*//') \
        <(grep -v -E '^(nvidia-|rlvr)' "$LOCK_OUT" | sed 's#^vllm @ .*/vllm-\([0-9.]*\)+.*#vllm==\1#; s/+cu[0-9]*//') \
