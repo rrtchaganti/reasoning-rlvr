@@ -43,3 +43,10 @@ A40 48 GB 96; V100 32 GB 100; L40S 48 GB 102; A100 40 GB 179; A100 80 GB 189; H1
 INR 84 per USD. A powered-off node still bills: sessions end with Terminate. Plan and per-phase
 node choice: `docs/rental-setup.md`, section 2c. Rented rows below quote the invoice line in INR with
 the USD conversion of the day.
+
+**Rates from 18 Oct 2026 (E2E TIR, the managed notebook platform; `docs/rental-setup.md` 2d).** H100
+SXM 80 GB plan INR 379.05 per hour (26 vCPU, 250 GB RAM), billed per minute while running; a stopped
+notebook bills only its 300 GB workspace disk (per GB-month beyond 30 GB; the rate from the create
+form goes here when the notebook is made). The node's price is exported as `RLVR_NODE_RATE`.
+Projection: the Phase 2 + 3 session 15-18 H100-hours, INR 5,700-6,800; the whole plan 38-46
+H100-hours plus disk, INR 15,000-18,000, above the ceiling unless the drop list in 2d applies.

@@ -60,7 +60,7 @@ step_smoke() {  # RLVR_SMOKE_MODEL: a checkpoint that writes the format (locally
 step_sample() {
   local cap; cap="$(rft_max_tokens)"
   echo "== sampling cap rule: max_tokens=$cap (2048 when the SFT think-tag p90 is under 2,048; RLVR_RFT_MAX_TOKENS overrides)"
-  echo "== ten-minute rule: python scripts/project_sampling.py outputs/phase3_rental.log --from-metrics outputs/eval/sft_1.7b_think_tag/metrics.json --eval math500 --rate 189 --max-hours 3"
+  echo "== ten-minute rule: python scripts/project_sampling.py outputs/phase3_rental.log --from-metrics outputs/eval/sft_1.7b_think_tag/metrics.json --eval math500 --max-hours 2"   # price from RLVR_NODE_RATE
   run_if_missing outputs/samples/sft_1.7b_rft_n8/metrics.json \
     rlvr-eval --config configs/sample/sft_1.7b_rft_n8.yaml --max-tokens "$cap"
 }

@@ -570,3 +570,36 @@ Countdown is 32,000 x 2,700 = 87 M tokens, more than the four sets together; at 
 tokens/s that is 5-8 hours, and the `sample` step does it again for the SFT checkpoint. The handoff
 file puts the three options (keep and measure, fewer problems, shorter cap) in front of you before
 the A100 is launched; the pre-registered config stays the default.
+
+## 18. The node changes: a TIR H100 notebook, and its disk as the volume (18 Oct, laptop)
+
+The A100 route of section 15 assumed a MyAccount node plus a block volume that E2E had to assign by
+hand; the ticket was still open on 18 Oct and the user withdrew it. The user picked instead a TIR
+notebook (E2E's managed platform): the "NVIDIA H100 SXM 80 GB" plan at INR 379.05 per hour, 26 vCPU,
+250 GB RAM, a 300 GB workspace disk at `/home/jovyan`, from the pre-built "vLLM v0.15.1, CUDA 12.9,
+Transformers 4.57.6, Python 3.12.12" image, and asked whether a volume was still needed.
+
+What the TIR documentation says (read 18 Oct): a stopped notebook bills storage only; the workspace
+disk persists across Stop and Start and dies with Delete; an ephemeral `/home/user` disk is lost on
+restart; MyAccount block volumes attach to node plans, not to notebooks. So the disk is the volume:
+one notebook for the whole project, Stopped between phases while the laptop does code and docs,
+Started again for the next phase with the venv, the caches and every `final/` checkpoint in place.
+The off-node copies (Hub uploads, the laptop archive) are made before every Stop, as they were before
+Terminate on the L4.
+
+Two numbers changed with the card. The guide had allowed an H100 only within 1.5x the A100 price;
+this one is 2.0x. The right comparison is rupees per experiment, not per hour: bf16 training runs
+about 2x faster and vLLM sampling 1.6-2x on an H100 SXM, so the session costs about the same and
+takes half the wall-clock. And the honest A100 sum for Phase 2 was never 15 hours once Countdown's
+87 M tokens were measured (section 17): 25-32 A100-hours for Phase 2 plus 3, which is 15-18 hours on
+this card, INR 5,700-6,800. The whole plan now projects to INR 15,000-18,000 with the disk, above the
+USD 170 ceiling; the drop list (GRPO seed repeat, Countdown on 200 problems, LoRA SFT) is written in
+the rental guide (2d) and the decision waits for measured rates at the end of this session.
+
+What changed in the repo: `scripts/e2e_env.sh` picks `/home/jovyan/rlvr` as the home when that
+directory exists, unsets `PYTHONPATH` (the image's own vLLM and Transformers must not shadow the
+locked venv) and exports the node's price as `RLVR_NODE_RATE`, which `scripts/project_sampling.py`
+reads as its default `--rate`; the handoff is rewritten for a container without root (no `apt`, no
+`sudo`; tmux from conda or a `nohup` fallback), with the Phase 3 rules restated in H100 hours and a
+pre-authorised pruning step for the 20 GB intermediate checkpoints; the guide's section 2d holds the
+routine, the disk budget (peak about 150 GB) and the per-phase table.

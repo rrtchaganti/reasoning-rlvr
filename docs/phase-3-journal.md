@@ -53,3 +53,7 @@ Not done on the laptop: the GPU smoke (`bash scripts/phase3_rental.sh smoke` wit
 `RLVR_SMOKE_MODEL=outputs/train/sft_0p6b_lora_smoke_v2/final`, about ten minutes on the 4060). The
 node runs the same smoke against the real SFT checkpoint before the session, so a local run is a
 convenience, not a gate; if the user runs it, the result goes here.
+
+Later on 18 Oct: the node is a TIR H100 notebook, not an A100 (Phase 2 journal, section 18). The
+plan's hours stay in A100 units; the handoff's section 8 converts them (Phase 3 about 3-4 hours on
+this card) and its section 7 rules now carry the H100 figures.

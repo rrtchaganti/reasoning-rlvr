@@ -7,8 +7,8 @@ This script applies the rule from the handoff instead: remaining sequences times
 length seen for that set in the nearest run, divided by the output rate on this set's own progress
 line. The verdict says whether the step stays under ``--max-hours``.
 
-    python scripts/project_sampling.py outputs/a100_exp002.log --from-metrics outputs/eval/base_1.7b_think_tag_4096/countdown/metrics.json --rate 189 --max-hours 8
-    python scripts/project_sampling.py outputs/a100_exp002.log --mean-tokens 2700 --rate 189
+    python scripts/project_sampling.py outputs/a100_exp002.log --from-metrics outputs/eval/base_1.7b_think_tag_4096/countdown/metrics.json --max-hours 4
+    python scripts/project_sampling.py outputs/a100_exp002.log --mean-tokens 2700 --rate 379
 
 The log is whatever ``tee`` wrote; the last ``Processed prompts`` line is used (tqdm separates
 updates with carriage returns, which count as line breaks here).
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 
@@ -134,7 +135,12 @@ def main(argv: list[str] | None = None) -> None:
         "--from-metrics", type=Path, help="metrics.json of the nearest finished run on this set"
     )
     ap.add_argument("--eval", default=None, help="eval name inside a run-level metrics.json")
-    ap.add_argument("--rate", type=float, default=189.0, help="price of this node per hour")
+    ap.add_argument(
+        "--rate",
+        type=float,
+        default=float(os.environ.get("RLVR_NODE_RATE", "189")),
+        help="price of this node per hour (default: RLVR_NODE_RATE, else 189, the A100 80 GB rate)",
+    )
     ap.add_argument("--max-hours", type=float, default=8.0)
     ap.add_argument("--currency", default="INR")
     ap.add_argument("--json", action="store_true")

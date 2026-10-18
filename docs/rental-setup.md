@@ -5,8 +5,12 @@ session in Phases 1-7; the per-phase commands change, the setup does not.
 
 ## 1. What to rent
 
-- One A100 80 GB (or H100 80 GB if the hourly price is within 1.5x; everything here fits in 40 GB, the
-  80 GB is for the n = 64 KV cache and later for training without gradient checkpointing games).
+- One 80 GB card. Chosen 18 Oct 2026: a TIR H100 SXM 80 GB at INR 379.05/h (section 2d), 2.0x the
+  A100 80 GB price for about 1.8x the speed on this workload (bf16 training about 2x, vLLM sampling
+  1.6-2x), so about the same rupees per experiment at half the wall-clock. The earlier rule "H100 only
+  within 1.5x" compared hours, not experiments; rupees per experiment is the right comparison.
+  Everything here fits in 40 GB; the 80 GB is for the n = 64 KV cache and for training without
+  gradient checkpointing games.
 - Image / template: Ubuntu 22.04 or 24.04 with an **NVIDIA driver of the 580 series or newer**
   (`nvidia-smi` must show "CUDA Version: 13.x"). The vLLM wheel we pin (`vllm 0.31.0`) brings a CUDA 13
   build of torch; on a 535/550/570 driver it fails at the first CUDA call with "driver too old", exactly
@@ -15,9 +19,13 @@ session in Phases 1-7; the per-phase commands change, the setup does not.
   locked version with torch from the cu129 index (torch 2.13 has no cu128 build; CUDA 12.9 binaries run
   on a 12.8 driver through minor-version compatibility); record the versions in `COMPUTE.md` because
   they differ from the lock file and the run_info of those runs will say so.
-- Disk: 60 GB is enough (weights 3.4 GB, HF cache, 64-sample outputs about 2-3 GB per eval set).
-- Provider chosen 16 Oct 2026: E2E Networks (MyAccount GPU nodes, on-demand, INR billing). Section 2c
-  has the volume layout, the prices and the per-session routine. Its images (checked 17 Oct on the L4:
+- Disk: 60 GB is enough for an eval-only session (weights 3.4 GB, HF cache, 64-sample outputs about
+  2-3 GB per eval set). The Phase 2 + 3 training session peaks near 150 GB: fp32 master weights plus
+  Adam states make every intermediate trainer checkpoint about 20 GB (section 2d has the breakdown);
+  the TIR notebook has 300 GB.
+- Provider chosen 16 Oct 2026: E2E Networks (INR billing). Route from 18 Oct 2026: TIR, the managed
+  notebook platform, one notebook for the whole project (section 2d). The 17 Oct L4 session ran on a
+  MyAccount node (section 2c, kept as the record). MyAccount images (checked 17 Oct on the L4:
   Ubuntu 24.04.3, driver 570.133.20, CUDA 12.8, toolkit 12.6 on `LD_LIBRARY_PATH`, system Python 3.12.3,
   no pip, no torch) take the cu129 route above.
 
@@ -55,7 +63,10 @@ config (correct, about 1.5-2x slower because of padding) and say so in `COMPUTE.
 `report_to: wandb` in the train configs needs `wandb login` once (or `WANDB_API_KEY` exported);
 set `WANDB_PROJECT=reasoning-rlvr`. To run without it: `--set report_to=none`.
 
-## 2c. E2E Networks: one volume, nodes come and go (chosen 16 Oct 2026)
+## 2c. E2E Networks MyAccount: one volume, nodes come and go (chosen 16 Oct 2026; superseded by 2d on 18 Oct 2026)
+
+Kept as the record of the L4 session (17-18 Oct 2026). The block-volume request was withdrawn on
+18 Oct; the active routine is section 2d.
 
 **Facts that shape the routine** (E2E documentation, read 16 Oct 2026; re-check before the first
 invoice):
@@ -175,6 +186,113 @@ otherwise terminate, attach the volume to an A100 80 GB and continue with `bash 
 the finished sweep run is reused either way (same effective batch of 64 sequences). The `RLVR_TRAIN_EXTRA`
 line stays on for every training step on a 48 GB card.
 
+## 2d. TIR notebook route: one notebook for the whole project (chosen 18 Oct 2026)
+
+Replaces 2c. TIR is E2E's managed notebook platform (JupyterLab in a container, GPU plans billed per
+minute). Chosen after the MyAccount block-volume request was withdrawn on 18 Oct 2026.
+
+**Facts (TIR documentation, read 18 Oct 2026):**
+
+- A stopped notebook is not billed for compute, only for storage; billing runs per minute while it
+  is running. The workspace disk at `/home/jovyan` persists across Stop and Start and is lost on
+  Delete. An ephemeral disk at `/home/user` (50 GB) is lost on restart: nothing goes there.
+- The workspace disk bills per GB-month beyond 30 GB free, stopped or not (the rate is on the
+  create form; TIR's shared file system is INR 5 per GB-month, so 270 billable GB would be about
+  INR 45 a day). MyAccount block volumes attach to node plans only, not to notebooks.
+- SSH is an option per notebook at creation (SSH key registered in TIR, "enable SSH"); without it the
+  JupyterLab file browser moves files.
+- Plan: NVIDIA H100 SXM 80 GB, 26 vCPU, 250 GB RAM, 300 GB workspace, INR 379.05 per hour. Image:
+  "vLLM v0.15.1, CUDA 12.9, Transformers 4.57.6, Python 3.12.12, Ubuntu 22.04". The image's stack is
+  not used: `setup_env.sh` builds the locked environment (vLLM 0.31.0+cu129, torch 2.13.0+cu129) in
+  its own venv on a uv-managed Python, and `e2e_env.sh` unsets `PYTHONPATH` and `LD_LIBRARY_PATH` so
+  nothing of the image leaks in. User `jovyan`, no root: no `apt`, no `sudo`.
+
+**The disk is the volume.** One notebook lives for the whole project. Between phases it is Stopped,
+not Deleted: the venv, the model and dataset caches, every `final/` checkpoint and every sample set
+stay in place, and the next session starts in ten minutes without downloads. The off-node copies
+(Hub uploads from the `report` steps, the laptop archive of metrics and reports) are made before
+every Stop, so the disk is a convenience, never the only copy. The notebook is deleted after the
+last phase's archive is verified on the laptop.
+
+**Layout** (`/home/jovyan/rlvr`; `scripts/e2e_env.sh` picks it when `/home/jovyan` exists):
+
+```
+/home/jovyan/rlvr/reasoning-rlvr   the repo clone; outputs/ inside it holds checkpoints, samples, logs
+/home/jovyan/rlvr/venv             the Python environment            (RLVR_VENV)
+/home/jovyan/rlvr/uv-python        uv's CPython, which the venv points at by path   (UV_PYTHON_INSTALL_DIR)
+/home/jovyan/rlvr/uv-cache         wheel cache                       (UV_CACHE_DIR)
+/home/jovyan/rlvr/hf               models and datasets               (HF_HOME)
+```
+
+**Disk budget for the Phase 2 + 3 session** (peak, before pruning):
+
+| what | GB |
+|---|---|
+| venv, uv Python, wheel cache | 15 |
+| HF cache: two Qwen3 models, the OpenR1 subset, eval sets | 10 |
+| `main` run: up to three intermediate checkpoints (fp32 weights 6.8 + Adam states 13.6 each) and `final` | 70 |
+| sweep, LoRA, scaling, RFT and control runs: finals only (each run has fewer steps than its save interval) | 50 |
+| samples and evals (n = 64 sets, the RFT n = 8 pool) | 3 |
+| **peak** | **about 150** |
+
+Pruning rule: after a session's `report` step and the verified archive, `rm -rf outputs/train/*/checkpoint-*`
+(every `final/` stays). Listed in the handoff (section 4), so the node session does it without asking.
+`df -h /home/jovyan` at the start of every session; above 240 GB used, prune before running.
+
+**tmux without root.** `which tmux conda screen`: tmux present, use it; absent with conda present,
+`conda install -y -c conda-forge tmux` (the image's conda is user-writable); else `screen`; failing
+all three, `nohup bash scripts/<phase>_rental.sh <step> > outputs/<log> 2>&1 &` plus `tail -f`. The
+session scripts are resumable, so a lost terminal costs nothing either way.
+
+**Cold start (once per notebook life, 20-30 min, about INR 150):**
+
+```bash
+mkdir -p /home/jovyan/rlvr && cd /home/jovyan/rlvr
+git clone https://github.com/rrtchaganti/reasoning-rlvr.git     # user name + read-only token at the prompt; never `git config credential.helper store`
+cd reasoning-rlvr && git checkout <phase branch>
+source scripts/e2e_env.sh
+nvidia-smi | head -4                                            # "CUDA Version": 12.9 -> cu129 route; 13.x -> plain setup_env.sh
+RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh
+source scripts/e2e_env.sh && python scripts/triton_check.py      # must print "triton compile + launch: ok"
+export HF_TOKEN=...  WANDB_API_KEY=...                          # typed, never in a file
+bash scripts/phase2_rental.sh data                              # perturbed set + SFT set, both hashes checked
+hf download Qwen/Qwen3-1.7B-Base && hf download Qwen/Qwen3-0.6B-Base
+rlvr-eval --model Qwen/Qwen3-1.7B-Base --evals gsm8k --template few_shot_cot --limit 20 --max-tokens 256 --out outputs/eval/h100_smoke
+```
+
+**Every later session:** Start the notebook, open a terminal, then
+
+```bash
+cd /home/jovyan/rlvr/reasoning-rlvr && source scripts/e2e_env.sh
+git pull && git checkout <phase branch> && git pull
+uv pip install -e . --no-deps                                   # registers the phase's new console scripts
+git status --short && df -h /home/jovyan
+export HF_TOKEN=...  WANDB_API_KEY=...
+tmux new -s phaseN
+bash scripts/phaseN_rental.sh 2>&1 | tee outputs/phaseN_rental.log
+```
+
+**End of a session:** uploads done, archive to the laptop verified (section 4), prune, then Stop from
+the TIR console; hours and the storage line go into `COMPUTE.md`. If the H100 plan is unavailable at a
+later Start, "Update Plan" to an A100 80 GB (same paths, same venv) and `export RLVR_NODE_RATE=189`.
+
+**Which session for which phase (H100 hours, A100 estimates divided by about 1.8):**
+
+| phase | work | H100 h | INR |
+|---|---|---|---|
+| 2 + 3 | Countdown, sweep, main, SFT sampling, LoRA, scaling, report; RFT sampling, data, train, evals, control, report | 15-18 | 5,700-6,800 |
+| 4 | GRPO main, three ablations, seed repeat | 18-22 | 6,800-8,300 |
+| 5 | DPO | 1.5-2 | 600-800 |
+| 6 | test-time-compute sampling | 1.5-2 | 600-800 |
+| 7 | 0.6B distillation (a cheaper plan via Update Plan if TIR allows it on a stopped notebook; unverified) | 1.5 | 300-600 |
+| disk | 270 GB billable for about three weeks | | about 1,000 |
+
+About 38-46 H100-hours: INR 15,000-18,000 with the disk, against the plan's INR 8,400-14,300 ceiling
+(USD 100-170), once the Countdown measurement (87 M tokens) and the 2.0x card price are in. Drop list,
+in order, decided at the end of the Phase 2 + 3 session from measured rates: the GRPO seed repeat
+(about INR 1,500), Countdown on 200 problems instead of 500 for the SFT and RFT checkpoints (about
+INR 1,000), the LoRA SFT run (about INR 700). Never the baselines or the CIs.
+
 ## 3. The Phase 2 session (about 15 hours of A100, resumable)
 
 One script runs the whole session in order and skips every step whose output already exists, so a
@@ -259,6 +377,13 @@ the ten-minute rule are in `docs/e2e-session-handoff.md`, section 7; the plan an
 4. Note anything that differed from the lock file (driver, torch build) in the same row.
 
 ## 5. JupyterLab as the node UI, and Claude Code inside it (added 17 Oct 2026)
+
+On a TIR notebook (section 2d) steps 1-3 fall away: the notebook is a JupyterLab server reached
+through the TIR console, the terminal comes from its launcher, and
+`curl -fsSL https://claude.ai/install.sh | bash` puts Claude Code in `~/.local/bin` (on PATH through
+`e2e_env.sh`; its login in `~/.claude` persists on the workspace disk across Stop and Start). tmux as
+in 2d. Step 5 is unchanged with the `/home/jovyan/rlvr` paths. The rest of this section is the
+MyAccount route of the L4 session.
 
 A browser file manager and terminals for the node, reached through an SSH tunnel so port 8888 is never
 open to the internet. JupyterLab is installed as an isolated uv tool, outside the project venv, so the
