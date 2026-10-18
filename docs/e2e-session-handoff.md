@@ -139,10 +139,28 @@ Whichever option runs is written into `outputs/h100_session_notes.md` with the m
    which python conda tmux screen sudo
    ```
 
-   `tmux`: present, use it. Absent and `conda` present: `conda install -y -c conda-forge tmux`
-   (the image's conda is writable by `jovyan`; no root needed). Otherwise `screen`. Failing all
-   three, run each step as `nohup bash scripts/phase2_rental.sh <step> > outputs/h100_<step>.log 2>&1 &`
-   and follow it with `tail -f`; the scripts are resumable, so a lost terminal costs nothing.
+   `tmux`: present, use it. The shell on this image is root (seen 18 Oct 2026; `HOME` is still
+   `/home/jovyan`), so `apt-get update && apt-get install -y tmux` works; without root, `conda install
+   -y -c conda-forge tmux` if conda exists, else `screen`. Failing all, run each step as
+   `nohup bash scripts/phase2_rental.sh <step> > outputs/h100_<step>.log 2>&1 &` and follow it with
+   `tail -f`; the scripts are resumable, so a lost terminal costs nothing.
+
+   **Driver check before the build (18 Oct 2026).** The host driver is 550.127.08 (CUDA 12.4) under a
+   CUDA 12.9 image. Such a container works only through NVIDIA's forward-compatibility `libcuda` in the
+   image's cuda `compat` directory, which `scripts/e2e_env.sh` now keeps first on `LD_LIBRARY_PATH`
+   (it prints "cuda forward-compat libcuda kept" when found). In a fresh terminal, before sourcing
+   anything:
+
+   ```bash
+   nvidia-smi | head -5; echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"; ls -d /usr/local/cuda* 2>/dev/null; ls /usr/local/cuda/compat 2>/dev/null
+   python3 -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+   ```
+
+   The second line uses the image's own torch: if it says `True` and names the H100, the compat
+   route is live and the cu129 venv will run the same way. If the compat directory is missing or
+   the image's torch cannot see the GPU, stop and report before `setup_env.sh`; the fallback is a
+   torch and vLLM build for an older CUDA, which the laptop session chooses. After the venv exists,
+   `python scripts/triton_check.py` is the real test (Triton compiles a kernel through the same driver).
 2. Clone and build (once per notebook life, about 20-30 minutes, INR 130-190):
 
    ```bash

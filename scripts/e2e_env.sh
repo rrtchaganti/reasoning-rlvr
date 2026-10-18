@@ -27,7 +27,20 @@ export RLVR_NODE_RATE="${RLVR_NODE_RATE:-379}"
 # torch and vLLM ship the CUDA libraries they were built against (12.9 here); a system libcudart
 # ahead of them on the search path is exactly the mismatch we do not want. The toolkit's nvcc stays
 # on PATH but nothing in this project compiles with it (flash-attn is not built on E2E, see 2c).
-unset LD_LIBRARY_PATH
+# One exception: the TIR H100 image (18 Oct 2026) runs a CUDA 12.9 user space on a 550.127.08 host
+# driver (CUDA 12.4). That only works through NVIDIA's forward-compatibility libcuda in the image's
+# cuda compat directory, which must stay first on LD_LIBRARY_PATH. Keep that directory, drop the rest.
+RLVR_CUDA_COMPAT=""
+for d in /usr/local/cuda/compat /usr/local/cuda-*/compat; do
+  if [ -e "$d/libcuda.so.1" ]; then RLVR_CUDA_COMPAT="$d"; break; fi
+done
+if [ -n "$RLVR_CUDA_COMPAT" ]; then
+  export LD_LIBRARY_PATH="$RLVR_CUDA_COMPAT"
+  echo "cuda forward-compat libcuda kept on LD_LIBRARY_PATH: $RLVR_CUDA_COMPAT"
+else
+  unset LD_LIBRARY_PATH
+fi
+export RLVR_CUDA_COMPAT
 # The TIR image preinstalls vLLM 0.15.1 and Transformers 4.57.6 for its own Python. A PYTHONPATH that
 # points at them would shadow the locked versions inside the venv; the venv is self-contained.
 unset PYTHONPATH
