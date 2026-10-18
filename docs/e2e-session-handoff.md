@@ -89,17 +89,35 @@ Whichever option runs is written into `outputs/h100_session_notes.md` with the m
    ten-minute rule of section 1, option 1), the `--all-samples` modes of `perturbation_gap.py` and
    `compare_checkpoints.py` (paired pass@k; the `report` step runs them on the base and SFT samples),
    the L4 invoice in `COMPUTE.md`, and this TIR plan (`docs/rental-setup.md` 2d).
-2. Creating the notebook (TIR console): the H100 SXM 80 GB plan, the pre-built vLLM image, 300 GB
-   workspace; if the form offers SSH, add the laptop's public key and enable it (gives `scp` for
-   step 3, otherwise the JupyterLab file browser does the transfer). Write the plan name, the image
-   name and the storage rate per GB-month shown on the form into `COMPUTE.md`.
-3. When the notebook is up and the clone exists (section 3, step 2), copy the two folders (about
-   160 MB) from the laptop. With SSH enabled (PowerShell, repo folder):
+2. SSH key, once, on the laptop (PowerShell; Windows ships OpenSSH). The private key stays in
+   `C:\Users\<you>\.ssh\`, never in the repo; the public key (`.pub`) goes into the TIR console:
 
    ```powershell
-   scp -r outputs/eval/base_1.7b_think_tag_4096 jovyan@<notebook-ip>:/home/jovyan/rlvr/reasoning-rlvr/outputs/eval/
-   scp -r outputs/samples/base_1.7b_n64_few_shot_cot jovyan@<notebook-ip>:/home/jovyan/rlvr/reasoning-rlvr/outputs/samples/
+   ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\tir_rlvr -C "tir-rlvr"    # Enter twice for no passphrase, or set one and keep it in the password manager
+   Get-Content $env:USERPROFILE\.ssh\tir_rlvr.pub                           # paste this line into TIR: SSH Keys, Add
    ```
+
+   If the console generates the key itself instead and offers a one-time download, save the file as
+   `$env:USERPROFILE\.ssh\tir_rlvr.pem` and lock it down, or OpenSSH refuses it:
+   `icacls $env:USERPROFILE\.ssh\tir_rlvr.pem /inheritance:r /grant:r "$env:USERNAME:R"`.
+   Creating the notebook (TIR console): the H100 SXM 80 GB plan, the pre-built vLLM image, 300 GB
+   workspace, SSH enabled with that key. Write the plan name, the image name, the storage rate per
+   GB-month shown on the form, and the SSH line the console prints (user, IP, port) into a note
+   outside the repo; the rate goes into `COMPUTE.md`.
+3. When the notebook is up and the clone exists (section 3, step 2), copy the two folders (about
+   160 MB) from the laptop. With SSH (PowerShell, repo folder; user and port exactly as the console
+   shows them, `-P` only if the port is not 22; first connection asks to trust the host, answer yes):
+
+   ```powershell
+   ssh -i $env:USERPROFILE\.ssh\tir_rlvr -p <port> jovyan@<notebook-ip> "mkdir -p /home/jovyan/rlvr/reasoning-rlvr/outputs/eval /home/jovyan/rlvr/reasoning-rlvr/outputs/samples"
+   scp -i $env:USERPROFILE\.ssh\tir_rlvr -P <port> -r outputs/eval/base_1.7b_think_tag_4096 jovyan@<notebook-ip>:/home/jovyan/rlvr/reasoning-rlvr/outputs/eval/
+   scp -i $env:USERPROFILE\.ssh\tir_rlvr -P <port> -r outputs/samples/base_1.7b_n64_few_shot_cot jovyan@<notebook-ip>:/home/jovyan/rlvr/reasoning-rlvr/outputs/samples/
+   ```
+
+   The same `ssh` line opens a shell on the node from PowerShell; `tmux attach -t claude` inside it
+   reaches the running session. After a Stop and Start the IP may change: `ssh-keygen -R <old-ip>`
+   clears the stale host entry. Archives come back the same way:
+   `scp -i $env:USERPROFILE\.ssh\tir_rlvr -P <port> jovyan@<notebook-ip>:/home/jovyan/rlvr/h100_session_archive.tar.gz ..\`.
 
    Without SSH: zip on the laptop, drag into JupyterLab, unzip on the node:
 
