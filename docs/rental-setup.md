@@ -238,6 +238,17 @@ window: estimate per set, and read the rate from each set's own progress line
 prints the projection and a continue/stop verdict). The `--no-batch-invariant` default in these configs is deliberate (throughput; the
 stored samples are the reproducibility artefact).
 
+## 3b. The Phase 3 session (about 5-7 hours of A100, right after Phase 2 on the same node)
+
+`scripts/phase3_rental.sh` mirrors the Phase 2 script: `smoke` (file hand-offs on 20 problems),
+`sample` (the SFT checkpoint samples its own training prompts, n = 8, T = 1.0, 1.5-3 h), `data`
+(`rlvr-build-rft`: solve rates, the kept set, the learnable-prompt file for Phase 4, decontamination;
+CPU), `train` (one epoch from `sft`, 0.5-1 h), `eval` (the three templates, gap, probe), `sample64`
+(n = 64 for the RFT checkpoint; Countdown skippable with `RLVR_SKIP_COUNTDOWN64=1`), `control`
+(EXP-010b, one more SFT epoch on as many fresh traces, about 1 h) and `report`. The sampling cap and
+the ten-minute rule are in `docs/e2e-session-handoff.md`, section 7; the plan and the decisions in
+`docs/phase-3-plan.md`.
+
 ## 4. Before shutting the box down
 
 1. Copy back to the laptop (`rsync -av box:reasoning-rlvr/outputs/ outputs/ --include='*/' --include='metrics.json' --include='report.md' --include='run_info.json' --include='train_log.jsonl' --include='*.md' --include='*.png' --include='*.json' --exclude='*'`, or `scp` the same files): every `metrics.json`, `report.md`, `run_info.json`, `train_log.jsonl`, `outputs/reports/**`. Not the weights (on the Hub) and not the samples (on the Hub dataset repo). Commit the reports and figures on the phase branch.

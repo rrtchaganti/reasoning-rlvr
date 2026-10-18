@@ -13,7 +13,7 @@ import hashlib
 import json
 import os
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import asdict, dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -199,6 +199,42 @@ def _dev_split(es: EvalSet, name: str) -> EvalSet:
     )
 
 
+def dev_problem_ids(train: EvalSet) -> set[str]:
+    """Ids of the dev split drawn from this *full* train set: the same seeded choice as
+    ``load_gsm8k_dev`` / ``load_math_dev``, so a training pool can exclude them (Phase 3+)."""
+    return {p.id for p in _dev_split(train, train.name + "_dev").problems}
+
+
+def filter_problems(
+    es: EvalSet,
+    *,
+    levels: Sequence[int] | None = None,
+    exclude_ids: Collection[str] = (),
+    pool_limit: int | None = None,
+    seed: int = 0,
+) -> EvalSet:
+    """A training pool: keep ``levels`` (evals with ``meta.level`` only), drop ``exclude_ids``,
+    then a seeded cap of ``pool_limit`` problems. The source string records each step so the
+    manifest says what the pool was."""
+    problems = list(es.problems)
+    source = es.source
+    if levels is not None:
+        want = {int(x) for x in levels}
+        if not any(p.meta.get("level") is not None for p in problems):
+            raise ValueError(f"{es.name} has no level metadata; --levels does not apply")
+        problems = [p for p in problems if p.meta.get("level") in want]
+        source += "#levels=" + ",".join(str(x) for x in sorted(want))
+    if exclude_ids:
+        drop = set(exclude_ids)
+        problems = [p for p in problems if p.id not in drop]
+        source += f"#excluded={len(drop)}"
+    out = EvalSet(es.name, es.answer_type, problems, source, es.revision)
+    if pool_limit is not None and pool_limit < len(out.problems):
+        out = out.subset(pool_limit, seed)
+        out.source += f"#pool={pool_limit},seed={seed}"
+    return out
+
+
 def load_gsm8k_dev(revision: str | None = None) -> EvalSet:
     return _dev_split(load_gsm8k_train(revision), "gsm8k_dev")
 
@@ -379,6 +415,8 @@ def load_gsm8k_names_only(revision: str | None = None) -> EvalSet:
 
 # --------------------------------------------------------------------------- registry
 
+TRAIN_SPLITS = ("gsm8k_train", "math_train")  # the only splits with a dev draw inside them
+
 LOADERS: dict[str, Callable[..., EvalSet]] = {
     "gsm8k": load_gsm8k_test,
     "gsm8k_train": load_gsm8k_train,
@@ -400,13 +438,24 @@ def load_eval_set(
     seed: int = 0,
     countdown_n: int = 500,
     countdown_spec: CountdownSpec | None = None,
+    levels: Sequence[int] | None = None,
+    exclude_dev: bool = False,
+    pool_limit: int | None = None,
 ) -> EvalSet:
+    """``levels``, ``exclude_dev`` and ``pool_limit`` shape a *training pool* (Phase 3 sampling);
+    ``limit`` is the smoke-run subset and is applied last."""
     if name == "countdown":
         es = generate_countdown(countdown_n, seed=seed, spec=countdown_spec)
     elif name in LOADERS:
         es = LOADERS[name](revision)
     else:
         raise KeyError(f"unknown eval set {name!r}; known: {[*sorted(LOADERS), 'countdown']}")
+    if exclude_dev:
+        if name not in TRAIN_SPLITS:
+            raise ValueError(f"exclude_dev applies to {TRAIN_SPLITS}, not {name!r}")
+        es = filter_problems(es, exclude_ids=dev_problem_ids(es))
+    if levels is not None or pool_limit is not None:
+        es = filter_problems(es, levels=levels, pool_limit=pool_limit, seed=seed)
     return es.subset(limit, seed)
 
 

@@ -34,6 +34,9 @@ session; the L4 node is terminated and its results are folded in below.
 - Not started anywhere: `sweep` (EXP-005), `main` (EXP-006), `sample`, `lora` (EXP-007), `scaling`
   (EXP-008), `report`. All need the 80 GB card except `lora`, which fits 24 GB with
   `--set per_device_batch=2 --set grad_accum=32`.
+- Phase 3 (RFT) code is ready on branch `phase-3-rft` (18 Oct 2026) and runs on the same node right
+  after Phase 2's `report` step: section 7. The node clones `phase-3-rft`, which contains every
+  Phase 2 commit.
 - E2E volume ticket still open on 18 Oct. Without it the layout goes on the root disk at the same
   paths (`docs/rental-setup.md`, section 2c, "Without the volume"), and nothing survives Terminate:
   the Hub uploads in `report` and the archive of section 4 happen before the node goes.
@@ -89,8 +92,8 @@ Whichever option runs is written into `outputs/<node>_session_notes.md` with the
 
 ## 3. Node session (A100 80 GB): steps, in order
 
-1. Set up per `docs/rental-setup.md` section 2c: `git clone` of `phase-2-sft` (type the GitHub
-   token), `RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh`, `source scripts/e2e_env.sh`,
+1. Set up per `docs/rental-setup.md` section 2c: `git clone` then `git checkout phase-3-rft` (the
+   Phase 2 code plus Phase 3; type the GitHub token), `RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh`, `source scripts/e2e_env.sh`,
    `python scripts/triton_check.py`. Export `HF_TOKEN` and `WANDB_API_KEY` in the shell (never in
    a file). If the volume exists, `sudo bash scripts/e2e_attach.sh` first; otherwise
    `mkdir -p /mnt/rlvr` and the same paths on the root disk.
@@ -131,6 +134,13 @@ Whichever option runs is written into `outputs/<node>_session_notes.md` with the
    `outputs/a100_session_notes.md` (throughput per step, peak memory, surprises) as the L4 session
    did. Fixes found on the node become patch files in `outputs/patches/`, never edits to tracked files.
 
+## 3b. Between the phases
+
+Phase 2's `report` step must have finished (uploads done) before Phase 3 starts; copy the Phase 2
+archive to the laptop (section 4, step 2) *before* step 7 so a node loss during Phase 3 costs only
+Phase 3. Nothing else is needed from the laptop: every Phase 3 decision that depends on a Phase 2
+number is a rule in section 7.
+
 ## 4. Before Terminate
 
 1. `report` finished its Hub uploads (checkpoints and the sample sets, including
@@ -139,6 +149,53 @@ Whichever option runs is written into `outputs/<node>_session_notes.md` with the
    `run_info.json`, `train_log.jsonl`, `outputs/reports/**`, the two session files, the logs and
    `outputs/patches/`. Verified on the laptop before anything is deleted.
 3. The user terminates the node from the console and notes the hours for `COMPUTE.md`.
+
+## 7. Phase 3 on the same node, right after Phase 2 (added 18 Oct 2026)
+
+Plan and pre-registration: `docs/phase-3-plan.md`, `experiments.md` EXP-009, EXP-010, EXP-010b.
+Script: `scripts/phase3_rental.sh` (steps `sample`, `data`, `train`, `eval`, `sample64`, `control`,
+`report`; resumable; `smoke` first). Needs `outputs/train/sft_1p7b/final`, the Phase 2 think-tag eval
+(`outputs/eval/sft_1.7b_think_tag/metrics.json`) and, for the paired pass@k, the Phase 2 SFT samples.
+
+```bash
+cd /mnt/rlvr/reasoning-rlvr && source scripts/e2e_env.sh && git status --short   # clean, on phase-3-rft
+export RLVR_TRAIN_EXTRA="--set packing=false"
+bash scripts/phase3_rental.sh smoke  2>&1 | tee outputs/phase3_smoke.log     # 5 min: 20 problems, 3 steps
+bash scripts/phase3_rental.sh        2>&1 | tee outputs/phase3_rental.log    # about 5-7 h (section 5 of the plan)
+```
+
+**Rules the node session applies on its own (no laptop round-trip):**
+
+1. *Sampling cap* (plan, decision 2): the script picks 2048 or 4096 from the SFT think-tag eval's
+   p90; `RLVR_RFT_MAX_TOKENS` overrides it, with the reason written in the notes.
+2. *Ten-minute rule on `sample`*: after ten minutes,
+   `python scripts/project_sampling.py outputs/phase3_rental.log --from-metrics outputs/eval/sft_1.7b_think_tag/metrics.json --eval math500 --rate 189 --max-hours 3`.
+   On STOP: Ctrl-C, then rerun the sampling with a smaller pool and note it:
+   `rlvr-eval --config configs/sample/sft_1.7b_rft_n8.yaml --max-tokens <cap> --pool-limit gsm8k_train=2000 --pool-limit math_train=2500`
+   (then `bash scripts/phase3_rental.sh` continues from `data`). The pool change is a deviation from
+   EXP-009's config and is reported as such.
+3. *EXP-009 falsifier* (more than half of MATH levels 1-3 at rate 0): continue with the smaller kept
+   set; the finding goes in the notes and the laptop rewrites the Phase 4 prompt set.
+4. *Countdown at n = 64 for the RFT checkpoint*: skip it (`RLVR_SKIP_COUNTDOWN64=1`) when the SFT
+   Countdown half was skipped in Phase 2, or when the first ten minutes project more than 4 hours.
+5. *Control run (EXP-010b)*: runs by default; skip only when the session is above 24 node-hours
+   in total, and say so.
+6. *Session budget*: Phase 2 (about 15 h) plus Phase 3 (about 5-7 h) is about 22 A100-hours,
+   INR 4,200. Ask the user before the node passes 26 hours.
+
+**Freedom and limits.** The node session may take any decision needed to finish these steps within
+`CLAUDE.md`: it reads logs, reruns resumable steps, changes environment variables and command-line
+flags, writes patches into `outputs/patches/` for the laptop, and records every decision with its
+evidence in `outputs/a100_session_notes.md`. It does not edit tracked files, commit or push, does
+not start work outside these steps that costs more than about one GPU-hour, and does not terminate
+the node. When a rule above does not cover a situation and the choice costs more than an hour or
+changes a pre-registered config, it asks the user in the chat and waits.
+
+**Hand-back for Phase 3** (same archive routine as section 4): `outputs/data/rft/manifest.json`,
+`solve_rate.jsonl`, `learnable_prompts.jsonl`, `outputs/reports/phase-3-*`, the figures, every
+`metrics.json`, `report.md`, `run_info.json`, `train_log.jsonl` under `outputs/eval/rft_*`,
+`outputs/train/rft_1p7b`, `outputs/train/sft_1p7b_control`, `outputs/samples/rft_*` and
+`outputs/samples/sft_1.7b_rft_n8` (metrics only; the samples go to the Hub), plus the session files.
 
 ## 5. When the volume arrives
 

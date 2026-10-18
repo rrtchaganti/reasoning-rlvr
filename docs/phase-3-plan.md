@@ -131,24 +131,33 @@ of the first iteration (ReST-EM's plateau). **[decide]**
 The prompt pool is the lever: `--limit-per-eval 4000` (seeded) halves the sampling hours and still
 leaves about 2,000 learnable MATH prompts **[decide: full pool or 4,000 per source]**.
 
-## 6. Decisions for you
+## 6. Decisions (taken 18 Oct 2026; the user asked for the calls to be made)
 
-1. **Branch.** Phase 2 is not merged, so `phase-3-rft` was opened from the `phase-2-sft` tip
-   (commit 5ca7bb1), not from `main`. When Phase 2 merges, this branch is rebased onto `main`
-   (WORKFLOW.md allows the rebase when `main` has moved). The alternative is to hold all Phase 3
-   code until the merge; that costs the A100 session its chance to run Phase 3 right after Phase 2.
-2. **Sampling budget for RFT**: `max_tokens` 4096 (PHASES_IO) or 2048 (what Phase 4 uses for its
-   own sampling, and half the cost). The SFT traces are long (kept-set p90 3,789 tokens under the
-   4096 cap, `data/manifests/sft_openr1.json`), so the SFT model may write long think blocks and
-   nobody knows its length distribution until the Phase 2 `main` evals report it. My recommendation
-   is a rule rather than a number: read mean and p90 of the SFT think-tag eval; 2048 if the p90 is
-   under 2,048 (consistent with Phase 4, half the cost), otherwise 4096 with the pool capped
-   (decision 3). The config carries 2048 as the default and the session script prints the rule.
-3. **Prompt pool**: full (about 11,200) or capped at 4,000 per source (section 5).
-4. **Dev exclusion** (`--exclude-dev`): I will do this without asking; the dev split picks the LR
-   and the checkpoint, and training on it is the kind of leak the plan's section 4 exists to prevent.
-5. **Optional runs**: EXP-010b (compute-matched control), EXP-011 (second iteration).
-6. **If the EXP-010 falsifier fires**: Phase 4 from `sft` or still from `rft`.
+1. **Branch.** `phase-3-rft` was opened from the `phase-2-sft` tip (5ca7bb1) because Phase 2 is
+   not merged. The A100 node clones `phase-3-rft` (it contains every Phase 2 commit) and runs both
+   phases from it; the laptop merges `phase-2-sft` into `phase-3-rft` whenever Phase 2 moves, and
+   rebases `phase-3-rft` onto `main` after the Phase 2 merge. Phase 2 runs made from this clone
+   record branch `phase-3-rft` in `run_info.json`; the commit hash is what matters.
+2. **Sampling cap**: the rule, mechanised in `phase3_rental.sh`: 2048 when the SFT think-tag eval's
+   p90 completion length is under 2,048 on both GSM8K and MATH-500, else 4096. `RLVR_RFT_MAX_TOKENS`
+   overrides, and the node session may use it with a reason in its notes.
+3. **Prompt pool**: MATH-train levels 1-3 in full (the Phase 4 prompt set comes from it; more
+   solve-rate coverage there is worth the hours) and GSM8K-train capped at 4,000 problems (seeded;
+   Phase 4 uses only a 20 % GSM8K slice and the SFT model is expected to saturate it). About 8,000
+   prompts, 64,000 sequences. Both without the dev split.
+4. **Dev exclusion**: done (`--exclude-dev`); the dev split picks LRs and checkpoints.
+5. **Optional runs**: EXP-010b (compute-matched control) RUNS: Q1 and PLAN.md section 4.4 ask for
+   SFT and RFT at equal GPU-hours, the control costs about one A100-hour, and without it RFT's gain
+   cannot be separated from "one more epoch of anything"; Phase 4 reads GRPO against the same kind
+   of control. EXP-011 (second iteration) is DROPPED (the user's call); the plan's diminishing-return
+   row is not reported.
+6. **If the EXP-010 falsifier fires**: Phase 4 starts from the checkpoint with the higher dev-split
+   think-tag accuracy (paired on the 500 dev problems), ties to `rft`. Decided on the laptop when the
+   results come back, not on the node.
+7. **Phase 3 runs on the A100 right after Phase 2, without a laptop round-trip.** Every decision
+   that needs a Phase 2 number is a rule the node session applies by itself (decision 2, the
+   ten-minute rule, the Countdown skip); `docs/e2e-session-handoff.md` section 7 lists them with the
+   freedom the node session has and the rules it keeps.
 
 ## 7. Order of work on the laptop (no GPU until the local smoke)
 

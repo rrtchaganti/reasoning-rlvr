@@ -20,6 +20,7 @@ import argparse
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -63,6 +64,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="subset size for smoke runs (never for reported numbers)",
     )
     p.add_argument("--countdown-n", type=int, default=500)
+    p.add_argument(
+        "--levels",
+        default=None,
+        help="training pool: keep these MATH levels, e.g. 1,2,3 (evals with level metadata only)",
+    )
+    p.add_argument(
+        "--exclude-dev",
+        action="store_true",
+        help="training pool: drop the dev-split problems from gsm8k_train / math_train",
+    )
+    p.add_argument(
+        "--pool-limit",
+        action="append",
+        default=None,
+        metavar="EVAL=N",
+        help="training pool: seeded cap of N problems for that eval (repeatable)",
+    )
     p.add_argument("--backend", choices=["vllm", "hf"], default="vllm")
     p.add_argument("--dtype", default="bfloat16")
     p.add_argument("--gpu-memory-utilization", type=float, default=0.85)
@@ -89,6 +107,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if not args.model or not args.out:
         p.error("--model and --out are required (via flags or --config)")
     return args
+
+
+LEVEL_EVALS = ("math_train", "math500", "math_dev")
+POOL_EVALS = ("gsm8k_train", "math_train")
+
+
+def parse_levels(value: Any) -> list[int] | None:
+    if value in (None, "", []):
+        return None
+    if isinstance(value, (list, tuple)):
+        return [int(x) for x in value]
+    return [int(x) for x in str(value).split(",") if x.strip()]
+
+
+def parse_pool_limits(value: Any) -> dict[str, int]:
+    """``--pool-limit gsm8k_train=4000`` (repeatable) or a YAML mapping / list of such strings."""
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return {str(k): int(v) for k, v in value.items()}
+    out: dict[str, int] = {}
+    for item in value:
+        if "=" not in str(item):
+            raise ValueError(f"--pool-limit expects EVAL=N, got {item!r}")
+        k, v = str(item).split("=", 1)
+        out[k.strip()] = int(v)
+    return out
 
 
 def make_sampler(args: argparse.Namespace) -> Sampler:
@@ -131,6 +176,9 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
     )
     rows = [MARKDOWN_HEADER]
     all_metrics: dict[str, dict] = {}
+    levels = parse_levels(getattr(args, "levels", None))
+    pool_limits = parse_pool_limits(getattr(args, "pool_limit", None))
+    exclude_dev = bool(getattr(args, "exclude_dev", False))
     t0 = time.time()
     for name in args.evals:
         es = load_eval_set(
@@ -139,7 +187,12 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
             limit=args.limit,
             seed=args.seed,
             countdown_n=args.countdown_n,
+            levels=levels if name in LEVEL_EVALS else None,
+            exclude_dev=exclude_dev and name in POOL_EVALS,
+            pool_limit=pool_limits.get(name),
         )
+        if levels or pool_limits or exclude_dev:
+            print(f"[rlvr-eval] {name}: pool of {len(es)} problems ({es.source})", flush=True)
         template = "think_tag" if name == "countdown" else args.template
         prompts = [build_prompt(p, template, name) for p in es.problems]
         stop = prompts[0].stop if prompts else ()

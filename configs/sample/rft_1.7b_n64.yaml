@@ -1,0 +1,16 @@
+# EXP-010 (same protocol as EXP-002, RFT checkpoint): pass@k / maj@k ceiling. n = 64 at T = 0.6, top-p 0.95. Rented A100. Samples are stored,
+# so reproducibility comes from the stored files and batch-invariant mode is off for throughput.
+model: outputs/train/rft_1p7b/final
+evals: [gsm8k, gsm8k_perturbed, math500, aime24]
+template: few_shot_cot
+n: 64
+temperature: 0.6
+top_p: 0.95
+max_tokens: 4096
+seed: 0
+backend: vllm
+batch_invariant: false
+dtype: bfloat16
+gpu_memory_utilization: 0.90
+max_model_len: 6144
+out: outputs/samples/rft_1.7b_n64_few_shot_cot

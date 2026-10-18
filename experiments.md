@@ -133,3 +133,30 @@ contaminated for this model, as EXP-003 said.
 **Config.** `configs/train/sft_1p7b_data25.yaml`, `sft_1p7b_data50.yaml` (subset_fraction 0.25 / 0.50, same seed); rented A100, about 0.75 x the EXP-006 wall clock together; commit TBD.
 **Result.** TBD
 **Conclusion.** TBD
+
+## EXP-009  Solve-rate distribution of the SFT policy on its training prompts      [phase 3] [status: planned]
+**Question.** Q5 input and the Phase 4 prompt filter (PLAN.md Phase 3 step 1): which training problems can the SFT policy solve sometimes, always, never?
+**Hypothesis.** At T = 1.0, n = 8, think-tag: GSM8K-train is mostly saturated for the SFT model (more than half the problems at 8 of 8 correct, under 10 % at 0 of 8); MATH-train levels 1-3 are not (fewer than a third at 8 of 8, 15-30 % at 0 of 8), so the learnable set (0 < rate < 1) holds 1,500-2,500 MATH problems and 1,000-2,000 GSM8K ones out of the pool (MATH levels 1-3 in full, GSM8K capped at 4,000, dev split removed from both).
+**Metric.** Per-problem solve rate (`outputs/data/rft/solve_rate.jsonl`), the histogram per source and per MATH level (`outputs/reports/figures/phase-3-solve-rate.png`), the counts at rate 0 / rate 1 / in between, the kept-set size, truncation rate of the samples.
+**Falsifier.** More than half of MATH levels 1-3 at rate 0: the SFT policy cannot be improved by selection on MATH and the Phase 4 prompt set moves to levels 1-2 or to GSM8K.
+**Config.** `configs/sample/sft_1.7b_rft_n8.yaml` (`--levels 1,2,3 --exclude-dev --pool-limit gsm8k_train=4000`; `max_tokens` 2048 or 4096 by the rule in `docs/phase-3-plan.md`, decision 2); `rlvr-build-rft`; rented A100, 1.5-3 h; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-010  Rejection-sampling fine-tuning versus SFT, paired      [phase 3] [status: planned]
+**Question.** Q1 (the RFT term), Q5, Q7, Q9, Q10. PLAN.md Phase 3 steps 2-3: what does selection alone buy on top of SFT?
+**Hypothesis.** One iteration of RFT from `sft` (correct samples, at most 2 distinct per problem, shortest first; LR 5e-6, 1 epoch) raises think-tag greedy pass@1 by 1-4 points on GSM8K and 1-3 on MATH-500 with the paired CI excluding 0 on at least one, concentrated on MATH levels 1-3 (the levels it trained on); pass@64 (n = 64, T 0.6) moves by less than 2 points (selection sharpens, it does not add capability); Countdown stays within its CI; truncation and format-failure rates do not rise; the perturbation gap and the partial-prompt completion rate stay within the Phase 2 values (the data is the model's own output on decontaminated prompts, so recall has no new entry point).
+**Metric.** Paired bootstrap rft minus sft on shared problems for the three templates at the Phase 2 windows; MATH-500 by level; pass@k and maj@k curves k <= 64 against the SFT samples with the paired pass@k (`compare_checkpoints.py --all-samples`); the problems solved by rft at pass@1 that sft solved only at some higher k (sharpened) versus never in 64 (new); the perturbation gap and the partial-prompt probe on the checkpoint.
+**Falsifier.** rft minus sft at or below 0 on both GSM8K and MATH-500 with CIs excluding +1: selection alone does nothing at this scale; Phase 4 then starts from the better of the two on the dev split (plan, decision 6).
+**Config.** `configs/train/rft_1p7b.yaml` (manifest `outputs/data/rft/manifest.json`, copied to `data/manifests/rft_iter1.json` after the run), `configs/eval/rft_1.7b_{think_tag,few_shot_cot,zero_shot}.yaml`, `configs/sample/rft_1.7b_n64*.yaml`; rented A100, about 3 h plus the n = 64 sampling; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
+
+## EXP-010b  Compute-matched control: one more SFT epoch on fresh traces      [phase 3] [status: planned]
+**Question.** PLAN.md section 4.4 and Q1: is RFT's gain more than "one more epoch of anything"?
+**Hypothesis.** One epoch from `sft` on a fresh seeded slice of the OpenR1 set with as many examples as the RFT kept set, same LR and schedule, gains less than RFT on MATH-500 think-tag (paired difference rft minus control above 0 with the CI excluding 0) and about the same on GSM8K: the on-policy data is the point of RFT, not the extra epoch.
+**Metric.** Paired bootstrap rft minus control on the think-tag evals; control minus sft as the "more training" row.
+**Falsifier.** rft minus control within [-1, +1] on MATH-500 with the CI covering 0: the RFT gain is an epoch effect and Q1's RFT row is reported as "no gain beyond compute".
+**Config.** `configs/train/sft_1p7b_control.yaml` (`limit` set by the session script to the RFT kept-set size, `subset_seed` 1), think-tag eval with `configs/eval/rft_1.7b_think_tag.yaml --model ... --out outputs/eval/sft_1.7b_control_think_tag`; rented A100, about 1 h; commit TBD.
+**Result.** TBD
+**Conclusion.** TBD
