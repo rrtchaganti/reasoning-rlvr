@@ -178,18 +178,33 @@ Whichever option runs is written into `outputs/h100_session_notes.md` with the m
 
 ## 3b. Between the phases
 
-Phase 2's `report` step must have finished (uploads done) before Phase 3 starts; copy the Phase 2
-archive to the laptop (section 4, step 2) *before* section 7 so a node loss during Phase 3 costs only
-Phase 3. Nothing else is needed from the laptop: every Phase 3 decision that depends on a Phase 2
-number is a rule in section 7.
+Phase 2's `report` step must have finished (uploads done) before Phase 3 starts. Then the node
+session packs the Phase 2 archive (the file list of section 4, step 2) and puts a copy off the node
+without waiting for the user, so a node loss during Phase 3 costs only Phase 3:
+
+```bash
+cd /home/jovyan/rlvr/reasoning-rlvr && tar czf /home/jovyan/rlvr/h100_phase2_archive.tar.gz \
+  $(find outputs -name metrics.json -o -name report.md -o -name run_info.json -o -name train_log.jsonl -o -name '*.log' -o -name '*.md' -o -name '*.png' | grep -v '^outputs/samples/.*/samples.jsonl') outputs/reports outputs/patches 2>/dev/null
+ls -lh /home/jovyan/rlvr/h100_phase2_archive.tar.gz
+hf upload rrtchaganti/reasoning-rlvr-samples /home/jovyan/rlvr/h100_phase2_archive.tar.gz archives/h100_phase2_archive.tar.gz --repo-type dataset
+```
+
+The session tells the user the file is ready; the user downloads it from the JupyterLab file browser
+(`rlvr/` folder, right-click, Download) whenever convenient, and Phase 3 starts at once. Nothing else
+is needed from the laptop: every Phase 3 decision that depends on a Phase 2 number is a rule in
+section 7.
 
 ## 4. End of the session: archive, prune, Stop (not Delete)
 
 1. `report` finished its Hub uploads (checkpoints and the sample sets, including
    `base_1.7b_n64_few_shot_cot` and `base_1.7b_n64_countdown`).
-2. One archive to the laptop, the way the L4 session did it: every `metrics.json`, `report.md`,
-   `run_info.json`, `train_log.jsonl`, `outputs/reports/**`, the two session files, the logs and
-   `outputs/patches/`. Verified on the laptop before anything is deleted.
+2. One archive for the laptop: every `metrics.json`, `report.md`, `run_info.json`,
+   `train_log.jsonl`, `outputs/reports/**`, `outputs/data/rft/*.json*` (not the samples), the two
+   session files, the logs and `outputs/patches/`. The node session packs it the way section 3b does
+   (`/home/jovyan/rlvr/h100_session_archive.tar.gz`), uploads the copy to the Hub under `archives/`,
+   prints the size, and tells the user. The user downloads the file from the JupyterLab file
+   browser (or `scp` with SSH), checks the size matches, and extracts it next to the laptop repo
+   (`../h100_session_archive/`) for the laptop session to fold in. Verified before anything is deleted.
 3. Prune, after step 2 is verified: `rm -rf outputs/train/*/checkpoint-*` (the intermediate trainer
    checkpoints, about 20 GB each with their Adam states; every `final/` stays). This is a listed step
    and needs no further asking; deleting anything else does. `df -h /home/jovyan` before and after,
