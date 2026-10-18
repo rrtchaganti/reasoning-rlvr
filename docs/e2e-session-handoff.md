@@ -302,3 +302,74 @@ ratio per step so the later phases are re-estimated from data.
 The earlier "about 15 h" for Phase 2 predates the Countdown measurement; the A100 column is the
 honest sum. Disk peak for the session is about 150 GB of the 300 (fp32 master weights plus Adam
 states are about 20 GB per intermediate checkpoint; `docs/rental-setup.md` 2d has the breakdown).
+
+## 9. Starting the node session (the user's steps, then the opening message)
+
+The user does the minimum by hand: create the notebook, clone, install Claude Code, export the
+secrets, start Claude Code inside tmux. The node session does everything else from section 3 step 1
+onward (environment build included), so a failing wheel or a wrong driver is handled by the session
+that can read the error.
+
+Laptop, PowerShell in the repo folder, before launching (the two archives for section 2 step 3):
+
+```powershell
+Compress-Archive -Path outputs/eval/base_1.7b_think_tag_4096 -DestinationPath ..\base_ref.zip
+Compress-Archive -Path outputs/samples/base_1.7b_n64_few_shot_cot -DestinationPath ..\base_n64.zip
+```
+
+Node, first JupyterLab terminal (the clone asks for the GitHub user name and the read-only token):
+
+```bash
+mkdir -p /home/jovyan/rlvr && cd /home/jovyan/rlvr
+git clone https://github.com/rrtchaganti/reasoning-rlvr.git
+cd reasoning-rlvr && git checkout phase-3-rft && mkdir -p outputs/eval outputs/samples
+curl -fsSL https://claude.ai/install.sh | bash
+source scripts/e2e_env.sh && claude --version
+which tmux || conda install -y -c conda-forge tmux
+tmux new -s claude
+```
+
+Inside the tmux window (the secrets are typed here and nowhere else):
+
+```bash
+cd /home/jovyan/rlvr/reasoning-rlvr && source scripts/e2e_env.sh
+export HF_TOKEN=hf_...
+export WANDB_API_KEY=...
+claude
+```
+
+First run: `/login`, open the printed URL on the laptop, paste the code back. Meanwhile, in the
+JupyterLab file browser, open `rlvr/reasoning-rlvr/outputs/` and upload `base_ref.zip` and
+`base_n64.zip` from the laptop (the session unzips them). Detach from tmux with Ctrl-b then d;
+`tmux attach -t claude` returns; a closed browser tab changes nothing.
+
+Opening message to paste into Claude Code on the node:
+
+```text
+You are the Claude Code session ON the E2E TIR H100 notebook for the reasoning-rlvr project
+(18 Oct 2026). The laptop session wrote your instructions: read CLAUDE.md, then
+docs/e2e-session-handoff.md in full, before running anything.
+
+State of this notebook: the repo is cloned at /home/jovyan/rlvr/reasoning-rlvr on branch
+phase-3-rft; HF_TOKEN and WANDB_API_KEY are exported in this shell (never print them, never
+write them to a file); base_ref.zip and base_n64.zip are (or will shortly be) in outputs/,
+to be unzipped as handoff section 2 step 3 says; nothing else has been done.
+
+Your job, in order: handoff section 3 (steps 1 to 6: facts, the environment build by the cu129
+route, the data step with its two hash checks, the downloads, the smoke eval, the two copies,
+then Phase 2 inside tmux), section 3b, section 7 (Phase 3, by its rules), section 4 (archive
+and prune; I do the Stop myself). Countdown follows section 1, option 1, unless I say otherwise.
+
+Rules: never edit tracked files, commit or push; `git status --short` before every step; long
+jobs inside tmux; every action in outputs/h100_session_log.md (where / why / ran / result /
+undo) and every measurement or surprise in outputs/h100_session_notes.md; ask me before
+anything that costs more than about one GPU-hour beyond the handoff's steps, before deleting
+anything other than the listed prune, and before the notebook passes 20 running hours. Report
+failures with their output and name skipped steps as skipped.
+
+Start by printing the facts of section 3 step 1 and telling me what the next hour holds.
+```
+
+While the session runs, the user approves its permission prompts (or allows the repeated ones
+for the session), keeps the tab or tmux reachable, and at the end does section 4 step 4 (Stop)
+and carries the two session files and the archive back to the laptop session.
