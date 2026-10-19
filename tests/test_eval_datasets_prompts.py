@@ -190,3 +190,40 @@ def test_run_eval_parses_pool_flags():
         ]
     )
     assert a.levels == "1,2" and a.exclude_dev and a.pool_limit == ["gsm8k_train=5"]
+
+
+def test_derived_set_subset_follows_the_parent_draw(monkeypatch):
+    """`--limit` on gsm8k_perturbed keeps the problems whose original is in gsm8k's seeded subset,
+    so the two sets stay paired (the H100 session drew them independently: 67 pairs of 300)."""
+    from rlvr.eval import datasets
+
+    parent = EvalSet(
+        "gsm8k", "numeric", [Problem(f"gsm8k-test-{i}", f"q{i}", str(i)) for i in range(40)], "fake"
+    )
+    derived = EvalSet(
+        "gsm8k_perturbed",
+        "numeric",
+        [
+            Problem(
+                f"gsm8k-test-{i}-perturbed", f"p{i}", str(i), {"original_id": f"gsm8k-test-{i}"}
+            )
+            for i in range(0, 40, 2)  # the perturbation kept every second problem
+        ],
+        "file:fake",
+    )
+    monkeypatch.setitem(datasets.LOADERS, "gsm8k", lambda revision=None: parent)
+    monkeypatch.setitem(datasets.LOADERS, "gsm8k_perturbed", lambda revision=None: derived)
+    sub_parent = load_eval_set("gsm8k", limit=10, seed=3)
+    sub_derived = load_eval_set("gsm8k_perturbed", limit=10, seed=3)
+    parent_ids = {p.id for p in sub_parent.problems}
+    assert len(sub_parent) == 10
+    assert sub_derived.problems and all(
+        p.meta["original_id"] in parent_ids for p in sub_derived.problems
+    )
+    assert len(sub_derived) == sum(
+        1 for p in derived.problems if p.meta["original_id"] in parent_ids
+    )
+    assert sub_derived.source.endswith("#paired=gsm8k:limit=10,seed=3")
+    # a limit at or above the parent's size keeps every pair; no limit leaves the set untouched
+    assert len(load_eval_set("gsm8k_perturbed", limit=100, seed=3)) == len(derived)
+    assert load_eval_set("gsm8k_perturbed") is derived

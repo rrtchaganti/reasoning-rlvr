@@ -4,7 +4,8 @@
 # active, from the repo root, on a clean tree, with outputs/train/sft_1p7b/final present:
 #   bash scripts/phase3_rental.sh 2>&1 | tee outputs/phase3_rental.log
 # Steps (in order; each one usable on its own with  bash scripts/phase3_rental.sh <step>):
-#   smoke     file hand-offs only: 20 problems, n = 2, 3 training steps into outputs/*_smoke (not in `all`)
+#   smoke     file hand-offs only: 20 problems, n = 2 at a 2,048 cap (the SFT model writes 1,900+ tokens;
+#             512 gave no correct sample on the H100, 19 Oct 2026), 3 training steps into outputs/*_smoke (not in `all`)
 #   sample    EXP-009: the SFT checkpoint samples its training prompts, n = 8, T = 1.0 (1.5-3 h)
 #   data      EXP-009: solve rates, the kept set, the learnable-prompt file, decontamination (CPU)
 #   train     EXP-010: one epoch from sft on the kept set (0.5-1 h)
@@ -47,7 +48,7 @@ kept_examples() { python -c "import json; print(json.load(open('outputs/data/rft
 
 step_smoke() {  # RLVR_SMOKE_MODEL: a checkpoint that writes the format (locally: outputs/train/sft_0p6b_lora_smoke_v2/final)
   local m="${RLVR_SMOKE_MODEL:-$SFT}"
-  rlvr-eval --config configs/sample/sft_1.7b_rft_n8.yaml --model "$m" --limit 20 --n 2 --max-tokens 512 \
+  rlvr-eval --config configs/sample/sft_1.7b_rft_n8.yaml --model "$m" --limit 20 --n 2 --max-tokens 2048 \
     --out outputs/samples/rft_smoke
   rlvr-build-rft --samples outputs/samples/rft_smoke --out outputs/data/rft_smoke --no-fuzzy \
     --figure outputs/data/rft_smoke/solve_rate.png --report outputs/data/rft_smoke/report.md --name rft_smoke
@@ -133,12 +134,13 @@ step_report() {
         --out outputs/reports/phase-3-compare-pass_at_k.md
     fi
   fi
-  python scripts/push_to_hub.py model --run outputs/train/rft_1p7b --repo "${HF_REPO_RFT:-rrtchaganti/reasoning-rlvr-rft}" \
+  python scripts/push_to_hub.py model --run outputs/train/rft_1p7b --repo "${HF_REPO_RFT:-Raviteja546/reasoning-rlvr-rft}" \
+    --base-model-id "${HF_REPO_SFT:-Raviteja546/reasoning-rlvr-sft}" \
     --evals outputs/eval/rft_1.7b_think_tag outputs/eval/rft_1.7b_few_shot_cot outputs/eval/rft_1.7b_zero_shot \
     --compare outputs/reports/phase-3-compare-think_tag.md --card-out cards/rft.md ${HF_DRY_RUN:+--dry-run}
   for s in sft_1.7b_rft_n8 rft_1.7b_n64_few_shot_cot rft_1.7b_n64_countdown; do
     [[ -e "outputs/samples/$s/metrics.json" ]] && python scripts/push_to_hub.py samples --run "outputs/samples/$s" \
-      --repo "${HF_REPO_SAMPLES:-rrtchaganti/reasoning-rlvr-samples}" --path-in-repo "$s" ${HF_DRY_RUN:+--dry-run}
+      --repo "${HF_REPO_SAMPLES:-Raviteja546/reasoning-rlvr-samples}" --path-in-repo "$s" ${HF_DRY_RUN:+--dry-run}
   done
   true
 }

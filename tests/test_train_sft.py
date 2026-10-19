@@ -46,6 +46,26 @@ def test_load_config_defaults_overrides_and_unknown_keys(tmp_path):
         parse_override("novalue")
 
 
+def test_numeric_knobs_written_as_strings_become_numbers(tmp_path):
+    """YAML 1.1 reads `5e-6` (no dot) as a string, and so does `--set learning_rate=5e-6`; the
+    H100 sweep (18 Oct 2026) hit AdamW's `0.0 <= lr` TypeError. Every numeric knob is coerced to
+    the type of its default; non-numeric text still fails loudly; bools and strings are untouched."""
+    cfg_path = tmp_path / "c.yaml"
+    cfg_path.write_text(
+        "learning_rate: 5e-6\nwarmup_ratio: '0.05'\nsave_steps: '250'\n", encoding="utf-8"
+    )
+    cfg = load_config(cfg_path, ["min_lr_rate=1e-1", "epochs=3", "packing=false", "run_name=x"])
+    assert cfg["learning_rate"] == 5e-6 and isinstance(cfg["learning_rate"], float)
+    assert cfg["warmup_ratio"] == 0.05 and cfg["min_lr_rate"] == 0.1
+    assert cfg["save_steps"] == 250 and cfg["epochs"] == 3 and isinstance(cfg["epochs"], int)
+    assert cfg["packing"] is False and cfg["run_name"] == "x"
+    with pytest.raises(ValueError):
+        load_config(None, ["learning_rate=fast"])
+    for name in ("lr5e-6", "lr1e-5", "lr2e-5"):  # the sweep configs load as floats
+        lr = load_config(f"configs/train/sft_1p7b_{name}.yaml")["learning_rate"]
+        assert isinstance(lr, float) and lr == float(name[2:])
+
+
 def test_nested_subsets_are_prefixes_of_one_shuffle():
     ids = [f"id{i}" for i in range(1000)]
     q = nested_subset(ids, 0.25, seed=0)

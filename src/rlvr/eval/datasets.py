@@ -416,6 +416,8 @@ def load_gsm8k_names_only(revision: str | None = None) -> EvalSet:
 # --------------------------------------------------------------------------- registry
 
 TRAIN_SPLITS = ("gsm8k_train", "math_train")  # the only splits with a dev draw inside them
+# sets built problem for problem from another set; a `--limit` subset follows the parent's draw
+DERIVED_FROM = {"gsm8k_perturbed": "gsm8k", "gsm8k_names_only": "gsm8k"}
 
 LOADERS: dict[str, Callable[..., EvalSet]] = {
     "gsm8k": load_gsm8k_test,
@@ -456,6 +458,23 @@ def load_eval_set(
         es = filter_problems(es, exclude_ids=dev_problem_ids(es))
     if levels is not None or pool_limit is not None:
         es = filter_problems(es, levels=levels, pool_limit=pool_limit, seed=seed)
+    parent = DERIVED_FROM.get(name)
+    if parent is not None and limit is not None:
+        # A derived set exists to be paired with its parent problem for problem (meta.original_id).
+        # Its subset is therefore the parent's seeded subset, not an independent draw: on the H100
+        # node (19 Oct 2026) `--limit 300` drew 300 gsm8k and 300 gsm8k_perturbed problems with only
+        # 67 pairs between them, which made the paired perturbation gap unusable.
+        parent_ids = {
+            p.id for p in load_eval_set(parent, revision=revision, limit=limit, seed=seed).problems
+        }
+        kept = [p for p in es.problems if p.meta.get("original_id") in parent_ids]
+        return EvalSet(
+            name=es.name,
+            answer_type=es.answer_type,
+            problems=kept,
+            source=f"{es.source}#paired={parent}:limit={limit},seed={seed}",
+            revision=es.revision,
+        )
     return es.subset(limit, seed)
 
 

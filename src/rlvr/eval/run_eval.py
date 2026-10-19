@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +39,23 @@ from rlvr.eval.sampler import Sampler, SamplingConfig
 from rlvr.utils.run_info import finish_run_info, write_run_info
 
 
+def given_dests(p: argparse.ArgumentParser, argv: Sequence[str]) -> set[str]:
+    """Destinations of the options that appear in ``argv`` (``--max-tokens 4096`` and
+    ``--max-tokens=4096`` alike). argparse itself cannot tell "given with the default's value"
+    from "absent", and the config merge below must: on the H100 node (19 Oct 2026) ``--max-tokens
+    4096`` lost to a config's 2,048 because 4096 is the parser default (EXP-009 ran at the wrong
+    cap), and ``--evals gsm8k math500`` lost to a config's five sets for the same reason."""
+    words = {str(a).split("=", 1)[0] for a in argv}
+    return {a.dest for a in p._actions if any(s in words for s in a.option_strings)}
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    if argv is None:
+        argv = sys.argv[1:]
     p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,  # given_dests matches option strings exactly
     )
     p.add_argument("--config", type=Path, help="YAML with any of the flags below (flags override)")
     p.add_argument("--model", help="HF id or local path")
@@ -99,10 +115,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     args = p.parse_args(argv)
     if args.config:
+        # Flags override the config: a config value applies only to options absent from argv,
+        # whatever value the flag carries (see given_dests).
+        given = given_dests(p, argv)
         cfg = yaml.safe_load(args.config.read_text()) or {}
         for k, v in cfg.items():
             key = k.replace("-", "_")
-            if getattr(args, key, None) in (None, p.get_default(key)):
+            if key not in given:
                 setattr(args, key, v)
     if not args.model or not args.out:
         p.error("--model and --out are required (via flags or --config)")

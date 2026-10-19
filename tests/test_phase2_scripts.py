@@ -137,12 +137,25 @@ def test_model_card_renders_from_run_info(tmp_path):
     }
     (run / "run_info.json").write_text(json.dumps(info))
     ev = _metrics_dir(tmp_path, "ev", {"gsm8k": 0.78, "math500": 0.52})
-    card = push_to_hub.model_card(run, "rrtchaganti/reasoning-rlvr-sft", [ev], "| x |\n")
+    card = push_to_hub.model_card(run, "Raviteja546/reasoning-rlvr-sft", [ev], "| x |\n")
     assert "base_model: Qwen/Qwen3-1.7B-Base" in card and "full fine-tune" in card
     assert "45b3fa4862b11e2a" in card and "3.50 GPU-hours" in card
     assert "| think_tag | 78.0 [73.0, 83.0] | - | 52.0 [47.0, 57.0] | - | - |" in card
     push_to_hub.main(["model", "--run", str(run), "--repo", "x/y", "--evals", str(ev), "--dry-run"])
     assert (run / "final" / "README.md").exists()
+    # a checkpoint trained from a local path (the RFT run): the Hub rejects a path as base_model
+    # (H100 node, 19 Oct 2026), so the header carries the given repo id or no base_model line at all
+    info["config"]["model"] = "outputs/train/sft_1p7b/final"
+    (run / "run_info.json").write_text(json.dumps(info))
+    card = push_to_hub.model_card(run, "x/rft", [ev], None, "Raviteja546/reasoning-rlvr-sft")
+    assert "base_model: Raviteja546/reasoning-rlvr-sft" in card
+    assert "- Base: `outputs/train/sft_1p7b/final`" in card  # the body still names the real start
+    card = push_to_hub.model_card(run, "x/rft", [ev], None)
+    assert "base_model:" not in card
+    push_to_hub.main(
+        ["model", "--run", str(run), "--repo", "x/rft", "--base-model-id", "a/b", "--dry-run"]
+    )
+    assert "base_model: a/b" in (run / "final" / "README.md").read_text(encoding="utf-8")
 
 
 def _short_run_info(**over):

@@ -106,6 +106,23 @@ def parse_override(item: str) -> tuple[str, Any]:
     return k.strip(), yaml.safe_load(v)
 
 
+def coerce_like_default(key: str, value: Any) -> Any:
+    """A numeric knob written as a string becomes the number the default is. PyYAML follows
+    YAML 1.1, so `learning_rate: 5e-6` (no dot) and `--set learning_rate=5e-6` are strings, and
+    AdamW then fails on `0.0 <= lr` (H100 node, 18 Oct 2026; the sweep ran through a PATH shim)."""
+    default = DEFAULTS.get(key)
+    if (
+        isinstance(value, str)
+        and isinstance(default, (int, float))
+        and not isinstance(default, bool)
+    ):
+        try:
+            return int(value) if isinstance(default, int) else float(value)
+        except ValueError as e:
+            raise ValueError(f"{key} expects a number, got {value!r}") from e
+    return value
+
+
 def load_config(path: str | Path | None, overrides: Sequence[str] = ()) -> dict[str, Any]:
     cfg = dict(DEFAULTS)
     if path is not None:
@@ -113,12 +130,12 @@ def load_config(path: str | Path | None, overrides: Sequence[str] = ()) -> dict[
         unknown = set(loaded) - set(DEFAULTS)
         if unknown:
             raise KeyError(f"unknown config keys {sorted(unknown)}; known: {sorted(DEFAULTS)}")
-        cfg.update(loaded)
+        cfg.update({k: coerce_like_default(k, v) for k, v in loaded.items()})
     for item in overrides:
         k, v = parse_override(item)
         if k not in DEFAULTS:
             raise KeyError(f"unknown override {k!r}")
-        cfg[k] = v
+        cfg[k] = coerce_like_default(k, v)
     if cfg["tokenizer"] is None:
         cfg["tokenizer"] = cfg["model"]
     return cfg

@@ -61,6 +61,11 @@ else
     WHEEL="https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+${VLLM_CUDA}-cp38-abi3-manylinux_2_28_$(uname -m).whl"
     echo "== installing vllm ${VLLM_VERSION}+${VLLM_CUDA} from the release wheel; torch backend ${UV_TORCH_BACKEND}"
     uv pip install "$WHEEL"
+    # torchcodec is a vllm dependency used only for audio decoding. uv's torch backend does not route it
+    # to the CUDA-specific index, so PyPI's wheel (built for torch 2.13's default CUDA 13) lands in a
+    # cu129 venv and `import vllm` dies with "libnvrtc.so.13: cannot open shared object file" (TIR H100,
+    # 18 Oct 2026). vllm's import of it is guarded, so the module may simply be absent.
+    uv pip uninstall torchcodec || true
   else
     echo "== installing vllm ${VLLM_VERSION:-latest} (brings its pinned torch)"
     uv pip install "vllm${VLLM_VERSION:+==$VLLM_VERSION}"
@@ -80,12 +85,32 @@ else
   else
     uv pip install -e ".[dev,gpu]"
   fi
+  # flash-attention: no prebuilt wheel exists for the locked torch 2.13 (Dao-AILab stops at torch 2.8),
+  # so a wheel is built once per image and kept on the persistent disk (13 min on the TIR H100 image
+  # with its nvcc 12.9, 19 Oct 2026; the build recipe is in docs/rental-setup.md section 2b). Any
+  # flash_attn wheel under $RLVR_HOME/wheels (or the file named by RLVR_FLASH_WHEEL) installs here in
+  # a second; without one, training runs with sdpa and packing=false (RLVR_TRAIN_EXTRA in the handoff).
+  FLASH_WHEEL="${RLVR_FLASH_WHEEL:-}"
+  if [ -z "$FLASH_WHEEL" ]; then
+    for w in "${RLVR_HOME:-$HOME}"/wheels/flash_attn-*.whl; do [ -f "$w" ] && FLASH_WHEEL="$w" && break; done
+  fi
+  if [ -n "$FLASH_WHEEL" ] && [ -f "$FLASH_WHEEL" ]; then
+    echo "== installing flash-attn from $FLASH_WHEEL"
+    uv pip install "$FLASH_WHEEL" --no-deps
+  else
+    echo "== no flash-attn wheel found (RLVR_FLASH_WHEEL unset, none under ${RLVR_HOME:-$HOME}/wheels): sdpa + packing=false for training"
+  fi
   echo "== verify"
   python - <<'PY'
 import torch, vllm, transformers, trl, math_verify, datasets
 print("torch", torch.__version__, "cuda", torch.version.cuda, "available", torch.cuda.is_available(),
       torch.cuda.get_device_name(0) if torch.cuda.is_available() else "-")
 print("vllm", vllm.__version__, "transformers", transformers.__version__, "trl", trl.__version__)
+try:
+    import flash_attn
+    print("flash_attn", flash_attn.__version__)
+except Exception as e:  # noqa: BLE001
+    print("flash_attn absent:", type(e).__name__)
 PY
   if python -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
     # @triton.jit needs a real .py file (not stdin), so the kernel test lives in its own script.

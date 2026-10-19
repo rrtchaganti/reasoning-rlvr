@@ -140,3 +140,24 @@ def test_hf_sampler_runs_on_tiny_model(tmp_path):
     results = grade_completions(es, out)
     s = summarize(results, ks=(1, 2))
     json.dumps(s)  # serialisable
+
+
+def test_explicit_flags_override_the_config_even_at_the_default_value(tmp_path):
+    """H100 node, 19 Oct 2026: `--max-tokens 4096` (the parser default) lost to a config's 2,048 and
+    EXP-009 sampled at the wrong cap; `--evals gsm8k math500` (the default list) lost to a config's
+    five sets. A flag on the command line wins whatever value it carries."""
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(
+        "model: m\nout: o\nmax_tokens: 2048\n"
+        "evals: [gsm8k, gsm8k_perturbed, math500, countdown, aime24]\n"
+        "template: think_tag\nn: 8\n"
+    )
+    a = parse_args(["--config", str(cfg)])
+    assert a.max_tokens == 2048 and len(a.evals) == 5 and a.n == 8  # config applies when absent
+    a = parse_args(["--config", str(cfg), "--max-tokens", "4096", "--evals", "gsm8k", "math500"])
+    assert a.max_tokens == 4096 and a.evals == ["gsm8k", "math500"]
+    assert a.template == "think_tag" and a.n == 8  # untouched keys still come from the config
+    a = parse_args(["--config", str(cfg), "--max-tokens=4096", "--n", "1"])
+    assert a.max_tokens == 4096 and a.n == 1  # the `=` spelling counts as given too
+    a = parse_args(["--config", str(cfg), "--model", "other"])
+    assert a.model == "other" and a.out == "o"

@@ -1,7 +1,7 @@
 """Upload a checkpoint (with a generated model card) or a sample set to the Hugging Face Hub.
 
 Checkpoint (D4):
-    python scripts/push_to_hub.py model --run outputs/train/sft_1p7b --repo rrtchaganti/reasoning-rlvr-sft \
+    python scripts/push_to_hub.py model --run outputs/train/sft_1p7b --repo Raviteja546/reasoning-rlvr-sft \
         --evals outputs/eval/sft_1.7b_think_tag outputs/eval/sft_1.7b_few_shot_cot outputs/eval/sft_1.7b_zero_shot \
         --compare outputs/reports/phase-2-compare-think_tag.md --card-out cards/sft.md
 
@@ -12,7 +12,7 @@ Checkpoint (D4):
 
 Samples (D2, the n = 64 sets):
     python scripts/push_to_hub.py samples --run outputs/samples/base_1.7b_n64_few_shot_cot \
-        --repo rrtchaganti/reasoning-rlvr-samples --path-in-repo base_1.7b_n64_few_shot_cot
+        --repo Raviteja546/reasoning-rlvr-samples --path-in-repo base_1.7b_n64_few_shot_cot
 
 Needs ``HF_TOKEN`` in the environment (never in the repo). ``--dry-run`` writes the card and prints
 what would be uploaded without touching the Hub.
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 
 EVAL_ORDER = ("gsm8k", "gsm8k_perturbed", "math500", "countdown", "aime24")
@@ -56,16 +57,38 @@ def eval_table(eval_dirs: list[Path]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def model_card(run_dir: Path, repo: str, eval_dirs: list[Path], compare_md: str | None) -> str:
+HUB_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")
+
+
+def card_base_model(trained_from: str, base_model_id: str | None) -> str | None:
+    """The `base_model` the card header may carry: the Hub validates it as a model id, so a
+    checkpoint trained from a local path (the RFT run starts from outputs/train/sft_1p7b/final)
+    needs the id of that checkpoint's own repo, or no header line at all. The Phase 3 report step
+    on the H100 node (19 Oct 2026) failed with HTTP 400 on exactly this."""
+    if base_model_id:
+        return base_model_id
+    if HUB_ID.match(trained_from) and not Path(trained_from).exists():
+        return trained_from
+    return None
+
+
+def model_card(
+    run_dir: Path,
+    repo: str,
+    eval_dirs: list[Path],
+    compare_md: str | None,
+    base_model_id: str | None = None,
+) -> str:
     info = json.loads((Path(run_dir) / "run_info.json").read_text())
     cfg = info.get("config", {})
     base = cfg.get("model", "?")
     lora = cfg.get("lora")
     hours = (info.get("train_runtime_s") or 0) / 3600
+    header_base = card_base_model(str(base), base_model_id)
     lines = [
         "---",
         "license: apache-2.0",
-        f"base_model: {base}",
+        *([f"base_model: {header_base}"] if header_base else []),
         "tags: [reasoning, math, sft, qwen3, rlvr-study]",
         "datasets: [open-r1/OpenR1-Math-220k]",
         "---",
@@ -134,6 +157,12 @@ def main(argv: list[str] | None = None) -> None:
         "--compare", type=Path, default=None, help="Markdown from compare_checkpoints.py"
     )
     m.add_argument("--card-out", type=Path, default=None)
+    m.add_argument(
+        "--base-model-id",
+        default=None,
+        help="Hub id for the card's base_model when the run trained from a local path "
+        "(e.g. the SFT repo for the RFT checkpoint); otherwise that header line is omitted",
+    )
     m.add_argument("--private", action="store_true")
     m.add_argument("--dry-run", action="store_true")
     s = sub.add_parser("samples")
@@ -149,7 +178,7 @@ def main(argv: list[str] | None = None) -> None:
         if not (final / "config.json").exists():
             raise FileNotFoundError(f"no checkpoint at {final}")
         compare = args.compare.read_text(encoding="utf-8") if args.compare else None
-        card = model_card(args.run, args.repo, args.evals, compare)
+        card = model_card(args.run, args.repo, args.evals, compare, args.base_model_id)
         (final / "README.md").write_text(card, encoding="utf-8", newline="\n")
         for extra in ("run_info.json", "train_log.jsonl", "train_ids.json"):
             if (args.run / extra).exists():

@@ -144,12 +144,12 @@ step_report() {
       1.0=outputs/eval/sft_1.7b_think_tag --base outputs/eval/base_1.7b_think_tag_4096 \
       --out outputs/reports/figures/phase-2-data-scaling.png
   fi
-  python scripts/push_to_hub.py model --run outputs/train/sft_1p7b --repo "${HF_REPO_SFT:-rrtchaganti/reasoning-rlvr-sft}" \
+  python scripts/push_to_hub.py model --run outputs/train/sft_1p7b --repo "${HF_REPO_SFT:-Raviteja546/reasoning-rlvr-sft}" \
     --evals outputs/eval/sft_1.7b_think_tag outputs/eval/sft_1.7b_few_shot_cot outputs/eval/sft_1.7b_zero_shot \
     --compare outputs/reports/phase-2-compare-think_tag.md --card-out cards/sft.md ${HF_DRY_RUN:+--dry-run}
   for s in base_1.7b_n64_few_shot_cot base_1.7b_n64_countdown sft_1.7b_n64_few_shot_cot sft_1.7b_n64_countdown; do
     [[ -e "outputs/samples/$s/metrics.json" ]] && python scripts/push_to_hub.py samples --run "outputs/samples/$s" \
-      --repo "${HF_REPO_SAMPLES:-rrtchaganti/reasoning-rlvr-samples}" --path-in-repo "$s" ${HF_DRY_RUN:+--dry-run}
+      --repo "${HF_REPO_SAMPLES:-Raviteja546/reasoning-rlvr-samples}" --path-in-repo "$s" ${HF_DRY_RUN:+--dry-run}
   done
   echo "== report step done; copy outputs/reports, outputs/eval/*/metrics.json, report.md, run_info.json, outputs/train/*/run_info.json and train_log.jsonl back to the laptop"
 }

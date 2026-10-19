@@ -7,7 +7,7 @@ subset_fraction: 0.10
 subset_seed: 0
 max_length: 4096
 epochs: 1
-learning_rate: 2e-5
+learning_rate: 2.0e-5
 lr_scheduler: cosine_with_min_lr
 min_lr_rate: 0.1
 warmup_ratio: 0.03
