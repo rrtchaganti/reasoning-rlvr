@@ -11,7 +11,7 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 | 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
 | 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 complete 18 Oct 2026 (four sets on a rented L4, Countdown on the H100; report addendum: base pass@64 98.8 GSM8K, 87.8 MATH-500, 63.8 Countdown) | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
 | 2 SFT | `phase-2-sft` | runs done 18-19 Oct 2026 on a TIR H100 (EXP-005, 006, 008; EXP-007 LoRA cut for budget): SFT think-tag greedy 74.8 GSM8K (+13.0 paired), 50.6 MATH-500 (+5.8); zero-shot 82.2 / 63.2; pass@64 unchanged on GSM8K, +5.2 on MATH-500; a quarter of think-tag generations never terminate; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
-| 3 RFT | `phase-3-rft` | runs done 19 Oct 2026 on the same H100 (EXP-009, 010, 010b plus the gap-analysis runs: three RFT seeds, a token-matched control, an 8k-cap eval, pass@32 in the trained format); write-up in progress | (after the write-up) |
+| 3 RFT | `phase-3-rft` | runs done 19 Oct 2026 on the same H100 (EXP-009, 010, 010b and four post-hoc runs): RFT beats SFT in the trained format by +3.3 GSM8K / +5.8 MATH-500 (paired; three seeds +4.6 / +4.3), halves the looping, no pass@k loss, no Countdown transfer; a token-matched control gains nothing; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`outputs/reports/phase-3.md`](outputs/reports/phase-3.md) |
 | 4 GRPO + ablations | | | |
 | 5 DPO | | | |
 | 6 Test-time compute | | | |
@@ -31,6 +31,19 @@ Each number carries a 95 % bootstrap CI over problems and the commit that produc
 | Qwen3-1.7B-Base | think-tag | 61.3 [58.7, 63.8] | 50.8 [47.6, 54.5] | 43.0 [38.8, 47.4] | 1.2 [0.4, 2.2] |
 | Qwen3-0.6B-Base | 4-shot-CoT | 61.9 [59.3, 64.6] | 56.5 [53.1, 59.9] | 28.0 [24.0, 31.8] | - |
 | Qwen3-0.6B-Base | zero-shot | 64.9 [62.3, 67.5] | 59.5 [56.1, 62.9] | 37.6 [33.4, 41.6] | - |
+
+After training (Qwen3-1.7B-Base, greedy, 4,096-token window; paired differences against the previous checkpoint on shared problems; 18-19 Oct 2026, TIR H100):
+
+| checkpoint | prompt | GSM8K | GSM8K perturbed | MATH-500 | Countdown | truncated GSM8K / MATH-500 |
+|---|---|---|---|---|---|---|
+| base | think-tag | 61.8 [59.2, 64.4] | 51.4 [48.1, 54.8] | 44.8 [40.4, 49.2] | 1.2 [0.4, 2.2] | 36 / 20 % |
+| SFT (EXP-006) | think-tag | 74.8 (+13.0 [10.0, 15.8]) | 66.0 (+14.6) | 50.6 (+5.8 [0.6, 11.0]) | 3.8 (+2.6) | 28 / 52 % |
+| RFT (EXP-010) | think-tag | 78.2 (+3.3 [1.0, 5.8]) | 69.0 (+3.0) | 56.4 (+5.8 [1.6, 10.2]) | 7.0 (+3.2) | 15 / 40 % |
+| base | zero-shot | 77.9 [75.6, 80.1] | 69.9 | 53.8 [49.4, 58.2] | - | 1-9 % |
+| SFT | zero-shot | 82.2 (+4.3 [1.8, 6.6]) | 72.7 | 63.2 (+9.4 [5.0, 14.0]) | - | 17 / 59 % |
+| RFT | zero-shot | 81.1 (-1.1) | 74.7 (+2.0) | 64.8 (+1.6) | - | |
+
+pass@64 (4-shot-CoT, n = 64, T = 0.6): base 98.8 / 90.2 / 87.8 / 63.8 (Countdown, think-tag), SFT 98.2 / 88.8 / 93.0 / 62.0, RFT (300-problem subsets) 98.7 / 92.3 / 94.0. The trained format loses to a plain zero-shot prompt on its own checkpoints because a quarter (SFT) to a sixth (RFT) of its generations never terminate, at any cap. Details: `outputs/reports/phase-2.md`, `outputs/reports/phase-3.md`.
 
 Calibration: the 4-shot-CoT rows match the Qwen3 technical report (75.44 / 59.59 on GSM8K) within 1-2 points. Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for the 1.7B base; a names-only control moves nothing (-0.4 [-3.3, 2.5]), so the gap is arithmetic brittleness, not recall. Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs). Details: `outputs/reports/phase-1.md`.
 

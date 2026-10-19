@@ -1,0 +1,235 @@
+{
+  "name": "rft_iter1",
+  "samples_dir": "outputs/samples/sft_1.7b_rft_n8",
+  "samples_run_tag": "bb6f2a6",
+  "samples_git_commit": "bb6f2a6e01b01397d3edd42861dbba16b88f1b58",
+  "model": "outputs/train/sft_1p7b/final",
+  "n_per_problem": 8,
+  "temperature": 1.0,
+  "sampling_max_tokens": 2048,
+  "splits": [
+    "gsm8k_train",
+    "math_train"
+  ],
+  "per_problem": 2,
+  "max_tokens": 4096,
+  "evals_decontaminated": [
+    "aime24",
+    "gsm8k",
+    "gsm8k_dev",
+    "gsm8k_perturbed",
+    "math500",
+    "math_dev"
+  ],
+  "fuzzy": true,
+  "min_coverage": 0.5,
+  "num_examples": 11145,
+  "content_hash": "f44edf33a26c55fc",
+  "kept_token_stats": {
+    "n": 11145,
+    "mean": 1206.7,
+    "p50": 1143,
+    "p90": 1779,
+    "p99": 2131,
+    "max": 2529,
+    "total": 13448983
+  },
+  "by_source": {
+    "gsm8k_train": 6956,
+    "math_train": 4189
+  },
+  "drops": {
+    "incorrect": 20438,
+    "over_per_problem_cap": 18709,
+    "truncated": 8593,
+    "think_tags": 14,
+    "format": 5
+  },
+  "solve_rates": {
+    "gsm8k_train": {
+      "problems": 4000,
+      "rate_0": 173,
+      "rate_1": 1488,
+      "learnable": 2339,
+      "learnable_pct": 58.5,
+      "mean_rate": 0.7502,
+      "histogram": {
+        "0": 173,
+        "1": 138,
+        "2": 164,
+        "3": 204,
+        "4": 231,
+        "5": 330,
+        "6": 455,
+        "7": 817,
+        "8": 1488
+      }
+    },
+    "math_train": {
+      "problems": 3388,
+      "rate_0": 551,
+      "rate_1": 570,
+      "learnable": 2267,
+      "learnable_pct": 66.9,
+      "mean_rate": 0.5409,
+      "histogram": {
+        "0": 551,
+        "1": 288,
+        "2": 255,
+        "3": 240,
+        "4": 273,
+        "5": 313,
+        "6": 360,
+        "7": 538,
+        "8": 570
+      }
+    },
+    "math_train/level1": {
+      "problems": 548,
+      "rate_0": 36,
+      "rate_1": 168,
+      "learnable": 344,
+      "learnable_pct": 62.8,
+      "mean_rate": 0.7057,
+      "histogram": {
+        "0": 36,
+        "1": 24,
+        "2": 19,
+        "3": 36,
+        "4": 36,
+        "5": 51,
+        "6": 65,
+        "7": 113,
+        "8": 168
+      }
+    },
+    "math_train/level2": {
+      "problems": 1304,
+      "rate_0": 163,
+      "rate_1": 246,
+      "learnable": 895,
+      "learnable_pct": 68.6,
+      "mean_rate": 0.5954,
+      "histogram": {
+        "0": 163,
+        "1": 93,
+        "2": 77,
+        "3": 88,
+        "4": 104,
+        "5": 130,
+        "6": 155,
+        "7": 248,
+        "8": 246
+      }
+    },
+    "math_train/level3": {
+      "problems": 1536,
+      "rate_0": 352,
+      "rate_1": 156,
+      "learnable": 1028,
+      "learnable_pct": 66.9,
+      "mean_rate": 0.4359,
+      "histogram": {
+        "0": 352,
+        "1": 171,
+        "2": 159,
+        "3": 116,
+        "4": 133,
+        "5": 132,
+        "6": 140,
+        "7": 177,
+        "8": 156
+      }
+    }
+  },
+  "num_problems": 7388,
+  "num_learnable": 4606,
+  "learnable_hash": "281bdfe31176411b",
+  "overlap": {
+    "gsm8k": {
+      "num_eval": 1319,
+      "eval_hit_ngram": 1,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 1,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 1,
+      "eval_hit_union_pct": 0.08,
+      "eval_contaminated": 1,
+      "eval_contaminated_pct": 0.08,
+      "train_items_dropped": 2,
+      "seconds": 6.0
+    },
+    "math500": {
+      "num_eval": 500,
+      "eval_hit_ngram": 24,
+      "eval_hit_ngram_covered": 16,
+      "eval_hit_fuzzy": 32,
+      "eval_hit_fuzzy_only": 18,
+      "eval_hit_union": 42,
+      "eval_hit_union_pct": 8.4,
+      "eval_contaminated": 36,
+      "eval_contaminated_pct": 7.2,
+      "train_items_dropped": 133,
+      "seconds": 1.6
+    },
+    "aime24": {
+      "num_eval": 30,
+      "eval_hit_ngram": 0,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 0,
+      "eval_hit_union_pct": 0.0,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 0,
+      "seconds": 0.5
+    },
+    "gsm8k_perturbed": {
+      "num_eval": 830,
+      "eval_hit_ngram": 1,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 2,
+      "eval_hit_fuzzy_only": 1,
+      "eval_hit_union": 2,
+      "eval_hit_union_pct": 0.24,
+      "eval_contaminated": 2,
+      "eval_contaminated_pct": 0.24,
+      "train_items_dropped": 4,
+      "seconds": 4.1
+    },
+    "gsm8k_dev": {
+      "num_eval": 250,
+      "eval_hit_ngram": 1,
+      "eval_hit_ngram_covered": 0,
+      "eval_hit_fuzzy": 0,
+      "eval_hit_fuzzy_only": 0,
+      "eval_hit_union": 1,
+      "eval_hit_union_pct": 0.4,
+      "eval_contaminated": 0,
+      "eval_contaminated_pct": 0.0,
+      "train_items_dropped": 2,
+      "seconds": 1.4
+    },
+    "math_dev": {
+      "num_eval": 250,
+      "eval_hit_ngram": 10,
+      "eval_hit_ngram_covered": 6,
+      "eval_hit_fuzzy": 21,
+      "eval_hit_fuzzy_only": 14,
+      "eval_hit_union": 24,
+      "eval_hit_union_pct": 9.6,
+      "eval_contaminated": 21,
+      "eval_contaminated_pct": 8.4,
+      "train_items_dropped": 73,
+      "seconds": 1.0
+    },
+    "_total": {
+      "train_items_dropped_union": 200,
+      "kept_after_decontamination": 11145
+    }
+  },
+  "built_in_s": 24.8,
+  "built_at": "2026-10-18 22:03",
+  "train_file": "outputs/data/rft/train.jsonl"
+}

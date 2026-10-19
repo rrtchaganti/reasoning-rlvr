@@ -54,11 +54,33 @@ Phase 2 part of the H100 session: 09:50 UTC 18 Oct to 03:35 UTC 19 Oct, 17.75 no
 minutes overlap at the step boundaries). The session continued into Phase 3 without a Stop; the
 notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Phase 3 rows.
 
-**Running totals (after Phase 2, 19 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30), A30
-1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), H100 Phase 2 part 17.75 h (about
-INR 6,730): about INR 7,400 (USD 88). Local: 6.70 h. Budget used: about 52 % of the INR 14,300
-(USD 170) ceiling after Phase 2; the whole session, Phase 3 included, brings the project to about
-INR 11,450 (80 %) plus the notebook disk at about INR 112 a day while it exists.
+| 2026-10-19 | 3 | Phase 3 smoke: first attempt at a 512-token cap found no correct trace; second at 2,048 passed (bb6f2a6) | TIR H100 SXM 80 GB | 0.17 | INR 64 (USD 0.8) | 0.3 M | 0.1 M | flash-attn self-test and the packed training path verified here |
+| 2026-10-19 | 3 | EXP-009 sampling: SFT 1.7B think-tag, n = 8, T = 1.0, 7,388 prompts (MATH L1-3 3,388 + GSM8K-train 4,000) at a 2,048 cap (bb6f2a6) | TIR H100 SXM 80 GB | 1.31 | INR 497 (USD 5.9) | 95.6 M | 0 | 19.5-21.6k tok/s; the cap rule's 4,096 was lost to the flag bug (patch 0004, fixed 3e055ad) |
+| 2026-10-19 | 3 | `rlvr-build-rft`: solve rates, kept set 11,145 (hash f44edf33a26c55fc), decontamination, learnable prompts (bb6f2a6) | CPU on the node | 0.02 | INR 8 | 0 | 0 | 25 s |
+| 2026-10-19 | 3 | EXP-010 RFT training, 53 steps (bb6f2a6) | TIR H100 SXM 80 GB | 0.20 | INR 76 (USD 0.9) | 0 | 13.4 M | flash_attention_2 + packing, 4 x 16, 13.1 s/step, 32.9 GB, loss 0.427; W&B project reasoning-rlvr |
+| 2026-10-19 | 3 | EXP-010 evals: think-tag, 4-shot-CoT, zero-shot, gap, probe (bb6f2a6) | TIR H100 SXM 80 GB | 0.37 | INR 140 (USD 1.7) | 12.3 M | 0 | 22 min |
+| 2026-10-19 | 3 | Phase 3 report step: first attempt failed on the model card's base_model (patch 0005); manual card + upload | TIR H100 SXM 80 GB | 0.05 | INR 19 | 0 | 0 | `Raviteja546/reasoning-rlvr-rft` |
+| 2026-10-19 | 3 | EXP-010b example-matched control: 132 steps + think-tag eval (bb6f2a6) | TIR H100 SXM 80 GB | 0.65 | INR 246 (USD 2.9) | 7.4 M | 29.8 M | 8 x 8 flash + packing, 11.8 s/step, 50.5 GB; the examples were a seen subset of the SFT data (deviation) |
+| 2026-10-19 | 3 | EXP-010 n = 64 4-shot-CoT sampling of the RFT checkpoint on 300-problem subsets (bb6f2a6) | TIR H100 SXM 80 GB | 1.38 | INR 523 (USD 6.2) | 59.4 M | 0 | 11.3k tok/s; the user's call to subset (saves 2.5 h) |
+| 2026-10-19 | 3 | gap analysis written on the node (GPU idle) | TIR H100 SXM 80 GB | 0.87 | INR 330 (USD 3.9) | - | - | 07:41-08:33 on the node's clock |
+| 2026-10-19 | 3 | EXP-010c greedy think-tag at an 8,192 cap, SFT and RFT, subsets + Countdown (bb6f2a6) | TIR H100 SXM 80 GB | 0.47 | INR 178 (USD 2.1) | 8.8 M | 0 | |
+| 2026-10-19 | 3 | EXP-010d RFT seeds 1 and 2: training + think-tag evals (bb6f2a6) | TIR H100 SXM 80 GB | 0.73 | INR 277 (USD 3.3) | 13.0 M | 26.9 M | 11 min per training run at 8 x 8; W&B runs 7kd2qfk4, jzxy2zoo |
+| 2026-10-19 | 3 | EXP-010e token-matched control: 59 steps + think-tag eval (bb6f2a6) | TIR H100 SXM 80 GB | 0.42 | INR 159 (USD 1.9) | 7.5 M | 13.4 M | W&B run iagfhjwq |
+| 2026-10-19 | 3 | EXP-010f think-tag n = 32, T = 0.6, SFT and RFT on 300-problem subsets (bb6f2a6) | TIR H100 SXM 80 GB | 2.20 | INR 834 (USD 9.9) | 97.6 M | 0 | includes 10 min lost to the flag bug (the SFT half sampled an extra set and was stopped) |
+| 2026-10-19 | 3 | archive, Hub inventory, transcript scan, prune, the user's download and Stop | TIR H100 SXM 80 GB | 1.6 | INR 606 (USD 7.2) | - | - | about 1 h of it after the console's 16:01 IST report, per the user |
+
+| 2026-10-18/19 | 2 + 3 | TIR H100 notebook `rlvr`, whole life (usage report: 25.07 h to 16:01 IST 19 Oct, INR 9,502.78; about 3 h more to the Stop, INR 1,137) | TIR H100 SXM 80 GB | 28.1 | INR 10,640 (USD 127) | about 650 M | about 285 M | the Phase 2 and Phase 3 rows above are inside this one; the node clock ran about two hours ahead of the console's, so the per-step hours are the node's and the total is the invoice's; disk INR 118.40 to 16:01 IST and about INR 112 a day since |
+
+Phase 3 part: about 10.3 node-hours, INR 3,900: core 4.1 h, the gap-analysis runs 4.0 h, the
+analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A100-hours.
+
+**Running totals (after the session, 19 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
+A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the H100 notebook 28.1 h
+(INR 10,640) and its disk (INR 132 to the Stop): about INR 11,450 (USD 136). Local: 6.70 h.
+Budget used: about 80 % of the INR 14,300 (USD 170) ceiling; the notebook disk adds about
+INR 112 a day while it exists (INR 3,400 a month), which is nine H100-hours a month for keeping
+the environment warm. The user said on 19 Oct that the budget may grow while the project is on
+track; Phase 4 as planned (PLAN.md) does not fit the remainder (`docs/phase-4-plan.md`).
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.
@@ -71,7 +93,8 @@ the USD conversion of the day.
 
 **Rates from 18 Oct 2026 (E2E TIR, the managed notebook platform; `docs/rental-setup.md` 2d).** H100
 SXM 80 GB plan INR 379.05 per hour (26 vCPU, 250 GB RAM), billed per minute while running; a stopped
-notebook bills only its 300 GB workspace disk (per GB-month beyond 30 GB; the rate from the create
-form goes here when the notebook is made). The node's price is exported as `RLVR_NODE_RATE`.
-Projection: the Phase 2 + 3 session 15-18 H100-hours, INR 5,700-6,800; the whole plan 38-46
-H100-hours plus disk, INR 15,000-18,000, above the ceiling unless the drop list in 2d applies.
+notebook bills only its workspace disk: `Ceph_Block_Storage_NOTEBOOK`, INR 10 per GB-month on a
+billable 340 GB (usage report of 19 Oct 2026), about INR 112 a day. The node's price is exported as
+`RLVR_NODE_RATE`. Projection before the session: Phase 2 + 3 in 15-18 H100-hours, INR 5,700-6,800;
+the whole plan 38-46 H100-hours plus disk, INR 15,000-18,000. Actual: 28.1 node-hours, INR 10,640
+(the whole-life row above).
