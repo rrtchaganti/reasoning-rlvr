@@ -164,14 +164,49 @@ n = 64 sampling of the SFT checkpoint, is about 15 A100-hours (USD 25-40). The p
 was 3 hours; the difference is the ablations and the deferred sampling, and it fits the total budget.
 Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never the main run.
 
+*Actual (19 Oct 2026).* 17.75 H100-hours (about 32 A100-equivalents), INR 6,730, for the Phase 2
+part of the TIR session: the main run took 3 h 02 min on the H100 with sdpa and no packing (the
+plan's 3-5 A100-hours assumed packing), and the two n = 64 sampling runs of the SFT checkpoint took
+6 h 50 min because its completions are 2-4x the base's. LoRA was the sacrifice, not the 50 % point:
+at 1.26x the full fine-tune's step time it was the more expensive and less informative of the two.
+Rows in `COMPUTE.md`.
+
 ## 9. Known limitations and debts
 
 - The length cap removes 60 % of the correct traces; the kept set skews toward shorter problems. The
   data-scaling curve measures "more of the same kind of trace", not "longer traces".
 - Multi-part answers are dropped rather than reformatted; the SFT set has no "a and b" style answers.
 - No flash-attention wheel exists for torch 2.13 (checked 17 Oct: Dao-AILab 2.8.3.post2 stops at torch
-  2.8), and E2E's images carry a 12.6 toolkit against torch's 12.9, so no source build either; the
-  fallback (`packing: false`) is correct but slower, and `docs/rental-setup.md` says how to record it.
+  2.8). The L4 image's 12.6 toolkit could not build one; the TIR H100 image (nvcc 12.9) did, in 13
+  minutes, but only after every Phase 2 training run had finished, so Phase 2 trained with sdpa and
+  `packing: false` (exact attention, padded batches, 16 x 4 micro-batch) while Phase 3 trained packed
+  with flash attention. The loss is the same (section 4); the composition of a micro-batch is not, and
+  every cross-phase comparison says so. The wheel lives on the notebook disk and `setup_env.sh`
+  installs it on later starts (`docs/rental-setup.md`, 2b).
+- The LR sweep is 36 optimiser steps per point (10 % of the data, one epoch). It separated 5e-6 from
+  the others and not 1e-5 from 2e-5; at this step count the checkpoints mostly do not close the think
+  block, so the sweep measured early format acquisition as much as accuracy. A sweep at the main
+  run's step count would cost 3x the main run and was never in the plan.
+- The think-tag SFT checkpoint does not terminate a quarter of its generations (28 % truncation on
+  GSM8K, 52 % on MATH-500 at 4,096 tokens; the same at 8,192). The trained format scores 7-13 points
+  below zero-shot on the same checkpoint for this reason. Nothing in the Phase 2 recipe penalises
+  length or rewards stopping; the data's own length distribution (mean 2,689, p90 3,790 tokens, from
+  a 4,096 cap) is the likely teacher. A length-aware filter or a stop-token loss weight would be the
+  Phase 2 fixes; Phase 3's selection of finished traces is the one this project tested.
+- The model card's eval table prints one truncation and one extraction-failure column per template
+  (the last eval's values), which misreads as a per-template rate; the per-eval rates are in the
+  `metrics.json` files and the report. Fix in `push_to_hub.py` before the next card.
+- `rlvr-eval` treated a flag equal to its parser default as absent (a config's value won), and a
+  `--limit` on a derived set drew an independent subset. Both bit the Phase 3 part of the session
+  and are fixed with tests on `phase-3-rft` (3e055ad); Phase 2's runs used no `--limit` and passed
+  every cap through configs, so its numbers are unaffected.
+- TRL warned on some SFT rows that the tokenised prompt is not a prefix of the tokenised
+  prompt + completion (tokens merging across the boundary). TRL falls back to its own boundary
+  handling; how many rows and whether the label mask shifts by one token is uncounted.
+- The two n = 64 sampling runs of the SFT checkpoint cost 6 h 50 min of H100 time (285 M generated
+  tokens) because its completions are 2-4x the base's; the ten-minute rule caught the length but the
+  projection script assumed the greedy mean length, half the sampled one. The script now needs the
+  sampled mean from the first finished completions, not the greedy eval's.
 - The local trainer smoke runs on a random tiny model; the first real end-to-end check (data →
   trainer → merged checkpoint → `rlvr-eval`) is the 0.6B LoRA smoke on the laptop.
 - The contamination coverage threshold (50 %) is a judgement; the per-eval JSON keeps every hit so the
@@ -197,15 +232,35 @@ Order of sacrifice if money runs short: the 50 % scaling point, then LoRA; never
   need `max_model_len: 6144` in the four paired configs and a rerun of the base reference (about half
   an A100-hour); not done because the base's loops never end and the pair shares the cap.
 
-## 10. Results and what they mean *(after the rental)*
+## 10. Results and what they mean (19 Oct 2026; full tables in `outputs/reports/phase-2.md`)
 
-Done so far: EXP-002's four 4-shot-CoT sets (L4, 17 Oct 2026; Phase 1 report addendum, section 7):
-pass@64 of the base 98.8 on GSM8K, 90.2 on perturbed GSM8K, 87.8 on MATH-500, 20.0 on AIME24; maj@k
-saturates by k = 16; sampling at T = 0.6 costs 3-5 points against greedy. The rest is written from
-`outputs/reports/phase-2.md` once EXP-005 to EXP-008 and EXP-002's Countdown half have
-run: the LR sweep table, the base-vs-SFT paired table with MATH-500 by level, the pass@k curves for base
-and SFT, LoRA vs full, the data-scaling curve, the contamination probes on the SFT checkpoint, and the
-compute rows.
+- **EXP-002 complete.** pass@64 of the base: 98.8 GSM8K, 90.2 perturbed, 87.8 MATH-500, 20.0 AIME24,
+  63.8 Countdown; maj@k saturates by k = 16 on the math sets and is useless on Countdown (11 %);
+  sampling at T = 0.6 costs 3-5 points against greedy.
+- **EXP-005.** 1e-5 wins the sweep (pooled dev 53.8 against 44.0 and 50.6); 5e-6 is separated, 1e-5
+  and 2e-5 are not. After 36 steps every checkpoint mostly fails to close the think block.
+- **EXP-006.** SFT lifts think-tag greedy accuracy by +13.0 [10.0, 15.8] on GSM8K, +14.6 on perturbed
+  GSM8K, +5.8 [0.6, 11.0] on MATH-500, +2.6 on Countdown (paired, shared 4096 window); 4-shot-CoT
+  +5.8 / +3.7 / +16.6 and zero-shot +4.3 / +2.8 / +9.4 against the base at the same cap. The bars
+  (75, 50, under 10) are met in substance; no falsifier fires. Two parts of the hypothesis failed:
+  the MATH-500 gain under the trained format sits on levels 1-2, and tag-format failures equal the
+  truncation rate (28 / 52 %) instead of falling under 1 %, so the trained format is the worst of the
+  three on its own checkpoint (74.8 against 82.2 zero-shot on GSM8K). Phase 3's runs on the same
+  checkpoint show the deficit is looping, not the cap, and mostly a greedy-decoding degeneration.
+  Perturbation gap unchanged (11.3 against 10.4); partial-prompt completion flat (no recall entered);
+  pass@64 unchanged on GSM8K, +5.2 [2.4, 8.0] on MATH-500 with +15.3 at pass@1 (mostly sharpening);
+  Countdown pass@64 62.0 against 63.8 with the greedy row at 3.8 % (a length failure).
+- **EXP-007 not run** (stopped at step 20 for budget; the one fact: LoRA with fp32 tag rows is 1.26x
+  the full fine-tune's step time on this card).
+- **EXP-008.** GSM8K rises with data at every size (+4.0 [1.4, 6.7] from 25 to 100 %, paired); 9 of
+  the 13 base-to-SFT points are there at 25 %. MATH-500 is flat within noise (+2.8 [-1.4, 7.0]):
+  inconclusive, small if present; neither the hypothesis nor the falsifier is met. MATH-500 truncation
+  jumps to 52-58 % at the smallest size and stays. More traces of this kind are not where the next
+  MATH-500 point comes from.
+- **What it means.** SFT on distilled traces buys the format and 4-17 points under prompts the model
+  can finish in, and installs a habit of not stopping that costs 7-13 points at greedy in the trained
+  format. The ceiling barely moves. The lever Phase 3 pulls is the obvious one: keep the traces that
+  finish and are right.
 
 ## 11. Interview question bank for this phase
 
@@ -259,3 +314,37 @@ compute rows.
   completion length within one window (3,134 tokens/s at 154 tokens a sample, 816 at 2,700). The
   rule is now per set: tokens from the nearest run's mean length, rate from a set of similar length,
   most expensive set first when the budget is tight.
+- *Your trained format scores below a plain zero-shot prompt on the same checkpoint. Why?* Because
+  a quarter of the think-tag generations never terminate (28 % truncation on GSM8K, 52 % on MATH-500)
+  and a truncated output has no answer. It is not the budget: at an 8,192-token cap the subset
+  truncation is still 27 % and the Countdown outputs run to 7,900 tokens. It is mostly greedy
+  decoding: at T = 0.6 truncation falls to 13 % and sampled pass@1 rises to 80.3. The checkpoint
+  knows the answer (zero-shot 82.2); the format's stopping behaviour was never trained. The honest
+  table reports both rows and says which one measures what.
+- *Was the learning rate a sensitive knob?* At the low end: 5e-6 lost by 10 points of pooled dev
+  accuracy; 1e-5 and 2e-5 were within one CI. At 36 steps the sweep also measured how fast each LR
+  learns to close the think block (format failure 100 / 79 / 58 %), which is the quantity that
+  actually separated them.
+- *Your data-scaling curve is flat on MATH-500. Does more data not help?* The unpaired numbers
+  (47.8 / 44.0 / 50.6) look flat; the paired difference between 25 and 100 % is +2.8 [-1.4, 7.0],
+  which is "inconclusive, small if present", not "flat". GSM8K rises at every size (+4.0 [1.4, 6.7]).
+  The shape is set by truncation: MATH-500 truncation jumps to 52-58 % at 5,750 examples and stays,
+  so each size learns the long style and none learns to finish. The question "is data the
+  bottleneck" has the answer "not for this kind of data"; a different kind (shorter, or finished)
+  is Phase 3's.
+- *You trained without flash attention. Does that change the result?* Not the loss: sdpa is exact
+  attention and the packed and unpacked losses agree to 1e-4 (section 4). It changed the cost (1.5-2x
+  per step) and the micro-batch composition, and because Phase 3 trained packed with flash, any
+  SFT-versus-RFT comparison carries that backend difference in its caveat. The control run of Phase 3
+  shares RFT's backend, so the causal comparison there is backend-matched.
+- *Why did you cut the LoRA ablation and not the 50 % scaling point, when your own order of sacrifice
+  said the opposite?* The order was written before the step times were measured. LoRA with the tag
+  rows trained in fp32 ran at 1.26x the full fine-tune's step time (3 h 50 min for one point); the
+  two scaling runs together were 2.6 h for two points on a three-point curve. Cheaper and more
+  informative won; the pre-registration and the amendment stand for a later session, and the exit
+  criterion is marked not met with the reason.
+- *What did the session cost against the estimate, and why?* 17.75 H100-hours (INR 6,730) for the
+  Phase 2 part against 10-12 planned. Two n = 64 sampling runs of the SFT checkpoint took 6 h 50 min
+  because its completions are 2-4x the base's; the projection script assumed the greedy mean length.
+  1.7 h was idle or debugging: a tmux name-prefix match, a stale secret in a shell copy, a YAML
+  string. Each has a fix in the repo or the next-session guide.

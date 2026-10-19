@@ -570,3 +570,208 @@ Countdown is 32,000 x 2,700 = 87 M tokens, more than the four sets together; at 
 tokens/s that is 5-8 hours, and the `sample` step does it again for the SFT checkpoint. The handoff
 file puts the three options (keep and measure, fewer problems, shorter cap) in front of you before
 the A100 is launched; the pre-registered config stays the default.
+
+## 19. The H100 session starts: the box as found (18 Oct, 09:50 UTC, the node session)
+
+The user started the TIR notebook, cloned the repo, installed Claude Code and handed over with the
+opening message of the handoff (section 9). The first facts changed the handoff's assumptions, which
+had been written for a container without root: the shell was root with `HOME=/home/jovyan`, `apt`
+worked, tmux and uv were on the image, conda was not. The driver was 550.127.08 (a CUDA 12.4 host)
+under a CUDA 12.9 user space, which works only through the forward-compatibility `libcuda` in
+`/usr/local/cuda/compat`; the env script of bb6f2a6 keeps that directory first on `LD_LIBRARY_PATH`
+and the image's torch named the H100. `nproc` printed 256 and `free` 1.5 TB (the host's numbers seen
+from the container; the cgroup limits were the plan's 26 vCPU and 250 GB), a harmless surprise with
+one consequence: data-loader worker counts must not trust `nproc`. The disk was 339 GB with 455 MB
+used (repo plus the two folders copied by scp from the laptop).
+
+The environment built by the cu129 route in 25 minutes with an empty lock diff apart from the CUDA
+labels (torch 2.13.0+cu129, vLLM 0.31.0+cu129, transformers 5.17.0, trl 1.15.0), the Triton check
+passed through the compat library, and then vLLM would not import: `torchcodec` 0.17.0, a vLLM
+dependency used only for audio, is not among the packages uv's torch backend routes to the CUDA
+index, so PyPI's wheel landed, and that wheel is a CUDA 13 build that wants `libnvrtc.so.13`. No
+0.17.0+cu129 wheel exists. The fix was to uninstall it (vLLM's import of it is guarded); the open
+question for the laptop was how the L4 session got past this on 17 Oct (answer, from its freeze: an
+older torchcodec that did not need CUDA 13). The data step reproduced both hashes
+(b5afb83e6aacafcf, 45b3fa4862b11e2a) and left the tree clean; the b34c25b fix behaved.
+
+A risk was written down before any step ran: the Phase 2 `report` step regenerates two *tracked*
+files (`figures/phase-1-pass-at-k.png` and `.md`, now with the Countdown panel), and the harness
+refuses to run on a tree with tracked modifications, so Phase 3 would have been blocked. The plan,
+executed later: save the regenerated files aside, `git checkout -- outputs/reports` to restore the
+tracked versions, carry both copies in the archive; the laptop commits the regenerated ones (this
+commit does).
+
+## 20. Countdown measured, and 27 idle minutes (18 Oct, 10:27-12:28 UTC)
+
+The handoff's section 1 asked for a ten-minute measurement before deciding how to run EXP-002's
+Countdown half. At ten minutes the H100 produced 9,735 output tokens/s on the set against the L4's
+816, 11.9x, better than the 5,000-9,000 guessed; the projection was 2.3 h and INR 861, under the
+4-hour rule, so the full pre-registered config ran. It finished in 1 h 34 min (INR 595), because the
+sampled completions at T = 0.6 averaged 1,946 tokens (median 466), shorter than the greedy run's
+2,716, and the rate held at 11,047 tokens/s. pass@64 63.8 [59.6, 68.0] with pass@1 2.8 % and
+maj@64 11 %: the base can find the expression in 64 tries for two problems in three and almost never
+first; the KV cache held 74 GB at 90 % utilisation and 6,144 context.
+
+Then nothing happened for 27 minutes. The chain runner that was to start the sweep waited on
+`tmux has-session -t phase2`, which prefix-matched the runner's own session `phase2b` after `phase2`
+had ended, so it never saw the end. Caught at the scheduled 55-minute check; about INR 170 of idle
+H100. Fixed by waiting on the step's EXIT marker in its log rather than on a tmux name, and tmux's
+`-t =name` is the exact-match form. The lesson went into the notes and the next-session guide.
+
+## 21. Two findings before the sweep could run (18 Oct, 12:34-12:41 UTC)
+
+First, the training backend. The train configs set `attn_implementation: flash_attention_2` with
+`packing: true`. No flash-attention wheel exists for torch 2.13 (Dao-AILab's releases stop at torch
+2.8), and the kernels-hub route (`kernels-community/flash-attn`) failed on authentication (404 with
+the fine-grained token, 401 without). A source build was judged too slow and risky on a billing node
+at that hour, and more to the point, every Phase 2 training run had to share one backend to stay
+comparable. Decision: every Phase 2 `rlvr-sft` call ran with `--set attn_implementation=sdpa --set
+packing=false`, exact attention, padded batches, 1.5-2x slower, recorded in every COMPUTE.md row.
+(The user later asked for flash attention to be used; section 25.)
+
+Second, the learning rate. `learning_rate: 5e-6` in the three sweep YAMLs is a *string* under YAML
+1.1 (PyYAML needs a dot: `5.0e-6`), and so is `--set learning_rate=5e-6`; AdamW raised a TypeError
+on `0.0 <= lr`. The main and scaling configs were unaffected (they get the LR from `--set` with a
+dotted value chosen by `pick_lr.py`). The node is not allowed to edit tracked files, so the
+workaround was a PATH shim (`outputs/bin/rlvr-sft`) that appends a dotted override; the laptop fix
+(cast numeric knobs to the type of their default, with a test) is commit 3e055ad on `phase-3-rft`,
+and the three YAMLs now carry dotted floats.
+
+Two smaller things from the same minutes: tmux sessions started from a running server do not see
+variables exported later in one window (secrets must be exported before the first tmux command, or
+set in tmux's global environment), and TRL warned "the tokenized prompt is not a prefix of the
+tokenized prompt+completion" on some rows, meaning tokens merge across the prompt/completion
+boundary; not fatal (TRL falls back to its own boundary), worth a count on the laptop (debt).
+Debug and idle time so far: about 40 minutes, INR 250.
+
+## 22. The sweep, and a model that will not stop thinking (18 Oct, 13:21-14:05 UTC)
+
+Each sweep run was 36 optimiser steps on 2,300 examples at 16.5 s per step (10.5 min, 33 GB), plus
+a 3-minute dev eval. The surprise came from the first dev eval: at 5e-6, GSM8K-dev 54.0 with 86.8 %
+truncation, MATH-dev 34.0 with 80 %, median length at the cap. After 36 steps the model writes long
+think blocks and rarely closes them inside 4,096 tokens. The other two LRs did better (tag-format
+failure 100 -> 79 -> 58 % with the LR), and the rule picked 1e-5 (pooled dev 53.8 against 44.0 and
+50.6). The note written at that moment: "if truncation stays this high after `main`, the think-tag
+template is the bottleneck, not the LR". It did stay high (section 23).
+
+The user, watching, asked for the micro-batch to fill the card for the long runs: 16 x 4 instead of
+4 x 16 (effective batch 64 unchanged, the pre-registered quantity). Measured on the main run's first
+steps: 15.6 s per step against 16.4, 5-7 % faster, 72.8 GB reserved; padding to the longest sequence
+in a 16-sequence micro-batch eats most of the gain, but the card is full either way. Kept.
+
+At 14:20 UTC the user went to sleep and asked for decisions without approval questions, with the
+handoff's rules as the limits (the ten-minute rule on every n = 64 step with the 4-hour cap, the
+18-node-hour rule for the control run, and the 20-hour line turned into "finish Phase 3 if the
+projection stays under about 24 node-hours").
+
+## 23. The main run and the think-tag surprise (18 Oct, 14:13-17:39 UTC)
+
+720 steps in 3 h 02 min, 15.19 s per step, loss 0.413, 51.6 GB allocated. Both tag rows were
+untrained in the base (93 duplicate rows), were initialised from their pieces and moved by 0.0078
+(`<think>`) and 0.0531 (`</think>`); no duplicates remained. The three evals, the gap and the probe
+took 23 minutes and the chain moved into them with no idle gap.
+
+The result that defines this phase: the think-tag template, the training format, is the worst of the
+three on its own checkpoint. GSM8K 74.8 against 82.2 zero-shot and 79.4 4-shot-CoT; MATH-500 50.6
+against 63.2 and 56.8. The cause is visible in the lengths: think-tag completions average 1,887
+tokens on GSM8K with the p90 at the cap, 28 % truncate; MATH-500 52 %; Countdown 95 %. The model
+learned to think long and a quarter of the time does not stop inside 4,096 tokens. Zero-shot has
+the same disease on MATH-500 (59 % truncation) and still scores best. The pre-registered bars were
+met in substance (74.8 against 75, 50.6 against 50, Countdown 3.8 against "under 10"), the falsifiers
+did not fire, and the "tag-format failures below 1 %" part of the hypothesis failed outright: the
+format failures *are* the truncations. The perturbation gap was unchanged by SFT (11.3 against the
+base's 10.4), and the partial-prompt rates did not rise (MATH-500 14.1 % against 16.3 %): no recall
+entered through the data. The implication for Phase 3 was written down immediately: with the p90 at
+3,960 the cap rule would pick 4,096 and the RFT sampling would be long.
+
+## 24. The n = 64 runs and the ten-minute rule, twice (18 Oct 17:39 to 19 Oct 00:30 UTC)
+
+The few-shot n = 64 run (four sets, 84,416 GSM8K sequences first) was projected at ten minutes with
+`project_sampling.py`: 0.8 h more for GSM8K from the script, 1.5 h from tqdm, because the script
+assumed the greedy mean length (429 tokens) and the sampled completions at T = 0.6 run about twice
+that. The honest estimate for the whole run was 3.5-4 h, under the 4-hour rule: CONTINUE. It took
+3 h 45 min (INR 1,420) and the sampled completions averaged 930-1,960 tokens, pushing truncation to
+15-16 % on the math sets where the base had none. Under this template SFT changed nothing on GSM8K
+at any k (pass@64 98.2 against 98.8) and lifted MATH-500 by 15 points at pass@1 and 5 at pass@64.
+
+The Countdown half (500 x 64, think-tag) projected 3.4 h at ten minutes (1,472 of 32,000 sequences,
+finished completions averaging 3,646 tokens): under the rule, CONTINUE, with two reasons recorded
+beyond the rule: it is the only n = 64 Countdown point for the SFT checkpoint and the report step
+lists the run unconditionally once the few-shot samples exist. It took 3 h 04 min: pass@64 62.0
+against the base's 63.8, pass@1 11.9, truncation 79 %. The ceiling is unchanged by SFT and the
+greedy row (3.8 %) is a length failure, not a search failure. The session's budget projection at
+21:36 UTC was already 23-24 node-hours for Phase 2 plus a Phase 3 core, at the edge of the "about
+24" line the user had set.
+
+## 25. LoRA stopped, scaling kept, and the flash-attention build (19 Oct, 00:30-03:15 UTC)
+
+The LoRA run started at 00:30 at 19.2 s per step, 26 % slower than the full fine-tune at the same
+micro-batch (the embedding rows train in fp32 next to the adapters), 3 h 50 min projected, with the
+session at 14.8 node-hours. With LoRA the projection was Phase 2 archived at 22 node-hours and Phase
+3 at 26.5, over the line; applying the line literally would have meant no Phase 3 at all, which is
+the branch's purpose. The call, made alone as the user had asked: stop LoRA at step 20 (INR 45),
+run the data-scaling curve (2.6 h, three points) and the report, then Phase 3, and LoRA last only
+if the clock allowed. The scaling curve was kept over LoRA as the cheaper and more informative
+ablation. Mechanics: the chain's tmux session was killed, the partial run dir moved aside (no
+checkpoint had been written), a new runner started with one idle minute. A second environment slip
+cost three minutes here: the Claude Code shell keeps the environment it was started with, so after
+the user rotated the W&B key the shell's copy was stale and the first scaling launch failed.
+
+At 01:40 UTC the user, awake, asked why flash attention was not in use and said they wanted it.
+The reasons (no wheel for torch 2.13; kernels-hub auth failure; the comparability of the Phase 2
+runs) were written down, and at 01:50 the user chose: finish scaling, report, Phase 3 core, LoRA and
+the RFT Countdown sampling and the control stay cut "unless stopped/paused by me". At 02:18 the user
+asked for the build anyway, for Phase 3. The image turned out to have nvcc 12.9 (the 17 Oct L4 image
+had 12.6, which is what the guide had warned about), and the notebook's real limits were the plan's
+26 vCPU and 250 GB. `pip wheel flash-attn==2.8.3.post2 --no-build-isolation` with `MAX_JOBS=12` and
+`FLASH_ATTN_CUDA_ARCHS=90` built the wheel in 13 minutes on the CPU while data50 trained (its step
+time moved from 15.1 to 15.5 s, within noise). The wheel went to `/home/jovyan/rlvr/wheels`; the
+kernel test (flash versus sdpa, max abs diff 0.0039), the varlen test and a Qwen3-0.6B load under
+`flash_attention_2` with logits matching sdpa within bf16 noise passed at 03:15. Phase 3 therefore
+ran with the pre-registered packed config; the comparability note (SFT unpacked with sdpa, RFT
+packed with flash; exact attention in both, different micro-batch composition) went into the Phase 3
+report. Phase 2 itself stayed on sdpa throughout.
+
+## 26. Data scaling, and Phase 2 closed (19 Oct, 00:43-03:35 UTC)
+
+data25 (180 steps, 46 min) and data50 (360 steps, 1 h 31 min) at the main run's LR, backend and
+micro-batch, each followed by the think-tag eval: GSM8K 61.8 -> 70.8 -> 72.1 -> 74.8, monotone in
+data; MATH-500 47.8 / 44.0 / 50.6, flat within CI; MATH-500 truncation 20 % (base) -> 57 / 58 / 52 %
+at every SFT size. The think-tag SFT teaches long thinking on MATH-style problems at the first 5,750
+examples and more data does not teach it to stop. The report step ran at 03:29 (compare tables, the
+figures, the model card, the Hub uploads: `Raviteja546/reasoning-rlvr-sft` with the three sweep
+finals and the two scaling finals under `ablations/`, the samples dataset with the four n = 64 sets,
+the Phase 2 archive). The HF token belongs to the `Raviteja546` namespace, not the `rrtchaganti` the
+scripts defaulted to; the node exported the three `HF_REPO_*` variables and the laptop changed the
+defaults (3e055ad). Phase 2 closed at 03:35 UTC: 17.75 node-hours, about INR 6,730, including 1.7 h
+of waste and the flash build, against the handoff's 10-12 hours for this part; the overrun was the
+SFT model's long completions in the two n = 64 runs (about 4 h more than planned together). The
+disk clean-up at 04:00 deleted 174 GB of intermediate checkpoints and, on the user's request, the
+33 GB of ablation finals already on the Hub; 50 GB of 339 used.
+
+## 27. Laptop: the archive, the fixes, the paired curve, the write-up (19 Oct)
+
+The session archive (68 MB compressed, 768 files: every `metrics.json`, `report.md`, `run_info.json`,
+`train_log.jsonl`, the per-sample files of every greedy eval, `outputs/reports`, the RFT data
+manifests, the five node patches, the shim, the session log and notes, the gap analysis and its
+results, the Hub inventory, the redacted transcript) came back through the JupyterLab download and
+extracted next to the repo. The usage report from the TIR console gave the real numbers: the H100
+billed 25.07 h to 16:01 IST on 19 Oct and about 3 h more after it (28.1 h, INR 10,640), the disk
+INR 10 per GB-month on 340 GB (the guide had guessed INR 5), the dataset volume the user had created
+and deleted INR 10.20, and an A30 hour from 16 Oct that no journal mentions.
+
+The laptop's first commits went to `phase-3-rft`, where the code is current: the five harness defects
+the node had worked around (flag equal to the default ignored; independent `--limit` draws for the
+paired GSM8K sets; the YAML learning-rate string; the Hub card's `base_model` as a local path;
+`torchcodec`) fixed with tests, and the rental docs updated with the flash recipe, the disk rate, the
+secrets-before-tmux rule and the node's next-session guide. Then this branch: the Phase 2 report
+tables, figures and model card from the archive; the regenerated Phase 1 figure with its Countdown
+panel; the three paired data-scaling comparisons computed here from the archived samples (the node
+never ran them): 100 minus 25 % is +4.0 [1.4, 6.7] on GSM8K and +2.8 [-1.4, 7.0] on MATH-500, which
+makes EXP-008's MATH-500 result "inconclusive, and small if present" rather than the flat curve the
+unpaired numbers suggested; the base 4-shot-CoT and zero-shot rows at the SFT cap (G5 of the gap
+analysis, 5 minutes on the node) so that every paired table in the report shares its cap; the
+registry entries, the ledger rows, this journal, the engineering notes and the PR body. The two
+Phase 3 runs that explain the think-tag deficit (an 8,192-token cap changes nothing, truncation is
+looping; T = 0.6 removes most of it) are cited in the Phase 2 report because they are about this
+checkpoint; their record is the Phase 3 journal.
