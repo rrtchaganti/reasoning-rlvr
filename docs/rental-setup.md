@@ -55,10 +55,25 @@ uv pip install flash-attn --no-build-isolation      # prebuilt wheel if one matc
 python -c "import flash_attn; print(flash_attn.__version__)"
 ```
 
-If no wheel matches and the compile is not worth the time, use the kernels hub build instead:
-`uv pip install kernels` and set `attn_implementation: kernels-community/flash-attn` in the train
-config (the trainer accepts it as a flash variant). Last resort: `packing: false` in every train
-config (correct, about 1.5-2x slower because of padding) and say so in `COMPUTE.md`.
+No prebuilt wheel matches the locked torch 2.13 (Dao-AILab's 2.8.3.post2 stops at torch 2.8), so on
+a rented box the wheel is built once per image and kept on the persistent disk; `setup_env.sh`
+installs any `flash_attn-*.whl` it finds under `$RLVR_HOME/wheels` (or `RLVR_FLASH_WHEEL`). The
+recipe that worked on the TIR H100 image (19 Oct 2026; nvcc 12.9 matches torch's CUDA; 13 minutes
+on 12 jobs, CPU only, so it can run while a GPU job is on):
+
+```bash
+uv pip install ninja packaging psutil pip && mkdir -p "$RLVR_HOME/wheels"
+MAX_JOBS=12 FLASH_ATTN_CUDA_ARCHS=90 TORCH_CUDA_ARCH_LIST=9.0 CUDA_HOME=/usr/local/cuda nice -n 10 \
+  python -m pip wheel flash-attn==2.8.3.post2 --no-build-isolation --no-deps --no-cache-dir -w "$RLVR_HOME/wheels"
+uv pip install "$RLVR_HOME"/wheels/flash_attn-*.whl --no-deps
+```
+
+Verify with the kernel test in `docs/e2e-session-handoff.md` (flash versus sdpa, max abs diff under
+0.05) before the first training step. The kernels hub route (`uv pip install kernels`,
+`attn_implementation: kernels-community/flash-attn`) returned 404/401 with the fine-grained token on
+19 Oct; untested with a classic read token. Last resort: `RLVR_TRAIN_EXTRA="--set packing=false
+--set attn_implementation=sdpa --set per_device_batch=16 --set grad_accum=4"` (correct, about 1.5-2x
+slower because of padding; the Phase 2 runs of 18 Oct ran this way) and say so in `COMPUTE.md`.
 
 `report_to: wandb` in the train configs needs `wandb login` once (or `WANDB_API_KEY` exported);
 set `WANDB_PROJECT=reasoning-rlvr`. To run without it: `--set report_to=none`.
@@ -118,10 +133,11 @@ nvidia-smi | head -4                            # read "CUDA Version": 13.x or 1
 bash scripts/setup_env.sh                       # CUDA 13.x driver: exactly the laptop's environment
 RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh  # CUDA 12.8 driver (E2E, 17 Oct): vLLM +cu129 wheel, torch cu129
 python scripts/triton_check.py                  # must print "triton compile + launch: ok"
-# flash-attn: no prebuilt wheel exists for torch 2.13 (Dao-AILab 2.8.3.post2 stops at torch 2.8) and the image's
-# toolkit (12.6) does not match torch's CUDA (12.9), so a source build fails. Training on E2E runs with
-# RLVR_TRAIN_EXTRA="--set packing=false" (correct, about 1.5-2x slower; COMPUTE.md says so) unless the
-# kernels-hub build works: uv pip install kernels, then --set attn_implementation=kernels-community/flash-attn
+# flash-attn: no prebuilt wheel exists for torch 2.13 (Dao-AILab 2.8.3.post2 stops at torch 2.8). The 17 Oct L4
+# image's toolkit (12.6) did not match torch's CUDA (12.9); the TIR H100 image (nvcc 12.9) built the wheel in
+# 13 min (section 2b) and setup_env.sh installs it from $RLVR_HOME/wheels on later starts. Without a wheel,
+# training runs with RLVR_TRAIN_EXTRA="--set packing=false --set attn_implementation=sdpa" (correct, about
+# 1.5-2x slower; COMPUTE.md says so).
 bash scripts/phase2_rental.sh data              # perturbed set + SFT set, both hashes checked
 hf download Qwen/Qwen3-1.7B-Base && hf download Qwen/Qwen3-0.6B-Base
 rlvr-eval --model Qwen/Qwen3-1.7B-Base --evals gsm8k --template few_shot_cot --limit 20 --max-tokens 256 --out outputs/eval/e2e_smoke
@@ -196,9 +212,12 @@ minute). Chosen after the MyAccount block-volume request was withdrawn on 18 Oct
 - A stopped notebook is not billed for compute, only for storage; billing runs per minute while it
   is running. The workspace disk at `/home/jovyan` persists across Stop and Start and is lost on
   Delete. An ephemeral disk at `/home/user` (50 GB) is lost on restart: nothing goes there.
-- The workspace disk bills per GB-month beyond 30 GB free, stopped or not (the rate is on the
-  create form; TIR's shared file system is INR 5 per GB-month, so 270 billable GB would be about
-  INR 45 a day). MyAccount block volumes attach to node plans only, not to notebooks.
+- The workspace disk bills per GB-month, stopped or not. Measured on the 19 Oct 2026 usage report:
+  `Ceph_Block_Storage_NOTEBOOK` at INR 10 per GB-month on a billable size of 340 GB (the whole disk;
+  no free allowance appeared on the invoice), i.e. about INR 112 a day or INR 3,400 a month while
+  the notebook merely exists. A notebook kept between phases therefore costs about as much per
+  month as nine H100-hours; the decision rule is in section 5. MyAccount block volumes attach to
+  node plans only, not to notebooks.
 - SSH is an option per notebook at creation (SSH key registered in TIR, "enable SSH"); without it the
   JupyterLab file browser moves files.
 - Plan: NVIDIA H100 SXM 80 GB, 26 vCPU, 250 GB RAM, 300 GB workspace, INR 379.05 per hour. Image:

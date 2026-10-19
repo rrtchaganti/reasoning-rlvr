@@ -194,7 +194,11 @@ Whichever option runs is written into `outputs/h100_session_notes.md` with the m
    ```bash
    tmux new -s phase2
    cd /home/jovyan/rlvr/reasoning-rlvr && source scripts/e2e_env.sh
-   export RLVR_TRAIN_EXTRA="--set packing=false"
+   # with the flash-attn wheel installed (setup_env.sh prints "flash_attn 2.8.3.post2"): the pre-registered
+   # packed configs at a micro-batch that fills the card (about 50 GB, 11.8 s/step on the H100)
+   export RLVR_TRAIN_EXTRA="--set attn_implementation=flash_attention_2 --set per_device_batch=8 --set grad_accum=8"
+   # without it (the 18 Oct Phase 2 runs): exact attention, no packing, 16 x 4 (70 GB, 15 s/step)
+   # export RLVR_TRAIN_EXTRA="--set packing=false --set attn_implementation=sdpa --set per_device_batch=16 --set grad_accum=4"
    bash scripts/phase2_rental.sh exp002  2>&1 | tee outputs/h100_exp002.log    # Countdown only; the other two pieces are skipped
    bash scripts/phase2_rental.sh sweep   2>&1 | tee outputs/h100_sweep.log
    bash scripts/phase2_rental.sh main    2>&1 | tee outputs/h100_main.log
@@ -222,7 +226,7 @@ without waiting for the user, so a node loss during Phase 3 costs only Phase 3:
 cd /home/jovyan/rlvr/reasoning-rlvr && tar czf /home/jovyan/rlvr/h100_phase2_archive.tar.gz \
   $(find outputs -name metrics.json -o -name report.md -o -name run_info.json -o -name train_log.jsonl -o -name '*.log' -o -name '*.md' -o -name '*.png' | grep -v '^outputs/samples/.*/samples.jsonl') outputs/reports outputs/patches 2>/dev/null
 ls -lh /home/jovyan/rlvr/h100_phase2_archive.tar.gz
-hf upload rrtchaganti/reasoning-rlvr-samples /home/jovyan/rlvr/h100_phase2_archive.tar.gz archives/h100_phase2_archive.tar.gz --repo-type dataset
+hf upload Raviteja546/reasoning-rlvr-samples /home/jovyan/rlvr/h100_phase2_archive.tar.gz archives/h100_phase2_archive.tar.gz --repo-type dataset
 ```
 
 The session tells the user the file is ready; the user downloads it from the JupyterLab file browser
@@ -263,10 +267,15 @@ section 7.
   uv pip install -e . --no-deps                                    # registers new console scripts
   git status --short                                               # must print nothing
   df -h /home/jovyan                                               # above 240 GB used: prune first (section 4, step 3)
-  export HF_TOKEN=...  WANDB_API_KEY=...
+  export HF_TOKEN=...  WANDB_API_KEY=...                           # BEFORE the first tmux command, see below
   ```
 
-  Ten minutes, no downloads. Then the phase script inside tmux.
+  Ten minutes, no downloads. Then the phase script inside tmux. The step-by-step version with the
+  measured timings is `docs/h100-next-session.md` (written on the node at the end of the 18-19 Oct
+  session). Secrets and tmux: the tmux server inherits the environment of the shell that starts it
+  and a running Claude Code shell keeps the copy it was started with, so export both secrets before
+  `tmux new`, and also `tmux set-environment -g HF_TOKEN "$HF_TOKEN"` (same for the W&B key) so a
+  rotated key reaches later sessions; the 19 Oct session lost 40 minutes to a stale key in a shell copy.
 - The notebook is deleted only after the last phase's archive is verified on the laptop; the user
   does it from the console.
 
@@ -291,8 +300,8 @@ Script: `scripts/phase3_rental.sh` (steps `sample`, `data`, `train`, `eval`, `sa
 
 ```bash
 cd /home/jovyan/rlvr/reasoning-rlvr && source scripts/e2e_env.sh && git status --short   # clean, on phase-3-rft
-export RLVR_TRAIN_EXTRA="--set packing=false"
-bash scripts/phase3_rental.sh smoke  2>&1 | tee outputs/phase3_smoke.log     # 5 min: 20 problems, 3 steps
+export RLVR_TRAIN_EXTRA="--set attn_implementation=flash_attention_2 --set per_device_batch=8 --set grad_accum=8"   # section 3 step 5 for the sdpa fallback
+bash scripts/phase3_rental.sh smoke  2>&1 | tee outputs/phase3_smoke.log     # 5 min: 20 problems at a 2,048 cap, 3 steps
 bash scripts/phase3_rental.sh        2>&1 | tee outputs/phase3_rental.log    # about 3-4 h on this card (5-7 A100-hours in the plan)
 ```
 
@@ -376,16 +385,17 @@ git clone https://github.com/rrtchaganti/reasoning-rlvr.git
 cd reasoning-rlvr && git checkout phase-3-rft && mkdir -p outputs/eval outputs/samples
 curl -fsSL https://claude.ai/install.sh | bash
 source scripts/e2e_env.sh && claude --version
-which tmux || conda install -y -c conda-forge tmux
+which tmux || apt-get update -qq && apt-get install -y -qq tmux    # the TIR shell is root; conda is absent
+export HF_TOKEN=hf_...                                            # typed here, before tmux starts: the tmux
+export WANDB_API_KEY=...                                          # server inherits this shell's environment
+tmux start-server; tmux set-environment -g HF_TOKEN "$HF_TOKEN"; tmux set-environment -g WANDB_API_KEY "$WANDB_API_KEY"
 tmux new -s claude
 ```
 
-Inside the tmux window (the secrets are typed here and nowhere else):
+Inside the tmux window (the secrets are already in its environment; never into a file):
 
 ```bash
 cd /home/jovyan/rlvr/reasoning-rlvr && source scripts/e2e_env.sh
-export HF_TOKEN=hf_...
-export WANDB_API_KEY=...
 claude
 ```
 
