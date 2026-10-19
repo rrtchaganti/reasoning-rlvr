@@ -12,7 +12,7 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 | 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 complete 18 Oct 2026 (four sets on a rented L4, Countdown on the H100; report addendum: base pass@64 98.8 GSM8K, 87.8 MATH-500, 63.8 Countdown) | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
 | 2 SFT | `phase-2-sft` | runs done 18-19 Oct 2026 on a TIR H100 (EXP-005, 006, 008; EXP-007 LoRA cut for budget): SFT think-tag greedy 74.8 GSM8K (+13.0 paired), 50.6 MATH-500 (+5.8); zero-shot 82.2 / 63.2; pass@64 unchanged on GSM8K, +5.2 on MATH-500; a quarter of think-tag generations never terminate; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
 | 3 RFT | `phase-3-rft` | runs done 19 Oct 2026 on the same H100 (EXP-009, 010, 010b and four post-hoc runs): RFT beats SFT in the trained format by +3.3 GSM8K / +5.8 MATH-500 (paired; three seeds +4.6 / +4.3), halves the looping, no pass@k loss, no Countdown transfer; a token-matched control gains nothing; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`outputs/reports/phase-3.md`](outputs/reports/phase-3.md) |
-| 4 GRPO + ablations | | | |
+| 4 GRPO + ablations | `phase-4-grpo` | plan and pre-registration written 19 Oct 2026 (shape B: 32 x 8, 200 steps, main + seed + three ablations, two sessions, about 26 H100-hours; `docs/phase-4-plan.md`, EXP-010g/h, EXP-012, 013, 014a-c); code next | (after the runs) |
 | 5 DPO | | | |
 | 6 Test-time compute | | | |
 | 7 Distil, quantise, serve | | | |
