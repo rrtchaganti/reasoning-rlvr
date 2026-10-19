@@ -133,13 +133,15 @@ The 4-shot-CoT and zero-shot rows above as the paired reference for every checkp
 set (regenerated from its seed, hash checked) and the names-only noise floor; the n = 64 samples,
 once produced, for DPO pairs and the sharpening analysis.
 
-## 7. Addendum (18 Oct 2026): EXP-002, the base model's pass@k ceiling, four of five sets
+## 7. Addendum (18-19 Oct 2026): EXP-002, the base model's pass@k ceiling, all five sets
 
-Run on an E2E Networks L4 24 GB on 17 Oct 2026 at commit `ade4f6a` (vLLM 0.31.0+cu129, bf16, not
-batch-invariant: the stored samples are the reproducibility artefact). Qwen3-1.7B-Base, 4-shot-CoT,
-n = 64, T = 0.6, top-p 0.95, up to 4096 new tokens, seed 0. 5 h 10 min, 34.3 M generated tokens,
-INR 253. Unbiased pass@k with bootstrap CIs over problems; maj@k by plurality of extracted answers;
-greedy pass@1 from section 2 (same prompt).
+Four sets ran on an E2E Networks L4 24 GB on 17 Oct 2026 at commit `ade4f6a` (vLLM 0.31.0+cu129,
+bf16, not batch-invariant: the stored samples are the reproducibility artefact). Qwen3-1.7B-Base,
+4-shot-CoT, n = 64, T = 0.6, top-p 0.95, up to 4096 new tokens, seed 0. 5 h 10 min, 34.3 M generated
+tokens, INR 253. Countdown ran on an E2E TIR H100 SXM 80 GB on 18 Oct 2026 at commit `bb6f2a6`
+(think-tag, 500 generated problems; 1 h 34 min, 62.3 M generated tokens, about INR 595). Unbiased
+pass@k with bootstrap CIs over problems; maj@k by plurality of extracted answers; greedy pass@1 from
+section 2 (same prompt).
 
 | eval | n | greedy pass@1 | pass@1 (mean sample) | pass@4 | pass@16 | pass@64 [95% CI] | maj@4 | maj@16 | maj@64 | hit cap | tokens mean / p90 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -147,6 +149,7 @@ greedy pass@1 from section 2 (same prompt).
 | GSM8K perturbed (830) | 64 | 67.8 | 64.5 [62.0, 67.0] | 80.5 | 86.9 | 90.2 [88.2, 92.2] | 71.0 | 76.0 | 77.0 | 0.1 % | 151 / 242 |
 | MATH-500 (500) | 64 | 41.4 | 36.3 [33.4, 39.2] | 59.3 | 76.6 | 87.8 [84.6, 90.4] | 44.9 | 53.7 | 57.6 | 4.3 % | 359 / 457 |
 | AIME24 (30) | 64 | 0.0 | 0.6 [0.2, 1.0] | 2.2 | 8.0 | 20.0 [6.7, 36.7] | 0.7 | 0.2 | 0.0 | 15.9 % | 926 / 4096 |
+| Countdown (500, think-tag) | 64 | 1.2 | 2.8 [2.5, 3.1] | 10.4 | 32.3 | 63.8 [59.6, 68.0] | 5.5 | 6.9 | 11.0 | 43.0 % | 1946 / 4096 |
 
 ![pass@k and maj@k against k](figures/phase-1-pass-at-k.png)
 
@@ -164,7 +167,13 @@ and one sample in six hits the 4096 cap, so the base loops on hard problems in t
 not only behind the untrained `<think>` token of the think-tag rows. Perturbed GSM8K stays behind the original at every k.
 Paired on the 830 shared ids (`phase-1-perturbation-gap-n64.md`, same folder), the gap is 10.2 [8.3, 12.0] points at pass@1 and 8.6 [6.6, 10.6] at pass@64, the greedy gap of EXP-003 (10.1) reproduced at every k; 74 originals are solved at least once in 64 tries while their perturbed twin never is, against 3 the other way. EXP-003's number brittleness is a capability gap, not a decoding accident.
 
-Not yet: Countdown at n = 64 (think-tag, 500 problems). On the L4 it ran at 816 output tokens/s
-(the base's Countdown completions average about 2,700 tokens; 87 M tokens in total) and was stopped
-after 1 h 36 min with 21 hours projected; it runs on the A100 in the Phase 2 session. Compute rows in
-`COMPUTE.md`; the session's record in `docs/phase-2-journal.md`, section 17.
+Countdown (added 19 Oct 2026). On the L4 the set ran at 816 output tokens/s and was stopped after
+1 h 36 min with 21 hours projected (the greedy completions averaged 2,716 tokens); on the H100 the
+sampled completions averaged 1,946 tokens (median 466) at 11,000 tokens/s and the set took 1 h 34 min.
+The hypothesis ("pass@64 above 10 % although pass@1 is near zero") holds by a wide margin: greedy 1.2 %,
+mean sample 2.8 %, pass@64 63.8 [59.6, 68.0], maj@64 11.0; 43 % of samples hit the 4096 cap and 56 %
+carry no extractable expression (mostly the truncated ones). The base can reach a valid expression for
+two problems in three given 64 tries and almost never on the first, and the majority vote is useless
+(11 %) because the wrong samples disagree with each other as much as with the right one. This is the
+set where sampling headroom is largest and the plurality is weakest, the opposite corner from GSM8K.
+Compute rows in `COMPUTE.md`; the sessions' records in `docs/phase-2-journal.md`, sections 17 and 20.

@@ -30,10 +30,35 @@ or W&B. Appended at the end of each session.
 | 2026-10-17 | 2 | E2E L4 node, whole life (invoice: two consecutive lines, 13:28-16:01 INR 124.95 and 16:01-00:01 INR 392) | E2E L4 24 GB | 10.55 | INR 516.95 (USD 6.2) | - | - | the three rows above are inside this one; 2.3 h of it was setup, archive and idle time; terminated 18 Oct 00:01 IST |
 
 The invoice line is the cost; the three run rows above break the same hours down and are not added
-again. The console labels the plan "2 vCPU and 6 GB RAM"; the node had 25 vCPU and 100 GB.
+again. The console labels the plan "2 vCPU and 6 GB RAM"; the node had 25 vCPU and 100 GB. The usage
+report of 19 Oct adds a last line for the same node, 00:01-00:10 IST, INR 7.35 (the minutes between
+the last command and the Terminate): L4 total INR 524.30.
 
-**Running totals.** Rented: 10.55 node-hours, INR 516.95 (USD 6.2), of which 8.26 h ran jobs.
-Local: 6.70 h. Budget used: about 4 % of the INR 8,400-14,300.
+| 2026-10-16 | 2 | E2E MyAccount A30 node, 1.32 h, and its saved image `rlvr-env-v1-disk-0` (640 GB, INR 5 per GB-month, 4.1 GB-months billed so far); first provider attempt, nothing run | E2E A30 24 GB | 1.32 | INR 118.80 + 20.50 (USD 1.7) | 0 | 0 | from the usage report of 19 Oct 2026; the image keeps billing until deleted from MyAccount |
+| 2026-10-18 | - | TIR dataset volume `rlvr-phase-2`, 250 GB, created 12:32 IST and deleted the same day | - | - | INR 10.20 | - | - | 1.02 GB-months at INR 10; not needed (the notebook disk is the volume) |
+
+| 2026-10-18 | 2 | TIR H100: environment (cu129 route, 25 min), data build, model downloads, smoke (bb6f2a6) | TIR H100 SXM 80 GB | 0.60 | INR 227 (USD 2.7) | <0.01 M | 0 | torch 2.13.0+cu129, vllm 0.31.0+cu129, trl 1.15.0 per the lock; torchcodec removed (CUDA 13 wheel); no flash-attn in the Phase 2 part: every training run sdpa + packing=false |
+| 2026-10-18 | 1 (deferred) | EXP-002 Countdown n = 64, base 1.7B think-tag, 500 x 64 (bb6f2a6) | TIR H100 SXM 80 GB | 1.57 | INR 595 (USD 7.1) | 62.3 M | 0 | 11,047 output tok/s (13.5x the L4); mean 1,946 tokens a sample, 43 % truncated; completes EXP-002 |
+| 2026-10-18 | 2 | EXP-005 LR sweep: 3 runs of 36 steps on 2,300 examples + 3 dev evals (bb6f2a6) | TIR H100 SXM 80 GB | 0.73 | INR 277 (USD 3.3) | 5.0 M | 18.5 M | 16.5 s/step at 4 x 16, 33 GB; winner 1e-5 |
+| 2026-10-18 | 2 | EXP-006 main SFT, 720 steps (3 h 02 m) + think-tag, 4-shot-CoT, zero-shot evals + gap + probe (bb6f2a6) | TIR H100 SXM 80 GB | 3.43 | INR 1,300 (USD 15.5) | 13.1 M | 123.6 M | 15.2 s/step at 16 x 4, 72.9 GB reserved (51.6 allocated), loss 0.413; W&B run dtahxhtt |
+| 2026-10-18 | 2 | EXP-006 SFT n = 64, 4-shot-CoT, four sets (bb6f2a6) | TIR H100 SXM 80 GB | 3.77 | INR 1,429 (USD 17.0) | 165.5 M | 0 | 10.9-11.3k tok/s; sampled completions 2x the greedy length, 15-16 % truncated |
+| 2026-10-18 | 2 | EXP-006 SFT Countdown n = 64, think-tag (bb6f2a6) | TIR H100 SXM 80 GB | 3.07 | INR 1,164 (USD 13.9) | 119.4 M | 0 | 79 % truncated, mean 3,731 tokens; pass@64 62.0 vs base 63.8 |
+| 2026-10-19 | 2 | EXP-007 LoRA r = 64, stopped at step 20 of 720 (bb6f2a6) | TIR H100 SXM 80 GB | 0.20 | INR 76 (USD 0.9) | 0 | 3.4 M | 19.2 s/step (1.26x the full fine-tune), 51.7 GB; cut for budget, no checkpoint |
+| 2026-10-19 | 2 | EXP-008 data scaling: 25 % (180 steps) + 50 % (360 steps) + two think-tag evals (bb6f2a6) | TIR H100 SXM 80 GB | 2.80 | INR 1,061 (USD 12.6) | 16.3 M | 92.6 M | 15.3 s/step at 16 x 4; W&B runs in project reasoning-rlvr |
+| 2026-10-19 | 2 | Phase 2 report step: compare tables, figures, model card, Hub uploads, archive (bb6f2a6) | TIR H100 SXM 80 GB | 0.10 | INR 38 (USD 0.5) | 0 | 0 | `Raviteja546/reasoning-rlvr-sft` (main + ablations/), samples dataset, `archives/h100_phase2_archive.tar.gz` |
+| 2026-10-19 | 2 | base 4-shot-CoT and zero-shot greedy at the SFT cap (4,095), for the paired Phase 2 tables (run in the Phase 3 part) | TIR H100 SXM 80 GB | 0.08 | INR 30 (USD 0.4) | 1.7 M | 0 | the Phase 1 rows used 1,024 tokens |
+| 2026-10-18/19 | 2 | idle, debugging and the flash-attn build inside the Phase 2 part | TIR H100 SXM 80 GB | 1.75 | INR 663 (USD 7.9) | - | - | 27 idle min from a tmux name-prefix match, 40 from a stale W&B key, the YAML learning-rate string, the LoRA switch; the flash-attn wheel built on the CPU in 13 min while data50 trained |
+
+Phase 2 part of the H100 session: 09:50 UTC 18 Oct to 03:35 UTC 19 Oct, 17.75 node-hours, about INR
+6,730 (USD 80); the rows above are the breakdown (they sum to 18.1 h because the evals and the idle
+minutes overlap at the step boundaries). The session continued into Phase 3 without a Stop; the
+notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Phase 3 rows.
+
+**Running totals (after Phase 2, 19 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30), A30
+1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), H100 Phase 2 part 17.75 h (about
+INR 6,730): about INR 7,400 (USD 88). Local: 6.70 h. Budget used: about 52 % of the INR 14,300
+(USD 170) ceiling after Phase 2; the whole session, Phase 3 included, brings the project to about
+INR 11,450 (80 %) plus the notebook disk at about INR 112 a day while it exists.
 
 **Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.

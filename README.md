@@ -9,9 +9,9 @@ Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering n
 | Phase | Branch | State | Report |
 |---|---|---|---|
 | 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 four of five sets done 17 Oct 2026 on a rented L4 (report addendum; base pass@64 98.8 GSM8K, 87.8 MATH-500); Countdown half runs in the TIR H100 session | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
-| 2 SFT | `phase-2-sft` | code complete 15 Oct 2026 (data built: 23,000 traces, hash 45b3fa48; EXP-004 closed); first E2E session 17 Oct (environment, data, EXP-002); training runs wait for the TIR H100 session (18 Oct plan) | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
-| 3 RFT | `phase-3-rft` | code ready 18 Oct 2026 (sampling-pool flags, `rlvr-build-rft`, session script, EXP-009/010/010b pre-registered); runs on the TIR H100 right after Phase 2 | (after the run) |
+| 1 Baselines and pass@k ceiling | `phase-1-baselines` | local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 complete 18 Oct 2026 (four sets on a rented L4, Countdown on the H100; report addendum: base pass@64 98.8 GSM8K, 87.8 MATH-500, 63.8 Countdown) | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
+| 2 SFT | `phase-2-sft` | runs done 18-19 Oct 2026 on a TIR H100 (EXP-005, 006, 008; EXP-007 LoRA cut for budget): SFT think-tag greedy 74.8 GSM8K (+13.0 paired), 50.6 MATH-500 (+5.8); zero-shot 82.2 / 63.2; pass@64 unchanged on GSM8K, +5.2 on MATH-500; a quarter of think-tag generations never terminate; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
+| 3 RFT | `phase-3-rft` | runs done 19 Oct 2026 on the same H100 (EXP-009, 010, 010b plus the gap-analysis runs: three RFT seeds, a token-matched control, an 8k-cap eval, pass@32 in the trained format); write-up in progress | (after the write-up) |
 | 4 GRPO + ablations | | | |
 | 5 DPO | | | |
 | 6 Test-time compute | | | |
