@@ -74,13 +74,46 @@ def vllm_env_overrides(*, batch_invariant: bool) -> dict[str, str]:
     return {"VLLM_BATCH_INVARIANT": "1" if batch_invariant else "0"}
 
 
+def context_budget(
+    prompt_lens: Sequence[int], max_tokens: int, max_model_len: int | None
+) -> dict | None:
+    """What the context window leaves for new tokens, per eval set.
+
+    vLLM stops a completion at ``max_model_len - len(prompt)`` tokens when that is below
+    ``max_tokens``, silently. A config that says ``max_tokens: 4096`` with ``max_model_len: 4096``
+    therefore gives 4096 minus the prompt: 3,865-3,994 new tokens on the Phase 2 base reference
+    (journal, section 14). The harness prints this before sampling and writes it into
+    ``metrics.json`` so the effective budget is read off the run, not guessed from the config.
+    """
+    if max_model_len is None or not prompt_lens:
+        return None
+    longest, shortest = max(prompt_lens), min(prompt_lens)
+    return {
+        "max_model_len": int(max_model_len),
+        "max_tokens": int(max_tokens),
+        "prompt_tokens_min": int(shortest),
+        "prompt_tokens_max": int(longest),
+        "effective_max_tokens_min": int(min(max_tokens, max_model_len - longest)),
+        "effective_max_tokens_max": int(min(max_tokens, max_model_len - shortest)),
+        "capped_by_context": bool(max_model_len - longest < max_tokens),
+    }
+
+
 class Sampler:
     """Interface. ``generate`` returns one list of ``n`` completions per prompt, in order."""
 
     name = "base"
+    max_model_len: int | None = None
 
     def generate(self, prompts: Sequence[str], cfg: SamplingConfig) -> list[list[Completion]]:
         raise NotImplementedError
+
+    def prompt_token_counts(self, prompts: Sequence[str]) -> list[int]:
+        """Prompt lengths in the backend's own tokenisation; empty when the backend cannot say."""
+        return []
+
+    def context_budget(self, prompts: Sequence[str], max_tokens: int) -> dict | None:
+        return context_budget(self.prompt_token_counts(prompts), max_tokens, self.max_model_len)
 
     def describe(self) -> dict:
         return {"backend": self.name}
@@ -110,6 +143,7 @@ class VLLMSampler(Sampler):
         self.model = model
         self.revision = revision
         self.batch_invariant = batch_invariant
+        self.max_model_len = max_model_len
         self.llm = LLM(
             model=model,
             revision=revision,
@@ -149,6 +183,10 @@ class VLLMSampler(Sampler):
             )
         return results
 
+    def prompt_token_counts(self, prompts: Sequence[str]) -> list[int]:
+        tok = self.llm.get_tokenizer()
+        return [len(tok.encode(p)) for p in prompts]
+
     def describe(self) -> dict:
         import vllm
 
@@ -166,11 +204,20 @@ class HFSampler(Sampler):
 
     name = "hf"
 
-    def __init__(self, model, tokenizer, *, device: str = "cpu", batch_size: int = 8) -> None:
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        *,
+        device: str = "cpu",
+        batch_size: int = 8,
+        max_model_len: int | None = None,
+    ) -> None:
         self.model = model.to(device).eval()
         self.tok = tokenizer
         self.device = device
         self.batch_size = batch_size
+        self.max_model_len = max_model_len  # informational only; HF generation is not clipped by it
         if self.tok.pad_token_id is None:
             self.tok.pad_token = self.tok.eos_token
         self.tok.padding_side = "left"
@@ -210,3 +257,6 @@ class HFSampler(Sampler):
                     comps.append(Completion(text=text, num_tokens=n_tok, finish_reason=finish))
                 results.append(comps)
         return results
+
+    def prompt_token_counts(self, prompts: Sequence[str]) -> list[int]:
+        return [len(self.tok(p).input_ids) for p in prompts]

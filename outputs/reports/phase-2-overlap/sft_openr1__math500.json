@@ -1,0 +1,120 @@
+{
+  "summary": {
+    "eval": "math500",
+    "n": 13,
+    "num_eval": 500,
+    "num_train": 23057,
+    "eval_hit_ngram": 6,
+    "eval_hit_ngram_covered": 2,
+    "min_coverage": 0.5,
+    "eval_hit_fuzzy": 2,
+    "eval_hit_any": 6,
+    "eval_contaminated": 3,
+    "train_to_drop": 31
+  },
+  "ngram_hits": {
+    "test/counting_and_probability/1003.json": [
+      "35bffaba-1d3f-50c0-96ff-dd914f7f4595",
+      "6dd746d8-41ca-5fb8-b847-861a5a0c5311",
+      "241e1a29-29a3-5fbd-89e6-e5250cef7d0b",
+      "bbcecb39-a411-515b-aa6a-6127d5c6cacc",
+      "fc06b7ee-34a6-5308-9117-7999812208fc",
+      "e1d036df-85da-5011-9aa9-7a0e55a8467f",
+      "539437c3-8e66-5a1b-b4f2-450f3abbf675",
+      "a3dc9d06-5b9a-504b-93c8-d9c547f870d3",
+      "a1f7c67b-37da-5dea-a977-77c657eedfc2",
+      "8be74d57-00fc-5e1e-aeaf-c432f0f2941b",
+      "b8f1095b-3bbb-52e9-b6b9-b49d456eeacb",
+      "2309357f-bc77-5f3a-844c-6a8f8d5a10a0",
+      "c1f7ce59-8a45-5286-8c60-d5b3eff27697",
+      "a2b6f3c0-2470-55d5-ad75-779d34550096",
+      "c1228924-d3d8-5ad8-996a-2868b61f660b",
+      "51062913-4d77-5d58-a3bd-a035ba48248b",
+      "6a2106f6-e735-516f-b54b-0da734671d93",
+      "720fc86a-793a-5812-a0da-18eaa29247ca",
+      "4ad1dcba-1e0e-594a-a898-394bcbd1eef1",
+      "e16f1695-d30d-534c-b784-feec0520adc8"
+    ],
+    "test/intermediate_algebra/986.json": [
+      "db050216-efe4-564d-9d5b-d7ba1f239acc",
+      "7e733226-d500-5382-ab72-d3d4f0d627c7",
+      "46d9784d-931d-5f2e-ae44-94ae3c9c5333",
+      "4cb05f1b-3fb0-5803-a3f5-2712c1091458",
+      "26016b92-2271-51fe-92d8-46a8e5e5515f",
+      "0be7f98f-1a9d-5eba-801d-651202ff60f7",
+      "164c62ee-0e94-58ba-b40e-9a2dfa942b39"
+    ],
+    "test/intermediate_algebra/90.json": [
+      "44549fdb-c278-58af-b843-ac63138985fe"
+    ],
+    "test/counting_and_probability/1114.json": [
+      "85970e16-1df9-5ce9-820a-4b31b64eee97"
+    ],
+    "test/intermediate_algebra/1063.json": [
+      "70482d7d-b071-5b11-803d-945e657ce984"
+    ],
+    "test/intermediate_algebra/1365.json": [
+      "dabfc19e-97f1-5b52-b44d-954b103c81fc"
+    ]
+  },
+  "ngram_hits_covered": {
+    "test/intermediate_algebra/90.json": [
+      "44549fdb-c278-58af-b843-ac63138985fe"
+    ],
+    "test/intermediate_algebra/1365.json": [
+      "dabfc19e-97f1-5b52-b44d-954b103c81fc"
+    ]
+  },
+  "fuzzy_hits": {
+    "test/intermediate_algebra/986.json": [
+      [
+        "db050216-efe4-564d-9d5b-d7ba1f239acc",
+        0.9126984126984127
+      ]
+    ],
+    "test/intermediate_algebra/90.json": [
+      [
+        "44549fdb-c278-58af-b843-ac63138985fe",
+        1.0
+      ]
+    ]
+  },
+  "contaminated_eval_ids": [
+    "test/intermediate_algebra/1365.json",
+    "test/intermediate_algebra/90.json",
+    "test/intermediate_algebra/986.json"
+  ],
+  "train_ids_to_drop": [
+    "0be7f98f-1a9d-5eba-801d-651202ff60f7",
+    "164c62ee-0e94-58ba-b40e-9a2dfa942b39",
+    "2309357f-bc77-5f3a-844c-6a8f8d5a10a0",
+    "241e1a29-29a3-5fbd-89e6-e5250cef7d0b",
+    "26016b92-2271-51fe-92d8-46a8e5e5515f",
+    "35bffaba-1d3f-50c0-96ff-dd914f7f4595",
+    "44549fdb-c278-58af-b843-ac63138985fe",
+    "46d9784d-931d-5f2e-ae44-94ae3c9c5333",
+    "4ad1dcba-1e0e-594a-a898-394bcbd1eef1",
+    "4cb05f1b-3fb0-5803-a3f5-2712c1091458",
+    "51062913-4d77-5d58-a3bd-a035ba48248b",
+    "539437c3-8e66-5a1b-b4f2-450f3abbf675",
+    "6a2106f6-e735-516f-b54b-0da734671d93",
+    "6dd746d8-41ca-5fb8-b847-861a5a0c5311",
+    "70482d7d-b071-5b11-803d-945e657ce984",
+    "720fc86a-793a-5812-a0da-18eaa29247ca",
+    "7e733226-d500-5382-ab72-d3d4f0d627c7",
+    "85970e16-1df9-5ce9-820a-4b31b64eee97",
+    "8be74d57-00fc-5e1e-aeaf-c432f0f2941b",
+    "a1f7c67b-37da-5dea-a977-77c657eedfc2",
+    "a2b6f3c0-2470-55d5-ad75-779d34550096",
+    "a3dc9d06-5b9a-504b-93c8-d9c547f870d3",
+    "b8f1095b-3bbb-52e9-b6b9-b49d456eeacb",
+    "bbcecb39-a411-515b-aa6a-6127d5c6cacc",
+    "c1228924-d3d8-5ad8-996a-2868b61f660b",
+    "c1f7ce59-8a45-5286-8c60-d5b3eff27697",
+    "dabfc19e-97f1-5b52-b44d-954b103c81fc",
+    "db050216-efe4-564d-9d5b-d7ba1f239acc",
+    "e16f1695-d30d-534c-b784-feec0520adc8",
+    "e1d036df-85da-5011-9aa9-7a0e55a8467f",
+    "fc06b7ee-34a6-5308-9117-7999812208fc"
+  ]
+}

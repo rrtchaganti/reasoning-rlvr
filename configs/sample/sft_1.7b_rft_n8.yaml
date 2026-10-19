@@ -1,0 +1,23 @@
+# Phase 3 step 1 (EXP-009 / EXP-010): the SFT checkpoint samples its own training prompts.
+# think-tag, n = 8, T = 1.0, top-p 1.0 (PHASES_IO_AND_HYPERPARAMS.md). Pool: GSM8K-train capped at
+# 4,000 problems (seeded; Phase 4 uses a 20 % GSM8K slice anyway) and MATH-train levels 1-3 in full,
+# both with the dev split removed (it picks LRs and checkpoints; it is never trained on).
+# max_tokens: the session script passes 2048 or 4096 by the rule in docs/phase-3-plan.md (2048 when
+# the SFT think-tag eval's p90 length is under 2,048). Samples are stored; batch-invariant off.
+model: outputs/train/sft_1p7b/final
+evals: [math_train, gsm8k_train]
+template: think_tag
+levels: [1, 2, 3]
+exclude_dev: true
+pool_limit: {gsm8k_train: 4000}
+n: 8
+temperature: 1.0
+top_p: 1.0
+max_tokens: 2048
+seed: 0
+backend: vllm
+batch_invariant: false
+dtype: bfloat16
+gpu_memory_utilization: 0.90
+max_model_len: 6144
+out: outputs/samples/sft_1.7b_rft_n8

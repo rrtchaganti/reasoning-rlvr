@@ -13,9 +13,24 @@ from rlvr.eval.sampler import (
     Completion,
     HFSampler,
     SamplingConfig,
+    context_budget,
     truncate_at_stop,
     vllm_env_overrides,
 )
+
+
+def test_context_budget_reports_the_clip():
+    # the Phase 2 base reference: prompts of 102-231 tokens, max_tokens 4096, window 4096
+    b = context_budget([102, 231], 4096, 4096)
+    assert b["capped_by_context"]
+    assert b["effective_max_tokens_min"] == 3865 and b["effective_max_tokens_max"] == 3994
+    # a window with room: the budget is max_tokens itself
+    b = context_budget([102, 231], 4096, 6144)
+    assert not b["capped_by_context"]
+    assert b["effective_max_tokens_min"] == 4096 and b["effective_max_tokens_max"] == 4096
+    # unknown window or no prompts: nothing to report
+    assert context_budget([102], 4096, None) is None
+    assert context_budget([], 4096, 4096) is None
 
 
 def test_batch_invariant_is_the_default_and_can_be_switched_off():
@@ -105,7 +120,7 @@ def test_hf_sampler_runs_on_tiny_model(tmp_path):
     )
     torch.manual_seed(0)
     model = Qwen2ForCausalLM(cfg)
-    sampler = HFSampler(model, tok, batch_size=2)
+    sampler = HFSampler(model, tok, batch_size=2, max_model_len=20)
     es = EvalSet(
         "toy",
         "numeric",
@@ -119,6 +134,30 @@ def test_hf_sampler_runs_on_tiny_model(tmp_path):
     )
     assert len(out) == 3 and all(len(o) == 2 for o in out)
     assert all(c.num_tokens <= 8 for o in out for c in o)
+    budget = sampler.context_budget([p.text for p in prompts], 8)
+    assert budget["prompt_tokens_max"] >= budget["prompt_tokens_min"] > 0
+    assert budget["capped_by_context"] == (20 - budget["prompt_tokens_max"] < 8)
     results = grade_completions(es, out)
     s = summarize(results, ks=(1, 2))
     json.dumps(s)  # serialisable
+
+
+def test_explicit_flags_override_the_config_even_at_the_default_value(tmp_path):
+    """H100 node, 19 Oct 2026: `--max-tokens 4096` (the parser default) lost to a config's 2,048 and
+    EXP-009 sampled at the wrong cap; `--evals gsm8k math500` (the default list) lost to a config's
+    five sets. A flag on the command line wins whatever value it carries."""
+    cfg = tmp_path / "c.yaml"
+    cfg.write_text(
+        "model: m\nout: o\nmax_tokens: 2048\n"
+        "evals: [gsm8k, gsm8k_perturbed, math500, countdown, aime24]\n"
+        "template: think_tag\nn: 8\n"
+    )
+    a = parse_args(["--config", str(cfg)])
+    assert a.max_tokens == 2048 and len(a.evals) == 5 and a.n == 8  # config applies when absent
+    a = parse_args(["--config", str(cfg), "--max-tokens", "4096", "--evals", "gsm8k", "math500"])
+    assert a.max_tokens == 4096 and a.evals == ["gsm8k", "math500"]
+    assert a.template == "think_tag" and a.n == 8  # untouched keys still come from the config
+    a = parse_args(["--config", str(cfg), "--max-tokens=4096", "--n", "1"])
+    assert a.max_tokens == 4096 and a.n == 1  # the `=` spelling counts as given too
+    a = parse_args(["--config", str(cfg), "--model", "other"])
+    assert a.model == "other" and a.out == "o"

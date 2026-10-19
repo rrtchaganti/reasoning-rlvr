@@ -125,3 +125,105 @@ def test_manifest_fields():
     es = EvalSet("x", "numeric", [Problem("1", "q", "a")], "src", "rev")
     m = es.manifest()
     assert m["num_problems"] == 1 and m["revision"] == "rev" and len(m["content_hash"]) == 16
+
+
+def _train_set(n=300, name="math_train"):
+    from rlvr.eval.datasets import EvalSet, Problem
+
+    return EvalSet(
+        name,
+        "latex",
+        [Problem(f"{name}-{i}", f"q{i}", str(i), {"level": 1 + i % 5}) for i in range(n)],
+        "fake",
+    )
+
+
+def test_filter_problems_levels_exclusions_and_pool_cap_record_themselves():
+    from rlvr.eval.datasets import DEV_SIZE_PER_SOURCE, dev_problem_ids, filter_problems
+
+    es = _train_set()
+    dev = dev_problem_ids(es)
+    assert len(dev) == DEV_SIZE_PER_SOURCE and dev == dev_problem_ids(es)  # deterministic
+    pool = filter_problems(es, levels=[1, 2, 3], exclude_ids=dev)
+    assert all(p.meta["level"] in (1, 2, 3) for p in pool.problems)
+    assert not any(p.id in dev for p in pool.problems)
+    assert len(pool) == sum(1 for p in es.problems if p.meta["level"] <= 3 and p.id not in dev)
+    assert pool.source == "fake#levels=1,2,3#excluded=250"
+    capped = filter_problems(pool, pool_limit=10, seed=1)
+    assert len(capped) == 10 and capped.source.endswith("#pool=10,seed=1")
+    assert [p.id for p in capped.problems] == [
+        p.id for p in filter_problems(pool, pool_limit=10, seed=1).problems
+    ]
+    assert filter_problems(pool, pool_limit=10_000) is not None and len(
+        filter_problems(pool, pool_limit=10_000)
+    ) == len(pool)
+    with pytest.raises(ValueError):
+        filter_problems(
+            _train_set(name="gsm8k_train").__class__("x", "numeric", [Problem("a", "q", "1")], "s"),
+            levels=[1],
+        )
+
+
+def test_run_eval_parses_pool_flags():
+    from rlvr.eval.run_eval import parse_args, parse_levels, parse_pool_limits
+
+    assert parse_levels("1,2,3") == [1, 2, 3] and parse_levels([1, 2]) == [1, 2]
+    assert parse_levels(None) is None and parse_levels("") is None
+    assert parse_pool_limits(["gsm8k_train=4000", "math_train=10"]) == {
+        "gsm8k_train": 4000,
+        "math_train": 10,
+    }
+    assert parse_pool_limits({"gsm8k_train": "4000"}) == {"gsm8k_train": 4000}
+    with pytest.raises(ValueError):
+        parse_pool_limits(["nope"])
+    a = parse_args(
+        [
+            "--model",
+            "m",
+            "--out",
+            "o",
+            "--levels",
+            "1,2",
+            "--exclude-dev",
+            "--pool-limit",
+            "gsm8k_train=5",
+        ]
+    )
+    assert a.levels == "1,2" and a.exclude_dev and a.pool_limit == ["gsm8k_train=5"]
+
+
+def test_derived_set_subset_follows_the_parent_draw(monkeypatch):
+    """`--limit` on gsm8k_perturbed keeps the problems whose original is in gsm8k's seeded subset,
+    so the two sets stay paired (the H100 session drew them independently: 67 pairs of 300)."""
+    from rlvr.eval import datasets
+
+    parent = EvalSet(
+        "gsm8k", "numeric", [Problem(f"gsm8k-test-{i}", f"q{i}", str(i)) for i in range(40)], "fake"
+    )
+    derived = EvalSet(
+        "gsm8k_perturbed",
+        "numeric",
+        [
+            Problem(
+                f"gsm8k-test-{i}-perturbed", f"p{i}", str(i), {"original_id": f"gsm8k-test-{i}"}
+            )
+            for i in range(0, 40, 2)  # the perturbation kept every second problem
+        ],
+        "file:fake",
+    )
+    monkeypatch.setitem(datasets.LOADERS, "gsm8k", lambda revision=None: parent)
+    monkeypatch.setitem(datasets.LOADERS, "gsm8k_perturbed", lambda revision=None: derived)
+    sub_parent = load_eval_set("gsm8k", limit=10, seed=3)
+    sub_derived = load_eval_set("gsm8k_perturbed", limit=10, seed=3)
+    parent_ids = {p.id for p in sub_parent.problems}
+    assert len(sub_parent) == 10
+    assert sub_derived.problems and all(
+        p.meta["original_id"] in parent_ids for p in sub_derived.problems
+    )
+    assert len(sub_derived) == sum(
+        1 for p in derived.problems if p.meta["original_id"] in parent_ids
+    )
+    assert sub_derived.source.endswith("#paired=gsm8k:limit=10,seed=3")
+    # a limit at or above the parent's size keeps every pair; no limit leaves the set untouched
+    assert len(load_eval_set("gsm8k_perturbed", limit=100, seed=3)) == len(derived)
+    assert load_eval_set("gsm8k_perturbed") is derived

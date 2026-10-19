@@ -75,6 +75,7 @@ It is the personal audit trail for the repository and doubles as a cheat sheet.
 4. Build, test, run. Commit small. Log every diagnosis in `FAILURES_AND_LEARNINGS.md` as it happens, not at the end.
 5. Write results into `outputs/reports/phase-N.md`, update `README.md` tables and the status row, append `COMPUTE.md`.
 6. Write `docs/phase-N-engineering-notes.md`: what was built, how each piece is tested and why that test, the design decisions and the alternatives rejected, known debts, and the interview questions the phase invites. Results go in the report; reasoning goes here.
+   Alongside it, keep `docs/phase-N-journal.md` *as the phase happens*: the chronological story (context, each decision with the explanation given at the time, each failure, what was tried, what replaced it, rented-GPU results as they arrive). The notes are the summary; the journal is how to learn the phase hands-on.
 7. Tick the checklist, mark the PR ready, merge with a merge commit, tag `phase-N`, push tags.
 8. Push checkpoints and sample sets to the Hub with the tag in their cards.
 

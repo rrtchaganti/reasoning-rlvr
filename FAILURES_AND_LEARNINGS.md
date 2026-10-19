@@ -213,3 +213,142 @@ a new dataset version; either isolate the streams per component or bump the vers
 **Also found while fixing it.** A patch written through a shell heredoc turned the regex `\b` into literal
 backspace bytes, so the name pattern matched nothing and the set changed again (829). Exact-bytes patching
 only, and `cat -A` on any regex line after editing it.
+
+## 2026-10-15  A boolean 4D attention mask is silently *added*, not applied        [phase 2] [training] [masking]
+**Symptom.** The reference packing test (one row holding three sequences, block-diagonal mask,
+positions restarting per sequence) disagreed with the unpacked per-token losses by up to 0.04 nats,
+far above float noise but far below what a real leak between sequences produces.
+**Diagnosis.** The 4D mask was passed as a boolean tensor. transformers 5.17 returns an
+"already prepared" 4D mask as-is, and the eager attention path adds it to the scores: True / False
+became + 1.0 / + 0.0 on the logits instead of 0 / -inf. Nothing was masked; the scores were nudged.
+**Fix.** `rlvr.ref.sft_loss.additive_mask` converts the boolean mask to 0 / finfo.min before it
+reaches the model; with it the packed losses match the unpacked ones to 1e-4 and the plain-causal
+variant of the same row provably differs (`tests/test_ref_sft_loss.py`).
+**Learning.** A mask that is "accepted" is not a mask that is applied. Any hand-built attention
+mask needs an equality test against the unmasked per-sequence computation, not just a shape check.
+The same test is the reason `rlvr-sft` refuses `packing: true` without a flash-attention backend:
+TRL only warns, and the leak is silent.
+
+## 2026-10-15  13-gram overlap fires on template sentences; AIME24 looked 27 % contaminated        [phase 2] [contamination]
+**Symptom.** First SFT data build: 8 of 30 AIME24 problems and 6 MATH-500 problems "hit" by a 13-gram
+in OpenR1-Math-220k, 0 by the fuzzy detector on AIME. Printing the pairs showed every AIME hit pointing
+at the *same* training item, an unrelated AIME problem.
+**Diagnosis.** After punctuation stripping, "can be expressed as m n where m and n are relatively
+prime positive integers find m n" is a 13-gram shared by most AIME-style problems. The GPT-3 n-gram
+convention has no notion of boilerplate; one template sentence in the training set hits every eval
+problem that uses it.
+**Fix.** `ngram_overlap(max_df=5)`: a gram that occurs in more than 5 training items is a template
+and is ignored for the *reported* count; the conservative drop set still removes every hit item.
+Reports now show any-13-gram, rare-13-gram, fuzzy, and "contaminated = rare or fuzzy" side by side.
+**Learning.** Read the hit pairs before believing an overlap number. A detector that cannot say
+*which* training item matched is not a detector; the ten worst pairs belong in every overlap report.
+**Update (same day).** The df cutoff did not work on the rebuilt set: the template exists in many variants
+(p/q vs m/n, tfrac vs frac, "n is not divisible by the square of any prime"), and in the 23k kept items
+several variants occur in only four training items, under the cutoff. Replaced by a coverage rule: a pair
+counts as contamination only when the shared 13-gram windows cover at least half of the eval problem's
+words (a copy is covered end to end, a template covers one line). AIME24 went to 0 contaminated, MATH-500
+to 3 of 500. Second learning: a frequency cutoff is a property of the corpus it is computed on; the
+quantity that actually distinguishes a copy from a template is how much of the problem is reproduced.
+
+## 2026-10-15  Source uuids are not unique: 22 rows are "NaN", 11 uuids repeat        [phase 2] [data]
+**Symptom.** 23,058 rows but 23,026 distinct ids in the built SFT file.
+**Diagnosis.** OpenR1-Math-220k has rows whose `uuid` is the string "NaN" and a few uuids attached to
+two different problems. `rlvr-sft` keeps a dict by id, so 32 problems would have silently vanished
+from training while the manifest counted them.
+**Fix.** `unique_id`: missing uuid -> `row#<index>`, repeated uuid -> `<uuid>#<index>`; rebuilt.
+**Learning.** Assert id uniqueness in every generator (now in the tests) and never trust a source's
+primary key.
+
+## 2026-10-15  The SFT smoke checkpoint never emitted `</think>`: Qwen3-Base's think tokens are untrained rows, and LoRA cannot train them        [phase 2] [training] [tokenizer]
+**Symptom.** Local end-to-end smoke (0.6B, LoRA r 16, 400 examples, then `rlvr-eval` on 100 GSM8K
+problems): pass@1 53 %, but tag-format rate 0 %. No output of 100 contained `</think>`; 26 ended with
+end-of-text right after the boxed summary and 7 jumped from the summary to `<answer>` with a blank
+line where `</think>` sits in every training example.
+**Diagnosis.** Not the detokeniser: the tags are added tokens with `special=False`, and both
+`decode(skip_special_tokens=True)` and vLLM's `DecodeStream` keep them; retokenising the outputs
+accounted for every token. The embedding matrix: rows 151667 (`<think>`) and 151668 (`</think>`) in
+Qwen3-1.7B-Base are bit-identical to `<|im_start|>`, `<|im_end|>`, the tool tokens and the padding
+rows (94 identical rows; 291 in the 0.6B), norm 0.37 against 1.58 for a trained row. The Base
+checkpoints have never trained them. LoRA leaves embeddings frozen and the output head is tied to
+the same matrix, so the logit of `</think>` equals that of every filler token: unreachable. Same root
+cause as the 14 Oct entry "Countdown completions were garbage after the pre-filled `<think>`".
+**Fix.** `rlvr-sft` detects a tag row that is identical to other rows and initialises it to the mean
+of its plain-text pieces (`</`, `think`, `>`); LoRA runs train exactly those rows (gradient hook on
+the embedding matrix, matrix excluded from weight decay, fp32 during training); a LoRA run that would
+leave an untrained tag frozen is refused. PEFT's `trainable_token_indices` was tried first and failed:
+TRL 1.15's fused LM head reads `lm_head.weight` directly and bypasses (and crashes on) the wrapper.
+`run_info.json` records how far each tag row moved. Tests: tiny tied model with filler rows, CPU and
+GPU; `tests/test_train_sft.py`.
+**Verified.** Second smoke with the fixed trainer, same 400 examples and same 100 problems: both rows
+initialised (norm 0.35 -> 0.56) and moved (delta norm 0.05 and 0.09); `</think>` present in 5 of 100
+outputs (0 before), each one in the training position between the boxed summary and `<answer>`;
+accuracy unchanged within the paired CI (-7 points, [-18, +5]). Journal section 13.
+**Learning.** Before teaching a model a format built from tokens, look at the embedding rows of those
+tokens; a never-trained row is bit-identical to the other never-trained rows. A tag that the
+tokeniser merges into one token the base has not trained is a *new token*: it needs an
+initialisation and a trainable row, and an adapter on the linear layers cannot supply either. The
+20-GPU-minute smoke paid for itself: without it the rented LoRA run and every think-tag number of
+the phase would have been wrong in a way the accuracy column hides (53 % looked plausible).
+
+## 2026-10-15  Caught before running: pure-bf16 AdamW at LR 1e-5 cannot move most weights        [phase 2] [training] [precision]
+**Symptom (anticipated).** The full fine-tune configs loaded the model in bf16 and trained it in
+bf16 with no fp32 master copy (the plain HF Trainer does not keep one). A bf16 weight of magnitude
+0.02 has a spacing of 1.2e-4; an Adam step at LR 1e-5 is a tenth of that and rounds to no change.
+The loss curve would still fall (through the few small-magnitude weights that do move) while most of
+the network stayed put.
+**Fix.** `load_dtype: float32` for every full fine-tune, `bf16: true` as autocast only; about 27 GB
+static for the 1.7B. LoRA configs keep the frozen base in bf16 because PEFT holds the adapters in
+fp32, and the tag rows trained next to them are upcast to fp32 for the run. The GPU trainer test now
+runs the fp32-plus-autocast combination through TRL's fused LM head.
+**Learning.** "bf16 training" in a DeepSpeed recipe means bf16 compute with fp32 master weights; the
+same flags on a single-GPU Trainer mean pure bf16. Check what holds the master copy before copying
+a recipe's precision settings.
+
+## 2026-10-15  "4096 new tokens" was 4096 minus the prompt: `max_model_len` clips the budget silently        [phase 2] [eval] [protocol]
+**Symptom.** The base think-tag reference (`configs/eval/base_1.7b_think_tag_4096.yaml`, max_tokens
+4096) reported truncated outputs of 3,865-3,994 tokens, never 4,096.
+**Diagnosis.** vLLM stops a completion at `max_model_len - len(prompt)` when that is below
+`max_tokens`; the config sets `max_model_len: 4096` (for the 8 GB KV cache) next to `max_tokens: 4096`.
+The three SFT checkpoint configs do the same, so the paired base-vs-SFT cap is identical per problem;
+the dev and n = 64 sample configs use 6144 and are unaffected; the Phase 1 rows (1024 new tokens)
+always had room.
+**Fix.** Window kept at 4096 for the paired rows (the base's loops never end, journal section 14, so
+100-200 more tokens change nothing and a rerun costs 4 local hours); the effective budget is stated
+in every table; `rlvr-eval` computes `context_budget` per eval from the prompt lengths, warns when
+the window caps it and records it in `metrics.json` (`tests/test_eval_harness_end_to_end.py`).
+EXP-006 amendment (d).
+**Learning.** A generation budget has two knobs and the context window wins. Read the effective
+budget off the run (the longest truncated output) and have the harness print it before sampling,
+rather than a reviewer computing it afterwards.
+
+## 2026-10-15  Wall-clock estimate off by four: "about an hour" took 3 h 55 min        [phase 2] [eval] [process]
+**Symptom.** The base think-tag reference at the 4096 window was announced as about an hour on the
+4060; it took 3 h 55 min (five eval sets, 3,179 problems, 5.3 M generated tokens).
+**Diagnosis.** The estimate was anchored on the Phase 1 think-tag row (24 min) without scaling it:
+that row had a 1024-token budget. Four times the tokens, and the throughput fell from 1,216 to 372
+output tokens/s because the 8 GB KV cache holds about six 4096-token sequences instead of twenty.
+**Fix.** None needed for the run; the estimate rule is now: tokens = problems x expected mean length
+(assume the cap for a looping base), divided by the throughput measured at that context length on
+that GPU, plus engine start-up. `COMPUTE.md` carries the measured throughput.
+**Learning.** Throughput is not a constant of the GPU; it falls with the context length through the
+KV-cache concurrency. Re-derive the estimate whenever the budget or the window changes.
+
+## 2026-10-17  EXP-002 projected at 5-6 h; four sets took 5 h and the fifth wanted 22 more        [phase 2] [eval] [process]
+**Symptom.** On the L4, EXP-002's GSM8K set ran at 3,134 output tokens/s and the whole experiment
+(about 60 M tokens by the old count) was projected at 5-6 hours. The four 4-shot-CoT sets took 5 h
+10 min; the Countdown set (think-tag, 500 problems x 64) then ran at 816 tokens/s with 21 hours left
+after 1 h 36 min, and was stopped with nothing to keep (INR 78).
+**Diagnosis.** Two errors. The throughput was measured on the right GPU at the right window (the
+15 Oct rule) but on the wrong set: vLLM's rate falls with the completion length through KV-cache
+concurrency, 3,134 tokens/s at 154 tokens a sample down to 816 at 2,700, so a single rate cannot
+cover sets whose mean lengths differ by 18x. And the token count was anchored on a 600-token guess
+for Countdown; the base's Countdown completions average 2,716 tokens (65.6 % hit the cap in the
+greedy run, data that existed since 15 Oct), so the set is 87 M tokens, not 19 M.
+**Fix.** Countdown moved to the A100 with three options recorded in `docs/e2e-session-handoff.md`
+(keep and measure in the first ten minutes; fewer problems; shorter cap, rejected). Estimate rule
+extended: per eval set, tokens = problems x n x the mean length seen for that set in the nearest run
+(for a base model on Countdown or think-tag, two thirds of the cap), divided by the rate measured on
+a set of similar length; read the rate off every set's progress line, not the first one.
+**Learning.** The cheapest set finishes first and sets the mood. Before a multi-set run, write the
+per-set token estimate down and find the most expensive set; run it first when the budget is tight,
+so a stop costs the least.

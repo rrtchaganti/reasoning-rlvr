@@ -1,0 +1,31 @@
+# EXP-005: LR sweep point 5e-6. Seeded 10 % subset (nested with the main set), 1 epoch, otherwise
+# identical to sft_1p7b.yaml. Selected on the dev split (configs/eval/ckpt_think_tag_dev.yaml).
+model: Qwen/Qwen3-1.7B-Base
+data: outputs/data/sft/train.jsonl
+manifest: data/manifests/sft_openr1.json
+subset_fraction: 0.10
+subset_seed: 0
+max_length: 4096
+epochs: 1
+learning_rate: 5.0e-6
+lr_scheduler: cosine_with_min_lr
+min_lr_rate: 0.1
+warmup_ratio: 0.03
+weight_decay: 0.1
+adam_beta1: 0.9
+adam_beta2: 0.95
+max_grad_norm: 1.0
+per_device_batch: 4
+grad_accum: 16
+packing: true
+attn_implementation: flash_attention_2
+gradient_checkpointing: true
+bf16: true
+load_dtype: float32  # fp32 master weights, bf16 autocast
+save_steps: 1000
+save_total_limit: 1
+logging_steps: 5
+seed: 0
+report_to: wandb
+run_name: sft_1p7b_lr5e-6
+out: outputs/train/sft_1p7b_lr5e-6

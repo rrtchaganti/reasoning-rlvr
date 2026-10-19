@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import numpy as np
 
@@ -145,6 +146,46 @@ def pass_at_k_curve(num_correct: Sequence[int], n: int, ks: Sequence[int]) -> di
         per_problem = [pass_at_k(n, c, k) for c in num_correct]
         out[k] = bootstrap_ci(per_problem, seed=k)
     return out
+
+
+def paired_pass_at_k(
+    counts_ref: Sequence[int], counts_new: Sequence[int], n: int, ks: Sequence[int]
+) -> dict[str, Any]:
+    """Paired pass@k of two n-sample runs on the same problems, aligned by position.
+
+    Per k: both means with bootstrap CIs and the paired CI of new minus ref (the per-problem
+    unbiased pass@k estimates are the paired scores, so shared difficulty cancels as it does for
+    accuracies). ``ever_solved`` is the 2 x 2 table at k = n: solved at least once by both, by one
+    side only, by neither. Used for perturbed-vs-original GSM8K at n = 64 (EXP-002) and for the
+    base-vs-SFT pass@k curves.
+    """
+    if len(counts_ref) != len(counts_new):
+        raise ValueError("paired comparison needs aligned count vectors")
+    if not counts_ref:
+        raise ValueError("no pairs")
+    by_k: dict[int, dict[str, Any]] = {}
+    for k in ks:
+        if k > n:
+            continue
+        a = [pass_at_k(n, c, k) for c in counts_ref]
+        b = [pass_at_k(n, c, k) for c in counts_new]
+        by_k[k] = {
+            "ref": bootstrap_ci(a, seed=k).as_dict(),
+            "new": bootstrap_ci(b, seed=k).as_dict(),
+            "diff_new_minus_ref": paired_bootstrap_diff(b, a, seed=k).as_dict(),
+        }
+    pairs = list(zip(counts_ref, counts_new, strict=True))
+    return {
+        "n": n,
+        "num_pairs": len(pairs),
+        "by_k": by_k,
+        "ever_solved": {
+            "both": sum(1 for a, b in pairs if a and b),
+            "only_ref": sum(1 for a, b in pairs if a and not b),
+            "only_new": sum(1 for a, b in pairs if b and not a),
+            "neither": sum(1 for a, b in pairs if not a and not b),
+        },
+    }
 
 
 def length_stats(lengths: Sequence[int]) -> dict[str, float]:

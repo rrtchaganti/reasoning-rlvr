@@ -18,8 +18,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -36,9 +39,23 @@ from rlvr.eval.sampler import Sampler, SamplingConfig
 from rlvr.utils.run_info import finish_run_info, write_run_info
 
 
+def given_dests(p: argparse.ArgumentParser, argv: Sequence[str]) -> set[str]:
+    """Destinations of the options that appear in ``argv`` (``--max-tokens 4096`` and
+    ``--max-tokens=4096`` alike). argparse itself cannot tell "given with the default's value"
+    from "absent", and the config merge below must: on the H100 node (19 Oct 2026) ``--max-tokens
+    4096`` lost to a config's 2,048 because 4096 is the parser default (EXP-009 ran at the wrong
+    cap), and ``--evals gsm8k math500`` lost to a config's five sets for the same reason."""
+    words = {str(a).split("=", 1)[0] for a in argv}
+    return {a.dest for a in p._actions if any(s in words for s in a.option_strings)}
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    if argv is None:
+        argv = sys.argv[1:]
     p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,  # given_dests matches option strings exactly
     )
     p.add_argument("--config", type=Path, help="YAML with any of the flags below (flags override)")
     p.add_argument("--model", help="HF id or local path")
@@ -63,6 +80,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="subset size for smoke runs (never for reported numbers)",
     )
     p.add_argument("--countdown-n", type=int, default=500)
+    p.add_argument(
+        "--levels",
+        default=None,
+        help="training pool: keep these MATH levels, e.g. 1,2,3 (evals with level metadata only)",
+    )
+    p.add_argument(
+        "--exclude-dev",
+        action="store_true",
+        help="training pool: drop the dev-split problems from gsm8k_train / math_train",
+    )
+    p.add_argument(
+        "--pool-limit",
+        action="append",
+        default=None,
+        metavar="EVAL=N",
+        help="training pool: seeded cap of N problems for that eval (repeatable)",
+    )
     p.add_argument("--backend", choices=["vllm", "hf"], default="vllm")
     p.add_argument("--dtype", default="bfloat16")
     p.add_argument("--gpu-memory-utilization", type=float, default=0.85)
@@ -81,14 +115,44 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     args = p.parse_args(argv)
     if args.config:
+        # Flags override the config: a config value applies only to options absent from argv,
+        # whatever value the flag carries (see given_dests).
+        given = given_dests(p, argv)
         cfg = yaml.safe_load(args.config.read_text()) or {}
         for k, v in cfg.items():
             key = k.replace("-", "_")
-            if getattr(args, key, None) in (None, p.get_default(key)):
+            if key not in given:
                 setattr(args, key, v)
     if not args.model or not args.out:
         p.error("--model and --out are required (via flags or --config)")
     return args
+
+
+LEVEL_EVALS = ("math_train", "math500", "math_dev")
+POOL_EVALS = ("gsm8k_train", "math_train")
+
+
+def parse_levels(value: Any) -> list[int] | None:
+    if value in (None, "", []):
+        return None
+    if isinstance(value, (list, tuple)):
+        return [int(x) for x in value]
+    return [int(x) for x in str(value).split(",") if x.strip()]
+
+
+def parse_pool_limits(value: Any) -> dict[str, int]:
+    """``--pool-limit gsm8k_train=4000`` (repeatable) or a YAML mapping / list of such strings."""
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return {str(k): int(v) for k, v in value.items()}
+    out: dict[str, int] = {}
+    for item in value:
+        if "=" not in str(item):
+            raise ValueError(f"--pool-limit expects EVAL=N, got {item!r}")
+        k, v = str(item).split("=", 1)
+        out[k.strip()] = int(v)
+    return out
 
 
 def make_sampler(args: argparse.Namespace) -> Sampler:
@@ -131,6 +195,9 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
     )
     rows = [MARKDOWN_HEADER]
     all_metrics: dict[str, dict] = {}
+    levels = parse_levels(getattr(args, "levels", None))
+    pool_limits = parse_pool_limits(getattr(args, "pool_limit", None))
+    exclude_dev = bool(getattr(args, "exclude_dev", False))
     t0 = time.time()
     for name in args.evals:
         es = load_eval_set(
@@ -139,7 +206,12 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
             limit=args.limit,
             seed=args.seed,
             countdown_n=args.countdown_n,
+            levels=levels if name in LEVEL_EVALS else None,
+            exclude_dev=exclude_dev and name in POOL_EVALS,
+            pool_limit=pool_limits.get(name),
         )
+        if levels or pool_limits or exclude_dev:
+            print(f"[rlvr-eval] {name}: pool of {len(es)} problems ({es.source})", flush=True)
         template = "think_tag" if name == "countdown" else args.template
         prompts = [build_prompt(p, template, name) for p in es.problems]
         stop = prompts[0].stop if prompts else ()
@@ -152,6 +224,15 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
             seed=cfg_base.seed,
             stop=tuple(stop),
         )
+        budget = sampler.context_budget([p.text for p in prompts], cfg.max_tokens)
+        if budget and budget["capped_by_context"]:
+            print(
+                f"[rlvr-eval] {name}: max_model_len {budget['max_model_len']} caps new tokens at "
+                f"{budget['effective_max_tokens_min']}-{budget['effective_max_tokens_max']} "
+                f"(max_tokens {budget['max_tokens']}, prompts {budget['prompt_tokens_min']}-"
+                f"{budget['prompt_tokens_max']} tokens); 'length' means the context, not max_tokens",
+                flush=True,
+            )
         t_eval = time.time()
         completions = sampler.generate([p.text for p in prompts], cfg)
         results = grade_completions(
@@ -168,6 +249,7 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
                 "manifest": es.manifest(),
                 "wall_clock_s": time.time() - t_eval,
                 "backend": sampler.describe(),
+                "context_budget": budget,
             }
         )
         eval_dir = out / name

@@ -1,0 +1,20 @@
+{
+  "summary": {
+    "eval": "gsm8k",
+    "n": 13,
+    "num_eval": 1319,
+    "num_train": 23057,
+    "eval_hit_ngram": 0,
+    "eval_hit_ngram_covered": 0,
+    "min_coverage": 0.5,
+    "eval_hit_fuzzy": 0,
+    "eval_hit_any": 0,
+    "eval_contaminated": 0,
+    "train_to_drop": 0
+  },
+  "ngram_hits": {},
+  "ngram_hits_covered": {},
+  "fuzzy_hits": {},
+  "contaminated_eval_ids": [],
+  "train_ids_to_drop": []
+}

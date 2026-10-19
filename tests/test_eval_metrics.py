@@ -77,3 +77,27 @@ def test_pass_at_k_curve_monotone():
 def test_length_stats():
     s = length_stats([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     assert s["mean"] == 5.5 and s["median"] == 5.5 and s["p90"] == pytest.approx(9.1)
+
+
+def test_paired_pass_at_k_pairs_by_position_and_counts_ever_solved():
+    from rlvr.eval.metrics import paired_pass_at_k
+
+    n = 8
+    ref = [0, 1, 4, 8, 0, 2]
+    new = [0, 2, 8, 8, 3, 0]
+    g = paired_pass_at_k(ref, new, n, ks=(1, 4, 8, 16))
+    assert g["n"] == 8 and g["num_pairs"] == 6 and set(g["by_k"]) == {1, 4, 8}  # 16 > n dropped
+    # pass@1 is the mean sample accuracy; paired diff is the mean of per-problem differences
+    assert g["by_k"][1]["ref"]["mean"] == pytest.approx(sum(ref) / n / 6)
+    assert g["by_k"][1]["new"]["mean"] == pytest.approx(sum(new) / n / 6)
+    assert g["by_k"][1]["diff_new_minus_ref"]["mean"] == pytest.approx(
+        (sum(new) - sum(ref)) / n / 6
+    )
+    # pass@n is "solved at least once"
+    assert g["by_k"][8]["ref"]["mean"] == pytest.approx(4 / 6)
+    assert g["by_k"][8]["new"]["mean"] == pytest.approx(4 / 6)
+    assert g["ever_solved"] == {"both": 3, "only_ref": 1, "only_new": 1, "neither": 1}
+    with pytest.raises(ValueError):
+        paired_pass_at_k([1, 2], [1], n, ks=(1,))
+    with pytest.raises(ValueError):
+        paired_pass_at_k([], [], n, ks=(1,))

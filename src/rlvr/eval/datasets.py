@@ -13,7 +13,7 @@ import hashlib
 import json
 import os
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import asdict, dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -145,6 +145,102 @@ def load_math500(revision: str | None = None) -> EvalSet:
             )
         )
     return EvalSet("math500", "latex", problems, "HuggingFaceH4/MATH-500:test", revision)
+
+
+def load_math_train(revision: str | None = None) -> EvalSet:
+    """MATH train split (7500 problems, EleutherAI/hendrycks_math, all seven subjects); the gold
+    is the last boxed expression of the reference solution."""
+    from rlvr.eval.extraction import last_boxed
+
+    subjects = (
+        "algebra",
+        "counting_and_probability",
+        "geometry",
+        "intermediate_algebra",
+        "number_theory",
+        "prealgebra",
+        "precalculus",
+    )
+    problems: list[Problem] = []
+    for subj in subjects:
+        ds = _hf_load("EleutherAI/hendrycks_math", subj, "train", revision)
+        for i, row in enumerate(ds):
+            gold = last_boxed(row["solution"])
+            if gold is None:
+                continue
+            problems.append(
+                Problem(
+                    id=f"math-train-{subj}-{i}",
+                    question=row["problem"].strip(),
+                    answer=gold,
+                    meta={
+                        "level": _level_int(row.get("level")),
+                        "subject": row.get("type") or subj,
+                        "solution": row["solution"],
+                    },
+                )
+            )
+    return EvalSet("math_train", "latex", problems, "EleutherAI/hendrycks_math:*:train", revision)
+
+
+DEV_SIZE_PER_SOURCE = 250
+DEV_SEED = 20261015  # fixed once; the dev split must never move between phases
+
+
+def _dev_split(es: EvalSet, name: str) -> EvalSet:
+    """Seeded sample of held-out *training* problems used to pick checkpoints and learning
+    rates (PLAN.md Phase 2 step 2: never select on a test set). Deterministic: a fixed seed and
+    a sample over sorted ids, so it is identical on every machine and every phase."""
+    rng = random.Random(DEV_SEED)
+    order = sorted(range(len(es.problems)), key=lambda i: es.problems[i].id)
+    chosen = sorted(rng.sample(order, DEV_SIZE_PER_SOURCE), key=lambda i: es.problems[i].id)
+    return EvalSet(
+        name, es.answer_type, [es.problems[i] for i in chosen], es.source + "#dev", es.revision
+    )
+
+
+def dev_problem_ids(train: EvalSet) -> set[str]:
+    """Ids of the dev split drawn from this *full* train set: the same seeded choice as
+    ``load_gsm8k_dev`` / ``load_math_dev``, so a training pool can exclude them (Phase 3+)."""
+    return {p.id for p in _dev_split(train, train.name + "_dev").problems}
+
+
+def filter_problems(
+    es: EvalSet,
+    *,
+    levels: Sequence[int] | None = None,
+    exclude_ids: Collection[str] = (),
+    pool_limit: int | None = None,
+    seed: int = 0,
+) -> EvalSet:
+    """A training pool: keep ``levels`` (evals with ``meta.level`` only), drop ``exclude_ids``,
+    then a seeded cap of ``pool_limit`` problems. The source string records each step so the
+    manifest says what the pool was."""
+    problems = list(es.problems)
+    source = es.source
+    if levels is not None:
+        want = {int(x) for x in levels}
+        if not any(p.meta.get("level") is not None for p in problems):
+            raise ValueError(f"{es.name} has no level metadata; --levels does not apply")
+        problems = [p for p in problems if p.meta.get("level") in want]
+        source += "#levels=" + ",".join(str(x) for x in sorted(want))
+    if exclude_ids:
+        drop = set(exclude_ids)
+        problems = [p for p in problems if p.id not in drop]
+        source += f"#excluded={len(drop)}"
+    out = EvalSet(es.name, es.answer_type, problems, source, es.revision)
+    if pool_limit is not None and pool_limit < len(out.problems):
+        out = out.subset(pool_limit, seed)
+        out.source += f"#pool={pool_limit},seed={seed}"
+    return out
+
+
+def load_gsm8k_dev(revision: str | None = None) -> EvalSet:
+    return _dev_split(load_gsm8k_train(revision), "gsm8k_dev")
+
+
+def load_math_dev(revision: str | None = None) -> EvalSet:
+    return _dev_split(load_math_train(revision), "math_dev")
 
 
 def load_aime24(revision: str | None = None) -> EvalSet:
@@ -319,6 +415,10 @@ def load_gsm8k_names_only(revision: str | None = None) -> EvalSet:
 
 # --------------------------------------------------------------------------- registry
 
+TRAIN_SPLITS = ("gsm8k_train", "math_train")  # the only splits with a dev draw inside them
+# sets built problem for problem from another set; a `--limit` subset follows the parent's draw
+DERIVED_FROM = {"gsm8k_perturbed": "gsm8k", "gsm8k_names_only": "gsm8k"}
+
 LOADERS: dict[str, Callable[..., EvalSet]] = {
     "gsm8k": load_gsm8k_test,
     "gsm8k_train": load_gsm8k_train,
@@ -326,6 +426,9 @@ LOADERS: dict[str, Callable[..., EvalSet]] = {
     "aime24": load_aime24,
     "gsm8k_perturbed": load_gsm8k_perturbed,
     "gsm8k_names_only": load_gsm8k_names_only,
+    "math_train": load_math_train,
+    "gsm8k_dev": load_gsm8k_dev,
+    "math_dev": load_math_dev,
 }
 
 
@@ -337,13 +440,41 @@ def load_eval_set(
     seed: int = 0,
     countdown_n: int = 500,
     countdown_spec: CountdownSpec | None = None,
+    levels: Sequence[int] | None = None,
+    exclude_dev: bool = False,
+    pool_limit: int | None = None,
 ) -> EvalSet:
+    """``levels``, ``exclude_dev`` and ``pool_limit`` shape a *training pool* (Phase 3 sampling);
+    ``limit`` is the smoke-run subset and is applied last."""
     if name == "countdown":
         es = generate_countdown(countdown_n, seed=seed, spec=countdown_spec)
     elif name in LOADERS:
         es = LOADERS[name](revision)
     else:
         raise KeyError(f"unknown eval set {name!r}; known: {[*sorted(LOADERS), 'countdown']}")
+    if exclude_dev:
+        if name not in TRAIN_SPLITS:
+            raise ValueError(f"exclude_dev applies to {TRAIN_SPLITS}, not {name!r}")
+        es = filter_problems(es, exclude_ids=dev_problem_ids(es))
+    if levels is not None or pool_limit is not None:
+        es = filter_problems(es, levels=levels, pool_limit=pool_limit, seed=seed)
+    parent = DERIVED_FROM.get(name)
+    if parent is not None and limit is not None:
+        # A derived set exists to be paired with its parent problem for problem (meta.original_id).
+        # Its subset is therefore the parent's seeded subset, not an independent draw: on the H100
+        # node (19 Oct 2026) `--limit 300` drew 300 gsm8k and 300 gsm8k_perturbed problems with only
+        # 67 pairs between them, which made the paired perturbation gap unusable.
+        parent_ids = {
+            p.id for p in load_eval_set(parent, revision=revision, limit=limit, seed=seed).problems
+        }
+        kept = [p for p in es.problems if p.meta.get("original_id") in parent_ids]
+        return EvalSet(
+            name=es.name,
+            answer_type=es.answer_type,
+            problems=kept,
+            source=f"{es.source}#paired={parent}:limit={limit},seed={seed}",
+            revision=es.revision,
+        )
     return es.subset(limit, seed)
 
 
