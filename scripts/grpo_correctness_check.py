@@ -214,7 +214,7 @@ def build_trainer(name, setting, args, rows, *, dynamic=False):
             f"max_steps={args.steps}",
             "gradient_checkpointing=false",
             "attn_implementation=sdpa",
-            "load_dtype=bfloat16",
+            f"load_dtype={args.dtype}",
             f"loss_type={setting['loss_type']}",
             f"scale_rewards={setting['scale_rewards']}",
             f"kl_beta={setting['kl_beta']}",
@@ -227,7 +227,7 @@ def build_trainer(name, setting, args, rows, *, dynamic=False):
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     model = AutoModelForCausalLM.from_pretrained(
-        args.model, dtype=torch.bfloat16, attn_implementation="sdpa"
+        args.model, dtype=getattr(torch, args.dtype), attn_implementation="sdpa"
     )
     sink: list[dict] = []
     real_reward_fn = grpo.make_reward_fn(
@@ -438,6 +438,12 @@ def main(argv=None):
     )
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--temperature", type=float, default=1.0)
+    ap.add_argument(
+        "--dtype",
+        choices=("bfloat16", "float32"),
+        default="bfloat16",
+        help="model weights for the check; float32 removes the bf16 forward noise from the gradient comparison",
+    )
     ap.add_argument("--num-prompts", type=int, default=50)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--settings", nargs="+", default=list(SETTINGS), choices=list(SETTINGS))

@@ -109,3 +109,60 @@ and the ablations, the preflight against the committed config, the two builder o
 the laptop: the correctness check itself (the user's terminal, about 15 minutes with the model
 download), and the node smoke of `rlvr-grpo` with vLLM colocated, which is the first GPU step of
 session 1.
+
+## 3. The correctness check, four runs to get it right (20 Oct, the user's terminal)
+
+PLAN.md Phase 4 step 1 asks for the own reference loop to be checked against the library before
+any node time. The check went through four runs on the laptop's 8 GB GPU, each exposing something.
+
+1. **Out of memory** in the check's own forward pass: 32 completions through the 0.6B model at
+   once with full-vocabulary logits is about 10 GB. TRL had generated and scored the batch fine.
+   Fix: both sides of the comparison run four sequences at a time.
+2. **`current_gradient_accumulation_steps` missing**: TRL's `_compute_loss` divides every
+   micro-batch loss by a counter that only the Trainer loop sets. The chunked check sets it to 1,
+   so each chunk returns its own mean and the average over equal chunks is the batch value.
+3. **A check with no teeth.** Loss values and KL matched TRL to ten decimals, and the dynamic
+   table showed zero informative groups, because the real reward was 0 for every completion: the
+   base 0.6B never writes a finished, well-formed, correct think-tag answer in 256 tokens. With all
+   advantages zero the policy term is never exercised, and at ratio 1 the published GRPO loss
+   *value* is exactly 0 for any centred advantages, so a matching value proves little. Fix: TRL
+   trains on a deterministic mixed reward in the check (the last hex digit of the completion's
+   SHA-1; the real reward's rate is still reported), and the check compares the *gradients* of
+   TRL's loss and of the reference loss with respect to the LoRA weights on the same batch.
+4. **The run that counts** (Qwen3-0.6B-Base, LoRA r 16, 8 prompts x 4 samples, 256 tokens, bf16,
+   HF generate, three generation batches per setting):
+
+| setting | step | real reward rate | zero-adv groups | mean reward | adv max diff | ref loss | TRL loss | loss diff | grad cosine | grad max diff | grad rel diff | ref KL | TRL KL |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| main (grpo, group std, beta 0.04) | 0 | 0.000 | 0.12 | 0.500 | 2.97e-04 | 0.000038 | 0.000038 | 1.40e-09 | 0.999914 | 2.15e-03 | 1.31e-02 | 0.000873 | 0.000870 |
+| main | 1 | 0.000 | 0.00 | 0.438 | 2.97e-04 | 0.000004 | 0.000004 | 9.31e-09 | 0.999903 | 1.46e-03 | 1.39e-02 | 0.000119 | 0.000094 |
+| main | 2 | 0.000 | 0.00 | 0.562 | 2.97e-04 | 0.000035 | 0.000035 | 3.73e-09 | 0.999903 | 1.32e-03 | 1.39e-02 | 0.000847 | 0.000854 |
+| A3 (dr_grpo, no scaling) | 0 | 0.000 | 0.12 | 0.500 | 0.00e+00 | -0.022495 | -0.022495 | 1.04e-09 | 0.999917 | 6.25e-04 | 1.29e-02 | 0.000873 | 0.000870 |
+| A3 | 1 | 0.000 | 0.00 | 0.438 | 0.00e+00 | -0.027035 | -0.027035 | 3.35e-10 | 0.999902 | 1.24e-03 | 1.40e-02 | 0.000119 | 0.000094 |
+| A3 | 2 | 0.000 | 0.00 | 0.562 | 0.00e+00 | 0.018490 | 0.018490 | 2.68e-09 | 0.999907 | 5.10e-04 | 1.36e-02 | 0.000847 | 0.000854 |
+| A1 (beta 0) | 0 | 0.000 | 0.12 | 0.500 | 2.97e-04 | 0.000000 | 0.000000 | 1.86e-09 | 0.999920 | 2.15e-03 | 1.27e-02 | - | - |
+| A1 | 1 | 0.000 | 0.00 | 0.438 | 2.97e-04 | 0.000000 | 0.000000 | 3.73e-09 | 0.999907 | 1.58e-03 | 1.36e-02 | - | - |
+| A1 | 2 | 0.000 | 0.00 | 0.562 | 2.97e-04 | 0.000000 | 0.000000 | 3.73e-09 | 0.999880 | 1.71e-03 | 1.55e-02 | - | - |
+
+| dynamic sampling (oversample 2) | step | rows returned / expected | shapes consistent | groups generated | informative | filled | kept zero-advantage |
+|---|---|---|---|---|---|---|---|
+| | 0 | 32 / 32 | True | 16 | 16 | 0 | 0 |
+| | 1 | 32 / 32 | True | 16 | 15 | 0 | 0 |
+| | 2 | 32 / 32 | True | 16 | 15 | 0 | 0 |
+
+Reading. The loss values agree to 1e-9 in every setting, including Dr. GRPO's constant
+normalisation (after the one rescaling the script documents: TRL divides by B x
+max_completion_length, the reference by B x T_padded). The advantages agree exactly without std
+scaling and to 3e-4 with it: TRL adds 1e-4 to the group std, the reference 1e-6, a convention and
+not an error; the reference's default stays, the difference is stated here. The KL (k3) agrees
+with TRL's logged value to 2e-5 (TRL's log is a per-micro-batch average in bf16). The gradients
+with respect to the LoRA weights have cosine 0.9999 and a relative norm difference of 1.3-1.6 % in
+every setting, the same in the KL-free setting, which points at bf16 forward noise between two
+log-softmax paths rather than at a term that one side has and the other lacks (a missing term
+would show up as a setting-dependent gap). A `--dtype float32` option was added to confirm this; if
+the fp32 run brings the relative difference under 1e-3 the check is closed. The dynamic-sampling
+subclass returns exactly the planned number of rows with every tensor subselected alike, and with a
+mixed reward 15-16 of the 16 over-generated groups are informative, so the selection path works
+where the earlier all-zero run could not show it. The real reward's rate was 0 on this model and
+cap, as expected; the real reward is covered by the CPU unit tests (finished, format, correct, the
+cap edge cases) and will first fire on the node's smoke with the RFT checkpoint.
