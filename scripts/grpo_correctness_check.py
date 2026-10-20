@@ -215,6 +215,9 @@ def build_trainer(name, setting, args, rows, *, dynamic=False):
             "gradient_checkpointing=false",
             "attn_implementation=sdpa",
             f"load_dtype={args.dtype}",
+            # fp32 weights under bf16 autocast would put TRL's forward in bf16 and the reference
+            # forward in fp32: the comparison must run both at the same precision
+            f"bf16={'false' if args.dtype == 'float32' else 'true'}",
             f"loss_type={setting['loss_type']}",
             f"scale_rewards={setting['scale_rewards']}",
             f"kl_beta={setting['kl_beta']}",
