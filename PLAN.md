@@ -1,7 +1,7 @@
 # `reasoning-rlvr`: a 1.7B reasoning model trained end to end, to the standard a top lab would hold it to
 
 Project 1 of `side_projects_plan.md`. Status: **decisions confirmed 13 Oct 2026, build starts 14 Oct**. Nothing built yet.
-Written 8 Oct 2026, amended 9 Oct (contamination, headline metric) and 13 Oct (section 11 confirmations, local-GPU plan, one seed per ablation, new dates). The GRPO-for-Spark-TTS project is paused; its GRPO loop and failure-log habit carry over here.
+Written 8 Oct 2026, amended 9 Oct (contamination, headline metric) and 13 Oct (section 11 confirmations, local-GPU plan, one seed per ablation, new dates) and 20 Oct (section 11 item 2: the ceiling raised to INR 22,000 for Phase 4 at the shape of `docs/phase-4-plan.md`). The GRPO-for-Spark-TTS project is paused; its GRPO loop and failure-log habit carry over here.
 
 ---
 
@@ -400,7 +400,7 @@ For each: one paragraph of contribution, one of method, one of what the evidence
 ## 11. Decisions (confirmed 13 Oct 2026)
 
 1. **Base model**: Qwen3-1.7B-Base only, no newer-base check. Student Qwen3-0.6B-Base. Confirmed.
-2. **Budget**: USD 100-170 confirmed. Revised estimate after decision 3 is about 53-55 A100-hours, USD 80-140 (section 8).
+2. **Budget**: USD 100-170 confirmed. Revised estimate after decision 3 is about 53-55 A100-hours, USD 80-140 (section 8). **Amended 20 Oct 2026:** after Phases 2 and 3 (about INR 11,450 spent, on one H100 session instead of the A100-hours estimated here) the ceiling is raised to INR 22,000 (USD 262) for Phase 4 at shape B of `docs/phase-4-plan.md` (about 26 H100-hours, INR 9,800); the Phase 4 steps of section 7 are superseded by that plan's section 4.
 3. **Seeds**: one seed per ablation. Confirmed. Added on top: the main GRPO config is run twice so that one seed-to-seed difference is measured and every ablation delta is read against it (sections 4.2, 4.5, Phase 4 step 4). Costs about 8 A100-hours and is the first run to drop if the budget runs short.
 4. **Training stack**: TRL `GRPOTrainer` + vLLM colocate on the rental for scaled runs; own loop for the correctness check and toy comparison, run locally. Local RTX 4060 (8 GB) use is fixed in section 3.1: greedy and small-k inference, probes, 0.6B LoRA jobs, quantisation and latency benchmarks locally; n = 64 sampling and all 1.7B training rented.
 5. **Eval sets**: Countdown as the OOD task and the perturbed-GSM8K set as the memorisation control. Confirmed.

@@ -124,8 +124,14 @@ GPU idle for 25 of them. Rates INR 379.05 per hour.
 Phase 4 total about 26 node-hours, INR 9,800 (USD 117), against the INR 6,500 quoted for the five
 runs alone on 19 Oct: the difference is the two rebuilds, the Phase 3 ablations, the debugging run
 and the evals. Project to date is about INR 11,450; after Phase 4 about INR 21,300 (USD 254), so
-the ceiling has to rise by about INR 7,000 (USD 85) from the INR 14,300 confirmed on 13 Oct.
-**[decide: the ceiling; the user chose B on 19 Oct knowing the five runs' cost, not these extras]**
+the ceiling had to rise from the INR 14,300 confirmed on 13 Oct.
+
+**Decided 20 Oct 2026: the ceiling is INR 22,000 (USD 262).** The user chose B on 19 Oct knowing
+the five runs' cost; the extras above (two rebuilds, the Phase 3 ablations, the debugging run, the
+evals) were priced before the ceiling was set. Headroom over the estimate is about INR 700, under
+two H100-hours: no 200-step run can be repeated inside it, so a failed run is handled by the drop
+order of section 8 and the ten-minute rule of section 7, not by a rerun. COMPUTE.md carries the
+running total against this ceiling.
 If session 1 shows GRPO at or below `rft` (the EXP-012 falsifier), session 2 still runs: the
 ablations are about the method, not about beating RFT.
 

@@ -77,12 +77,16 @@ analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A
 **Running totals (after the session, 19 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
 A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the H100 notebook 28.1 h
 (INR 10,640) and its disk (INR 132 to the Stop): about INR 11,450 (USD 136). Local: 6.70 h.
-Budget used: about 80 % of the INR 14,300 (USD 170) ceiling; the notebook disk adds about
+Budget used: about 80 % of the INR 14,300 (USD 170) ceiling of 13 Oct, about 52 % of the
+INR 22,000 (USD 262) ceiling the user set on 20 Oct for Phase 4; the notebook disk adds about
 INR 112 a day while it exists (INR 3,400 a month), which is nine H100-hours a month for keeping
 the environment warm. The user said on 19 Oct that the budget may grow while the project is on
-track; Phase 4 as planned (PLAN.md) does not fit the remainder (`docs/phase-4-plan.md`).
+track; Phase 4 as planned in PLAN.md did not fit the remainder, and shape B of
+`docs/phase-4-plan.md` (about 26 node-hours, INR 9,800) fits the raised ceiling with about
+INR 700 to spare.
 
-**Budget.** USD 100-170 confirmed; estimate 53-55 A100-hours (PLAN.md section 8). First to drop
+**Budget.** USD 100-170 confirmed on 13 Oct; raised to INR 22,000 (USD 262) on 20 Oct for Phase 4
+at shape B (`docs/phase-4-plan.md`, section 5). Original estimate 53-55 A100-hours (PLAN.md section 8). First to drop
 if over: the seed-repeat GRPO run, then the LoRA SFT run. Never the baselines or the CIs.
 
 **Rates (E2E Networks, MyAccount on-demand, INR per hour, 16 Oct 2026).** L4 24 GB 49; A30 24 GB 90;

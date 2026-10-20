@@ -24,14 +24,15 @@ never edits tracked files, commits or pushes (`CLAUDE.md`).
 - **Done on the laptop before any node time:** the correctness check of the reference GRPO loss
   against TRL (`scripts/grpo_correctness_check.py`; its table is in the Phase 4 journal). If the
   journal has no such table, stop and ask: the node does not run on unchecked machinery.
-- **Budget:** the project has spent about INR 11,450 of the INR 14,300 ceiling; Phase 4 at shape B
-  is about 26 node-hours, INR 9,800, so the user has agreed a higher ceiling before the session
-  starts (`docs/phase-4-plan.md`, section 5). Rate INR 379.05 per hour; the disk INR 112 a day.
+- **Budget:** the project has spent about INR 11,450; the ceiling is INR 22,000, set by the user on
+  20 Oct (`docs/phase-4-plan.md`, section 5). Phase 4 at shape B is about 26 node-hours, INR 9,800,
+  which leaves about INR 700 (under two H100-hours) of headroom for the whole phase: no run is
+  repeated without asking. Rate INR 379.05 per hour; the disk INR 112 a day.
 
 ## 1. Laptop side, before the notebook is created (the user)
 
 1. The correctness check has run locally and its table is in `docs/phase-4-journal.md`.
-2. The ceiling for Phase 4 is agreed and written in `docs/phase-4-plan.md`, section 5.
+2. The ceiling for Phase 4 is INR 22,000, written in `docs/phase-4-plan.md`, section 5 (done 20 Oct).
 3. Create the notebook as on 18 Oct: TIR, "NVIDIA H100 SXM 80 GB", the same pre-built image
    (vLLM v0.15.1, CUDA 12.9, Python 3.12.12), SSH enabled with the existing key
    `C:\Users\chaga\.ssh\tir_rlvr.pub`. The disk size does not matter beyond 150 GB.

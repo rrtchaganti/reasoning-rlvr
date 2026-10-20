@@ -186,3 +186,12 @@ numerical noise between two forwards of the same weights, matched on both sides 
 the same noise through the same k3 formula; the KL term's arithmetic is checked, a KL from an
 actual policy drift is not, and the k3 unit tests in `tests/test_ref_advantages_kl.py` are what
 cover that. The check is closed; PLAN.md Phase 4 step 1 is done.
+
+## 4. The ceiling (20 Oct, after the check closed)
+
+The user raised the ceiling to INR 22,000 (USD 262) in one line, after the recap that put Phase 4 at
+shape B at about INR 9,800 on top of the INR 11,450 spent. Written into the plan's section 5, PLAN.md
+section 11, COMPUTE.md and the handoff's section 0. Headroom over the estimate is about INR 700,
+under two H100-hours, so the plan's drop order and the ten-minute rule are the only answers to a
+failed run; a rerun is a question for the user. With that, everything on the laptop side of the
+handoff is done and the next step is the notebook.
