@@ -111,15 +111,20 @@ GPU idle for 25 of them. Rates INR 379.05 per hour.
 | EXP-012 main run (200 steps + 4 dev evals) | 3.8 | 1,440 |
 | EXP-012 evals (greedy x3 + gap + probe; n = 32 trained-format sampling) | 1.2 | 455 |
 | EXP-013 seed repeat + its greedy eval | 4.0 | 1,520 |
-| archive, Hub uploads, Delete | 0.5 | 190 |
+| archive, Hub uploads, Stop (handoff section 5 item 4) | 0.5 | 190 |
 | **session 1** | **12.0** | **4,570** |
 
 | session 2 | hours | INR |
 |---|---|---|
-| rebuild (path B) | 0.75 | 285 |
+| restart: path A after a Stop (0.1 h, INR 40, plus the disk at about INR 112 a day for the gap) or path B after a Delete (0.75 h) | 0.75 | 285 |
 | EXP-014a, b, c (3.8 h each; b about 1.3x on sampling) + three greedy evals | 12.5 | 4,740 |
 | archive, Hub uploads, Delete | 0.5 | 190 |
 | **session 2** | **13.75** | **5,215** |
+
+Between the sessions the notebook is Stopped, not Deleted, when session 2 follows within about
+2.5 days (the user's point on 20 Oct): the disk at INR 112 a day is cheaper than the INR 285 rebuild
+up to that gap, and the local checkpoints survive. The session 2 row above is the Delete case; the
+Stop case saves about INR 245 minus the disk days.
 
 Phase 4 total about 26 node-hours, INR 9,800 (USD 117), against the INR 6,500 quoted for the five
 runs alone on 19 Oct: the difference is the two rebuilds, the Phase 3 ablations, the debugging run

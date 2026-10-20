@@ -70,7 +70,7 @@ with measured ones before the main run starts.
 | 6 | `main` | EXP-012: preflight, 200 steps, then the dev evals of the four checkpoints | 3.8 h + 12 min | the ten-minute rule at step 10 (section 4); the preflight output is pasted into the notes |
 | 7 | `seed` | EXP-013: seed 1 + dev evals | 4.0 h | same |
 | 8 | `evals` | the main checkpoint's three greedy templates, gap, probe; the pinned-subset check; the n = 32 trained-format samples; the seed checkpoint's five-set greedy eval | 1.4 h | all sets of a checkpoint in one process |
-| 9 | section 5 | archive, uploads, hand-back, Delete | 0.5 h | |
+| 9 | section 5 | archive, uploads, hand-back, then Stop (the user's call; section 5 item 4) | 0.5 h | |
 
 Session 1 is about 12 node-hours, INR 4,600. If the user is away, the session continues through
 the table on its own; it stops and asks only where the table says so, or where a rule of section 3
@@ -121,7 +121,7 @@ is about to be broken.
 GRPO's per-step time is the unknown: 65 s is the arithmetic, the debugging run is the measurement.
 Rupees at INR 379.05 per hour: session 1 about 4,600, session 2 about 5,200.
 
-## 5. End of a session: archive, uploads, hand-back, Delete
+## 5. End of a session: archive, uploads, hand-back, Stop or Delete
 
 1. Uploads: the main checkpoint and its card to `Raviteja546/reasoning-rlvr-grpo` (the `report`
    step does it in session 2; in session 1 `push_to_hub.py model --run outputs/train/grpo_1p7b
@@ -138,16 +138,25 @@ Rupees at INR 379.05 per hour: session 1 about 4,600, session 2 about 5,200.
    every greedy eval, `outputs/reports/**`, the data manifests, `outputs/patches/`, the two session
    files, the hand-back, the logs; `tar czf /home/jovyan/rlvr/h100_p4_session<N>_archive.tar.gz`, its
    sha256 and `tar tzf | wc -l` printed, a copy uploaded to the samples dataset under `archives/`.
-4. The user downloads it (JupyterLab file browser), checks the hash, then **Deletes** the notebook
-   (not Stops: the disk is INR 112 a day and everything is on the Hub).
+4. The user downloads it (JupyterLab file browser), checks the hash, then **Stops** the notebook
+   after session 1 and **Deletes** it after session 2. Why: a Stopped notebook bills only its disk
+   (INR 10 per GB-month: about INR 112 a day at 340 GB, INR 50 a day at 150 GB) while a deleted
+   one costs the path B rebuild (about 45 min, INR 285, GPU idle for 25 of them) and loses the
+   local checkpoints. Stop is cheaper whenever session 2 starts within about 2.5 days at 340 GB
+   (5 days at 150 GB); the laptop fold-in of session 1 takes under a day. If the gap grows past
+   that, the user Deletes (everything needed is on the Hub) and session 2 starts with path B.
+   The agent never Stops or Deletes on its own: it finishes step 3, prints the hash, and asks.
 
 ## 6. Session 2
 
-Path B again, then `setup` (hashes and the pinned subsets), `a1`, `a2`, `a3` (3.8 h each; A2 about
-1.3-1.6x on the sampling half, which the ten-minute rule allows for), `evals` (the three five-set
-greedy evals), `report` (the paired tables against the main run and against `rft`, the pass@k table,
-the card, the uploads), then section 5. About 13 node-hours, INR 5,200. Drop order if the money
-runs short: plan section 8 (A3, then A1; never the evals or the CIs).
+Path A of `docs/h100-next-session.md` if the notebook was Stopped (5 min: secrets, `git pull
+--ff-only` by the user, `source scripts/e2e_env.sh`, the Triton check), path B if it was Deleted.
+Then `setup` (hashes and the pinned subsets), `a1`, `a2`, `a3` (3.8 h each; A2 about 1.3-1.6x on the
+sampling half, which the ten-minute rule allows for), `evals` (the three five-set greedy evals),
+`report` (the paired tables against the main run and against `rft`, the pass@k table, the card, the
+uploads), then section 5 with Delete. About 12.5 node-hours, INR 4,900 after a Stop (13 h, INR 5,200
+after a Delete). Drop order if the money runs short: plan section 8 (A3, then A1; never the evals or
+the CIs).
 
 ## 7. The opening message for the node session
 
