@@ -1,0 +1,49 @@
+# EXP-012: GRPO with a verifiable reward from the RFT checkpoint, shape B (docs/phase-4-plan.md,
+# section 2). 32 prompts x 8 samples per step, 1,536-token cap, T = 1.0, LR 1e-6 constant after
+# 10 warm-up steps, KL beta 0.04 to the frozen start, published GRPO loss (per-sequence normalisation,
+# group-std scaling), one optimiser step per generation (the clip never activates), 200 steps,
+# weights-only checkpoints every 50 steps for the dev evals. Reward 1 only when the completion
+# finished, has the format and is correct (rlvr.train.grpo.score_completion).
+# Ablations are --set overrides of this file (scripts/phase4_rental.sh):
+#   seed repeat   --set seed=1 --set out=outputs/train/grpo_1p7b_seed1 --set run_name=grpo_1p7b_seed1
+#   A1 KL off     --set kl_beta=0
+#   A2 dynamic    --set dynamic_sampling=true --set epsilon_high=0.28
+#   A3 Dr. GRPO   --set loss_type=dr_grpo --set scale_rewards=none
+model: outputs/train/rft_1p7b/final
+prompts: outputs/data/rft/learnable_prompts.jsonl
+manifest: data/manifests/rft_iter1.json
+gsm8k_fraction: 0.2
+prompt_seed: 0
+num_prompts_per_step: 32
+num_generations: 8
+max_new_tokens: 1536
+temperature: 1.0
+top_p: 1.0
+learning_rate: 1.0e-6
+lr_scheduler: constant_with_warmup
+warmup_steps: 10
+weight_decay: 0.0
+adam_beta1: 0.9
+adam_beta2: 0.99
+max_grad_norm: 1.0
+max_steps: 200
+kl_beta: 0.04
+epsilon: 0.2
+epsilon_high: null
+loss_type: grpo
+scale_rewards: group
+dynamic_sampling: false
+oversample: 2
+per_device_batch: 32
+use_vllm: true
+vllm_gpu_memory_utilization: 0.35
+attn_implementation: flash_attention_2
+load_dtype: float32
+bf16: true
+gradient_checkpointing: true
+save_steps: 50
+logging_steps: 1
+seed: 0
+report_to: wandb
+run_name: grpo_1p7b
+out: outputs/train/grpo_1p7b

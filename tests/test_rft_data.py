@@ -256,3 +256,58 @@ def test_build_refuses_an_empty_kept_set(tmp_path):
             figure=None,
             report=None,
         )
+
+
+def test_keep_incorrect_and_random_selection_options():
+    """EXP-010g drops only the correctness filter; EXP-010h draws the kept samples at random
+    (seeded per problem) instead of shortest first. Everything else stays as in EXP-010."""
+    problems = {"gsm8k-train-1": Problem("gsm8k-train-1", "How many eggs?", "7")}
+    recs = [
+        _rec("gsm8k-train-1", 0, True, tokens=30),
+        _rec("gsm8k-train-1", 1, True, tokens=10),
+        _rec("gsm8k-train-1", 2, False, tokens=12, extracted="8"),
+        _rec("gsm8k-train-1", 3, False, tokens=11, extracted="9"),
+        _rec("gsm8k-train-1", 4, True, finish="length", tokens=5),  # truncated stays out
+        _rec("gsm8k-train-1", 5, False, fmt=False, tokens=4),  # malformed stays out
+    ]
+    count = lambda texts: [len(t.split()) for t in texts]  # noqa: E731
+    assert rd.rft_reject_reason(recs[2]) == "incorrect"
+    assert rd.rft_reject_reason(recs[2], keep_incorrect=True) is None
+    assert rd.rft_reject_reason(recs[4], keep_incorrect=True) == "truncated"
+    assert rd.rft_reject_reason(recs[5], keep_incorrect=True) == "format"
+    kw = dict(eval_name="gsm8k_train", source="gsm8k_train", count_tokens=count, max_tokens=10_000)
+    # default: the two shortest correct ones
+    drops = Counter()
+    kept = rd.select_examples({"gsm8k-train-1": recs}, problems, per_problem=2, drops=drops, **kw)
+    assert [ex.meta["sample_idx"] for ex in kept] == [1, 0] and all(
+        ex.meta["correct"] for ex in kept
+    )
+    assert (
+        drops["incorrect"] == 3
+    )  # the incorrect check runs first: samples 2, 3 and the malformed 5
+    # keep_incorrect: the shortest two of the four finished, well-formed samples, correct or not
+    drops = Counter()
+    kept = rd.select_examples(
+        {"gsm8k-train-1": recs}, problems, per_problem=2, drops=drops, keep_incorrect=True, **kw
+    )
+    assert [ex.meta["sample_idx"] for ex in kept] == [1, 3] and [
+        ex.meta["correct"] for ex in kept
+    ] == [True, False]
+    assert drops["incorrect"] == 0 and drops["over_per_problem_cap"] == 2
+    # random: a seeded draw of two among the usable (correct) ones, reproducible, not length-sorted
+    a = rd.select_examples(
+        {"gsm8k-train-1": recs}, problems, per_problem=1, select="random", select_seed=0, **kw
+    )
+    b = rd.select_examples(
+        {"gsm8k-train-1": recs}, problems, per_problem=1, select="random", select_seed=0, **kw
+    )
+    assert [ex.meta["sample_idx"] for ex in a] == [ex.meta["sample_idx"] for ex in b]
+    picks = {
+        rd.select_examples(
+            {"gsm8k-train-1": recs}, problems, per_problem=1, select="random", select_seed=s, **kw
+        )[0].meta["sample_idx"]
+        for s in range(12)
+    }
+    assert picks == {0, 1}  # both correct samples get drawn across seeds; never an incorrect one
+    with pytest.raises(ValueError):
+        rd.select_examples({"gsm8k-train-1": recs}, problems, select="longest", **kw)
