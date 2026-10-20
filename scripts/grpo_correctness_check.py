@@ -70,13 +70,43 @@ def prompt_rows(n: int, seed: int) -> list[dict]:
     return rows[:n]
 
 
-def policy_logps(model, input_ids, attention_mask, logits_to_keep, temperature):
-    """Per-token log-probs of the completion tokens under ``model``: a plain forward pass."""
-    out = model(input_ids=input_ids, attention_mask=attention_mask)
-    logits = out.logits[:, -logits_to_keep - 1 : -1, :] / temperature
-    targets = input_ids[:, -logits_to_keep:]
-    logp = torch.log_softmax(logits.float(), dim=-1)
-    return torch.gather(logp, 2, targets.unsqueeze(-1)).squeeze(-1)
+@torch.no_grad()
+def policy_logps(model, input_ids, attention_mask, logits_to_keep, temperature, chunk=4):
+    """Per-token log-probs of the completion tokens under ``model``: a plain forward pass, a
+    few sequences at a time (the full-vocabulary logits of 32 sequences are about 10 GB)."""
+    pieces = []
+    for i in range(0, input_ids.size(0), chunk):
+        out = model(
+            input_ids=input_ids[i : i + chunk], attention_mask=attention_mask[i : i + chunk]
+        )
+        logits = out.logits[:, -logits_to_keep - 1 : -1, :] / temperature
+        targets = input_ids[i : i + chunk, -logits_to_keep:]
+        logp = torch.log_softmax(logits.float(), dim=-1)
+        pieces.append(torch.gather(logp, 2, targets.unsqueeze(-1)).squeeze(-1))
+        del out, logits, logp
+    return torch.cat(pieces, dim=0)
+
+
+@torch.no_grad()
+def trl_loss_chunked(trainer, inputs, chunk=4) -> float:
+    """TRL's own loss on the same batch, a few sequences at a time. For `loss_type='grpo'`
+    (mean of per-sequence means) and `'dr_grpo'` (token sum over B x max_len) the mean over
+    equal-sized chunks equals the full-batch value; the `kl` metric TRL appends per call is
+    averaged the same way by the caller."""
+    n = inputs["completion_ids"].size(0)
+    vals = []
+    for i in range(0, n, chunk):
+        part = {
+            k: (
+                v[i : i + chunk]
+                if isinstance(v, torch.Tensor) and v.dim() >= 1 and v.size(0) == n
+                else v
+            )
+            for k, v in inputs.items()
+        }
+        vals.append(float(trainer._compute_loss(trainer.model, part).detach()))
+        torch.cuda.empty_cache()
+    return sum(vals) / len(vals)
 
 
 def check_one(name, setting, args, rows) -> dict:
@@ -167,11 +197,16 @@ def check_one(name, setting, args, rows) -> dict:
         trl_adv = inputs["advantages"].detach().float().cpu()
         adv_max_diff = float((ref_adv - trl_adv).abs().max())
         # the loss on the same completions
-        model_for_loss = trainer.model
+        torch.cuda.empty_cache()
         input_ids = torch.cat([inputs["prompt_ids"], completion_ids], dim=1)
         attn = torch.cat([inputs["prompt_mask"], mask], dim=1)
         logp = policy_logps(
-            model_for_loss, input_ids, attn, completion_ids.size(1), args.temperature
+            trainer.model,
+            input_ids,
+            attn,
+            completion_ids.size(1),
+            args.temperature,
+            chunk=args.chunk,
         )
         logp_ref = inputs.get("ref_per_token_logps")
         beta = setting["kl_beta"]
@@ -189,16 +224,18 @@ def check_one(name, setting, args, rows) -> dict:
         ref_loss = float(ref.loss)
         if setting["loss_type"] == "dr_grpo":
             ref_loss *= completion_ids.size(1) / args.max_new_tokens
-        trl_loss = float(trainer._compute_loss(trainer.model, inputs).detach())
+        n_kl_before = len(trainer._metrics["train"].get("kl", []))
+        trl_loss = trl_loss_chunked(trainer, inputs, chunk=args.chunk)
         kl_ref = None
         if logp_ref is not None:
             kl_ref = float(
                 (kl_k3(logp.detach(), logp_ref.to(logp.device)) * mask).sum() / mask.sum()
             )
         trl_logged_kl = None
-        kls = trainer._metrics["train"].get("kl")
-        if kls:
-            trl_logged_kl = float(kls[-1])
+        kls = trainer._metrics["train"].get("kl", [])
+        if len(kls) > n_kl_before:
+            new = [float(k) for k in kls[n_kl_before:]]
+            trl_logged_kl = sum(new) / len(new)
         results.append(
             {
                 "step": step,
@@ -226,6 +263,12 @@ def main(argv=None):
     ap.add_argument("--steps", type=int, default=3)
     ap.add_argument("--prompts-per-step", type=int, default=8)
     ap.add_argument("--group", type=int, default=4)
+    ap.add_argument(
+        "--chunk",
+        type=int,
+        default=4,
+        help="sequences per forward pass in the checks (8 GB laptop: 4)",
+    )
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--temperature", type=float, default=1.0)
     ap.add_argument("--num-prompts", type=int, default=50)
