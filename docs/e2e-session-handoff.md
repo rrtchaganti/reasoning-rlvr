@@ -89,10 +89,16 @@ is about to be broken.
    micro-batch is 32 completions; it changes only if the debugging run shows the card under 70 %
    used, and then once, for every run alike.
 4. **No idle gaps.** Steps run as `tmux new -d -s <step> -e HF_TOKEN="$HF_TOKEN" "bash scripts/phase4_rental.sh <step> > outputs/h100_p4_<step>.log 2>&1; echo EXIT=\$? >> outputs/h100_p4_<step>.log"`
-   and the next step starts when the previous log's last line is `EXIT=0`. The watcher is
-   `while ! grep -q '^EXIT=' outputs/h100_p4_<step>.log; do sleep 60; done` (60-90 s; it costs the
-   GPU nothing). Never wait on a tmux session name (the 27-minute slip of 18 Oct). When a step ends,
-   the notes get its actual time against the table above; idle minutes are counted.
+   and the next step starts when the previous log's last line is `EXIT=0`. The marker is written
+   by that launcher's `echo EXIT=$?` after the script has exited (`set -e` turns any failed command
+   into a non-zero code), never by the script itself; nothing the script prints starts with
+   `EXIT=` (fixed 20 Oct: an earlier copy printed `EXIT=0 step=<run>` after training and before
+   the dev evals, which a loose watcher would have taken for the end of the step). The watcher is
+   `while ! tail -n 1 outputs/h100_p4_<step>.log | grep -q '^EXIT=[0-9]*$'; do sleep 60; done`
+   (60-90 s; it costs the GPU nothing): the last line, anchored, so no other line can fire it.
+   `EXIT=` with anything but 0 means stop and ask. Never wait on a tmux session name (the
+   27-minute slip of 18 Oct). When a step ends, the notes get its actual time against the table
+   above; idle minutes are counted.
 5. **The ten-minute rule on every GRPO run.** At step 10 the log's step time gives the projection;
    above 1.5x the plan's estimate the run is stopped (`tmux kill-session -t =<step>`) and the user
    asked. Inside it, the run continues without a question.

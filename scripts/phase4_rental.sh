@@ -16,7 +16,9 @@
 #                greedy think-tag for every other checkpoint; all sets of a checkpoint in one process
 #   report       paired tables, figures, model card, uploads
 # Every training and sampling step runs scripts/phase4_preflight.py first and stops on a mismatch
-# (the user's rule of 19 Oct 2026). Environment:
+# (the user's rule of 19 Oct 2026). This script never prints an EXIT= line: the launcher appends
+# `echo EXIT=$? >> <log>` after the step (handoff section 3, rule 4), so the marker is the log's
+# last line and nothing printed here can match it. Environment:
 #   RLVR_GRPO_EXTRA   extra --set overrides for every rlvr-grpo call (e.g. "--set vllm_gpu_memory_utilization=0.3")
 #   HF_REPO_RFT/SFT/SAMPLES/GRPO   Hub repos (defaults below)
 set -euo pipefail
@@ -48,7 +50,7 @@ grpo_run() {  # grpo_run <run name> <out dir> <--set ...>  (preflight, train, de
   if [[ -e "$out/final/config.json" ]]; then echo "== skip ($out/final exists): $run"; else
     preflight "$run" "$@" $GRPO_EXTRA
     rlvr-grpo --config "$CFG" "$@" $GRPO_EXTRA
-    echo "EXIT=$? step=$run"
+    echo "== training done ($(date -u +%H:%M:%S) UTC): $run; dev evals of its checkpoints next"
   fi
   for ck in "$out"/checkpoints/checkpoint-*; do
     [[ -d "$ck" ]] || continue
@@ -178,7 +180,7 @@ step_report() {
 
 case "$STEP" in
   setup|smoke|p3ablations|debug|main|seed|a1|a2|a3|evals|report) "step_$STEP" ;;
-  session1) for s in setup smoke p3ablations debug main seed evals; do "step_$s"; echo "EXIT=0 step=$s"; done ;;
-  session2) for s in setup a1 a2 a3 evals report; do "step_$s"; echo "EXIT=0 step=$s"; done ;;
+  session1) for s in setup smoke p3ablations debug main seed evals; do "step_$s"; echo "== step done ($(date -u +%H:%M:%S) UTC): $s"; done ;;
+  session2) for s in setup a1 a2 a3 evals report; do "step_$s"; echo "== step done ($(date -u +%H:%M:%S) UTC): $s"; done ;;
   *) echo "unknown step $STEP"; exit 2 ;;
 esac
