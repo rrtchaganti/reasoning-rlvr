@@ -25,6 +25,7 @@ GSM8K learnable prompts if the file exists, else 50 GSM8K-train problems from th
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -68,6 +69,87 @@ def prompt_rows(n: int, seed: int) -> list[dict]:
 
     random.Random(seed).shuffle(rows)
     return rows[:n]
+
+
+def synthetic_reward(text: str) -> float:
+    """A deterministic 0/1 reward from the text itself (the last hex digit of its SHA-1), so a
+    group of distinct completions carries mixed rewards whatever the model knows."""
+    return float(int(hashlib.sha1(text.encode("utf-8")).hexdigest()[-1], 16) % 2)
+
+
+def grads_of(trainer, params, loss):
+    """The gradient of ``loss`` with respect to ``params`` as one flat fp32 vector."""
+    trainer.model.zero_grad(set_to_none=True)
+    loss.backward()
+    g = torch.cat(
+        [
+            (p.grad if p.grad is not None else torch.zeros_like(p)).detach().float().flatten()
+            for p in params
+        ]
+    )
+    trainer.model.zero_grad(set_to_none=True)
+    return g
+
+
+def compare_gradients(trainer, inputs, setting, cfg, args) -> dict:
+    """Backward through TRL's loss and through the reference loss on the same chunks of the
+    same batch; the gradients with respect to the trainable (LoRA) parameters are compared."""
+    params = [p for p in trainer.model.parameters() if p.requires_grad]
+    n = inputs["completion_ids"].size(0)
+    trainer.current_gradient_accumulation_steps = 1
+    g_trl = None
+    g_ref = None
+    for i in range(0, n, args.chunk):
+        part = {
+            k: (
+                v[i : i + args.chunk]
+                if isinstance(v, torch.Tensor) and v.dim() >= 1 and v.size(0) == n
+                else v
+            )
+            for k, v in inputs.items()
+        }
+        loss_trl = trainer._compute_loss(trainer.model, part)
+        g = grads_of(trainer, params, loss_trl)
+        g_trl = g if g_trl is None else g_trl + g
+        del loss_trl
+        torch.cuda.empty_cache()
+        comp = part["completion_ids"]
+        mask = part["completion_mask"]
+        input_ids = torch.cat([part["prompt_ids"], comp], dim=1)
+        attn = torch.cat([part["prompt_mask"], mask], dim=1)
+        out = trainer.model(input_ids=input_ids, attention_mask=attn)
+        logits = out.logits[:, -comp.size(1) - 1 : -1, :] / args.temperature
+        logp = torch.gather(
+            torch.log_softmax(logits.float(), dim=-1), 2, comp.unsqueeze(-1)
+        ).squeeze(-1)
+        logp_ref = part.get("ref_per_token_logps")
+        ref = grpo_loss(
+            logp,
+            logp.detach(),
+            part["advantages"].float(),
+            mask.to(logp.dtype),
+            logp_ref=None if logp_ref is None else logp_ref.float(),
+            beta=setting["kl_beta"],
+            eps_low=cfg["epsilon"],
+            eps_high=cfg["epsilon"],
+            loss_agg=AGG[setting["loss_type"]],
+        )
+        loss_ref = ref.loss
+        if setting["loss_type"] == "dr_grpo":
+            loss_ref = loss_ref * (comp.size(1) / args.max_new_tokens)
+        g = grads_of(trainer, params, loss_ref)
+        g_ref = g if g_ref is None else g_ref + g
+        del out, logits, logp, loss_ref
+        torch.cuda.empty_cache()
+    norm_trl = float(g_trl.norm())
+    norm_ref = float(g_ref.norm())
+    return {
+        "grad_cosine": float((g_trl @ g_ref) / max(norm_trl * norm_ref, 1e-30)),
+        "grad_max_abs_diff": float((g_trl - g_ref).abs().max()),
+        "grad_rel_norm_diff": float((g_trl - g_ref).norm() / max(norm_trl, 1e-30)),
+        "grad_norm_trl": norm_trl,
+        "grad_norm_ref": norm_ref,
+    }
 
 
 @torch.no_grad()
@@ -148,12 +230,26 @@ def build_trainer(name, setting, args, rows, *, dynamic=False):
         args.model, dtype=torch.bfloat16, attn_implementation="sdpa"
     )
     sink: list[dict] = []
-    reward_fn = grpo.make_reward_fn(
+    real_reward_fn = grpo.make_reward_fn(
         eos_ids={tok.eos_token_id, tok.pad_token_id},
         max_new_tokens=args.max_new_tokens,
         group_size=args.group,
         sink=sink,
     )
+    if args.reward == "real":
+        reward_fn = real_reward_fn
+    else:
+        # The base 0.6B never writes a finished, well-formed, correct think-tag answer in 256
+        # tokens, so the real reward is 0 everywhere and every advantage is 0: the policy term
+        # would go untested. A deterministic mixed reward (a hash bit of the text) exercises the
+        # advantages, the aggregation and the gradients; the real reward's rate is still recorded.
+        def reward_fn(prompts, completions, completion_ids, prefix, answer, answer_type, **kwargs):
+            real_reward_fn(
+                prompts, completions, completion_ids, prefix, answer, answer_type, **kwargs
+            )
+            return [synthetic_reward(c) for c in completions]
+
+        reward_fn.__name__ = "synthetic_hash_bit"
     ds = Dataset.from_list(grpo.prompt_records(rows))
     trainer_cls = grpo.make_trainer_class(dynamic, 2, args.prompts_per_step, args.group)
     lora = {"r": 16, "alpha": 32, "dropout": 0.0, "target_modules": "all-linear"}
@@ -238,10 +334,11 @@ def check_one(name, setting, args, rows) -> dict:
         completion_ids = inputs["completion_ids"]
         mask = inputs["completion_mask"]
         per = []
+        real = []
         for ids, m, b in zip(completion_ids, mask, batch, strict=True):
             kept_ids = ids[: int(m.sum())].tolist()
             text = tok.decode(kept_ids, skip_special_tokens=True)
-            per.append(
+            real.append(
                 grpo.score_completion(
                     text,
                     kept_ids,
@@ -252,6 +349,8 @@ def check_one(name, setting, args, rows) -> dict:
                     max_new_tokens=args.max_new_tokens,
                 )["reward"]
             )
+            per.append(real[-1] if args.reward == "real" else synthetic_reward(text))
+        real_rate = sum(real) / len(real)
         rewards = torch.tensor(per, dtype=torch.float32).view(-1, args.group)
         ref_adv = group_advantages(
             rewards, normalize_std=setting["scale_rewards"] == "group"
@@ -298,10 +397,15 @@ def check_one(name, setting, args, rows) -> dict:
         if len(kls) > n_kl_before:
             new = [float(k) for k in kls[n_kl_before:]]
             trl_logged_kl = sum(new) / len(new)
+        del logp
+        torch.cuda.empty_cache()
+        grads = compare_gradients(trainer, inputs, setting, cfg, args)
         results.append(
             {
                 "step": step,
                 "completions": int(completion_ids.size(0)),
+                "reward_source": args.reward,
+                "real_reward_rate": real_rate,
                 "zero_advantage_fraction": zero_advantage_fraction(rewards),
                 "mean_reward": float(rewards.mean()),
                 "advantage_max_abs_diff": adv_max_diff,
@@ -311,6 +415,7 @@ def check_one(name, setting, args, rows) -> dict:
                 "ref_kl": kl_ref,
                 "trl_logged_kl": trl_logged_kl,
                 "ref_clip_fraction": ref.clip_fraction,
+                **grads,
             }
         )
         print(json.dumps({"setting": name, **results[-1]}))
@@ -337,6 +442,13 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--settings", nargs="+", default=list(SETTINGS), choices=list(SETTINGS))
     ap.add_argument(
+        "--reward",
+        choices=("synthetic", "real"),
+        default="synthetic",
+        help="the reward TRL trains on in the check: a deterministic hash bit (mixed groups, the "
+        "default) or the project's real reward (all zero on the base 0.6B at 256 tokens)",
+    )
+    ap.add_argument(
         "--dynamic",
         action="store_true",
         help="also run the dynamic-sampling subclass for --steps generation batches (shapes and group counts)",
@@ -353,17 +465,18 @@ def main(argv=None):
     (args.out / "grpo_correctness_check.json").write_text(json.dumps(report, indent=2))
     fmt = lambda v: "-" if v is None else f"{v:.6f}"  # noqa: E731
     lines = [
-        "| setting | step | completions | zero-adv groups | mean reward | adv max diff | ref loss | TRL loss | diff | ref KL | TRL KL |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| setting | step | reward | real reward rate | zero-adv groups | mean reward | adv max diff | ref loss | TRL loss | loss diff | grad cosine | grad max diff | grad rel diff | ref KL | TRL KL |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for name, rep in report.items():
         if name == "dynamic":
             continue
         for r in rep["steps"]:
             lines.append(
-                f"| {name} | {r['step']} | {r['completions']} | {r['zero_advantage_fraction']:.2f} | "
-                f"{r['mean_reward']:.3f} | {r['advantage_max_abs_diff']:.2e} | {r['ref_loss']:.6f} | "
-                f"{r['trl_loss']:.6f} | {r['loss_abs_diff']:.2e} | {fmt(r['ref_kl'])} | {fmt(r['trl_logged_kl'])} |"
+                f"| {name} | {r['step']} | {r['reward_source']} | {r['real_reward_rate']:.3f} | "
+                f"{r['zero_advantage_fraction']:.2f} | {r['mean_reward']:.3f} | {r['advantage_max_abs_diff']:.2e} | "
+                f"{r['ref_loss']:.6f} | {r['trl_loss']:.6f} | {r['loss_abs_diff']:.2e} | {r['grad_cosine']:.6f} | "
+                f"{r['grad_max_abs_diff']:.2e} | {r['grad_rel_norm_diff']:.2e} | {fmt(r['ref_kl'])} | {fmt(r['trl_logged_kl'])} |"
             )
     if "dynamic" in report:
         lines += [
