@@ -166,3 +166,23 @@ mixed reward 15-16 of the 16 over-generated groups are informative, so the selec
 where the earlier all-zero run could not show it. The real reward's rate was 0 on this model and
 cap, as expected; the real reward is covered by the CPU unit tests (finished, format, correct, the
 cap edge cases) and will first fire on the node's smoke with the RFT checkpoint.
+
+**The fp32 confirmation (20 Oct, two more runs).** The first fp32 attempt made the gap *larger*
+(loss diff 1e-5, gradient relative difference 5-11 %), because `--dtype float32` had changed only
+the weights: TRL's forward still ran under bf16 autocast (`bf16=True` in the trainer config) while
+the reference forward ran in fp32, two precisions compared against each other. With autocast off
+for the fp32 check (59b5e1e), on 4 prompts x 4 samples at 192 tokens, chunk 1:
+
+| setting | step | adv max diff | loss diff | grad cosine | grad max diff | grad rel diff |
+|---|---|---|---|---|---|---|
+| main, fp32 | 0 | 2.97e-04 (the 1e-4 vs 1e-6 std epsilon) | 7.45e-09 | 1.000000 | 1.66e-05 | 1.44e-05 |
+| main, fp32 | 1 | 1.48e-04 | 3.73e-09 | 1.000000 | 9.58e-06 | 1.28e-05 |
+
+The gradients agree to 1.4e-5 in relative norm: the 1.3 % of the bf16 run was bf16 forward noise,
+as suspected, and the reference loss and TRL's are the same function of the same inputs. One more
+thing the fp32 run shows: its KL is exactly 0, because no optimiser step is taken between the
+generation batches and the policy *is* the reference. The bf16 run's KL of 8e-4 was therefore
+numerical noise between two forwards of the same weights, matched on both sides because both read
+the same noise through the same k3 formula; the KL term's arithmetic is checked, a KL from an
+actual policy drift is not, and the k3 unit tests in `tests/test_ref_advantages_kl.py` are what
+cover that. The check is closed; PLAN.md Phase 4 step 1 is done.
