@@ -95,6 +95,10 @@ def trl_loss_chunked(trainer, inputs, chunk=4) -> float:
     averaged the same way by the caller."""
     n = inputs["completion_ids"].size(0)
     vals = []
+    # TRL divides each micro-batch loss by the accumulation count, which only the training loop
+    # sets; outside it the attribute does not exist. With 1 every chunk returns its own mean and
+    # the caller's average over equal chunks is the batch value.
+    trainer.current_gradient_accumulation_steps = 1
     for i in range(0, n, chunk):
         part = {
             k: (
@@ -109,7 +113,9 @@ def trl_loss_chunked(trainer, inputs, chunk=4) -> float:
     return sum(vals) / len(vals)
 
 
-def check_one(name, setting, args, rows) -> dict:
+def build_trainer(name, setting, args, rows, *, dynamic=False):
+    """A small GRPOTrainer (HF generate, LoRA) for ``setting``; the dynamic-sampling subclass
+    when asked. Returns (trainer, tokenizer, reward sink, config)."""
     from datasets import Dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -149,7 +155,7 @@ def check_one(name, setting, args, rows) -> dict:
         sink=sink,
     )
     ds = Dataset.from_list(grpo.prompt_records(rows))
-    trainer_cls = grpo.make_trainer_class(False, 2, args.prompts_per_step, args.group)
+    trainer_cls = grpo.make_trainer_class(dynamic, 2, args.prompts_per_step, args.group)
     lora = {"r": 16, "alpha": 32, "dropout": 0.0, "target_modules": "all-linear"}
     from rlvr.train.sft import make_peft_config
 
@@ -161,6 +167,62 @@ def check_one(name, setting, args, rows) -> dict:
         processing_class=tok,
         peft_config=make_peft_config(lora),
     )
+    return trainer, tok, sink, cfg
+
+
+def check_dynamic(args, rows) -> dict:
+    """The dynamic-sampling subclass for a few generation batches: it must return exactly
+    prompts_per_step x group rows, every tensor subselected alike, and log how many of the
+    over-generated groups were informative."""
+    trainer, _tok, _sink, _cfg = build_trainer(
+        "dynamic", SETTINGS["main"], args, rows, dynamic=True
+    )
+    torch.manual_seed(args.seed)
+    trainer.model.train()
+    it = iter(trainer.get_train_dataloader())
+    want = args.prompts_per_step * args.group
+    results = []
+    for step in range(args.steps):
+        batch = next(it)
+        out = trainer._generate_and_score_completions(batch)
+        n = int(out["completion_ids"].size(0))
+        # every row-indexed tensor must have been subselected to n rows (none left at 2n)
+        tensors_ok = not any(
+            isinstance(v, torch.Tensor) and v.dim() >= 1 and v.size(0) == 2 * n
+            for v in out.values()
+        )
+        rows_ok = all(
+            v.size(0) == n
+            for k, v in out.items()
+            if k in ("prompt_ids", "prompt_mask", "completion_ids", "completion_mask", "advantages")
+        )
+        stats = trainer.dyn_log[-1]
+        rec = {
+            "step": step,
+            "rows_returned": n,
+            "rows_expected": want,
+            "shapes_consistent": bool(tensors_ok and rows_ok and n == want),
+            "groups_generated": stats["groups_generated"],
+            "groups_informative": stats["groups_informative"],
+            "groups_filled_with_zero_advantage": stats["groups_filled_with_zero_advantage"],
+            "extra_prompts_sampled": stats["extra_prompts_sampled"],
+            "kept_zero_advantage_groups": int(
+                sum(
+                    1
+                    for g in range(n // args.group)
+                    if float(out["advantages"][g * args.group : (g + 1) * args.group].abs().max())
+                    < 1e-8
+                )
+            ),
+        }
+        results.append(rec)
+        print(json.dumps({"setting": "dynamic", **rec}))
+        torch.cuda.empty_cache()
+    return {"setting": {"dynamic_sampling": True, "oversample": 2}, "steps": results}
+
+
+def check_one(name, setting, args, rows) -> dict:
+    trainer, tok, _sink, cfg = build_trainer(name, setting, args, rows)
     torch.manual_seed(args.seed)
     results = []
     loader = trainer.get_train_dataloader()
@@ -274,6 +336,11 @@ def main(argv=None):
     ap.add_argument("--num-prompts", type=int, default=50)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--settings", nargs="+", default=list(SETTINGS), choices=list(SETTINGS))
+    ap.add_argument(
+        "--dynamic",
+        action="store_true",
+        help="also run the dynamic-sampling subclass for --steps generation batches (shapes and group counts)",
+    )
     ap.add_argument("--out", type=Path, default=Path("outputs/grpo_check"))
     args = ap.parse_args(argv)
     args.out.mkdir(parents=True, exist_ok=True)
@@ -281,6 +348,8 @@ def main(argv=None):
     report = {}
     for name in args.settings:
         report[name] = check_one(name, SETTINGS[name], args, rows)
+    if args.dynamic:
+        report["dynamic"] = check_dynamic(args, rows)
     (args.out / "grpo_correctness_check.json").write_text(json.dumps(report, indent=2))
     fmt = lambda v: "-" if v is None else f"{v:.6f}"  # noqa: E731
     lines = [
@@ -288,11 +357,24 @@ def main(argv=None):
         "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for name, rep in report.items():
+        if name == "dynamic":
+            continue
         for r in rep["steps"]:
             lines.append(
                 f"| {name} | {r['step']} | {r['completions']} | {r['zero_advantage_fraction']:.2f} | "
                 f"{r['mean_reward']:.3f} | {r['advantage_max_abs_diff']:.2e} | {r['ref_loss']:.6f} | "
                 f"{r['trl_loss']:.6f} | {r['loss_abs_diff']:.2e} | {fmt(r['ref_kl'])} | {fmt(r['trl_logged_kl'])} |"
+            )
+    if "dynamic" in report:
+        lines += [
+            "",
+            "| dynamic sampling | step | rows returned / expected | shapes consistent | groups generated | informative | filled with zero-advantage | kept zero-advantage |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+        for r in report["dynamic"]["steps"]:
+            lines.append(
+                f"| oversample 2 | {r['step']} | {r['rows_returned']} / {r['rows_expected']} | {r['shapes_consistent']} | "
+                f"{r['groups_generated']} | {r['groups_informative']} | {r['groups_filled_with_zero_advantage']} | {r['kept_zero_advantage_groups']} |"
             )
     (args.out / "grpo_correctness_check.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
