@@ -1,26 +1,158 @@
-# reasoning-rlvr
+# reasoning-rlvr: where does post-training gain come from?
 
-A small, fully reproducible study of the post-training recipe for mathematical reasoning (SFT, rejection sampling, GRPO with verifiable rewards, DPO, test-time compute, distillation) on one base model, Qwen3-1.7B-Base, with confidence intervals, paired comparisons, contamination probes and a compute ledger.
+A controlled study of the reasoning post-training recipe on one small base model. Starting from
+Qwen3-1.7B-Base, each stage of the recipe (SFT on distilled traces, rejection-sampling fine-tuning,
+GRPO with a verifiable reward) is trained at a stated compute budget and scored the same way: greedy,
+paired on shared problems, 95 % bootstrap confidence intervals, a pre-registered hypothesis and
+falsifier per run, three contamination probes, a seed-noise row, and a compute ledger. The question
+the study asks is not "does the recipe work" but **what each stage buys, and whether what it buys is
+reasoning, sharpening, or something cheaper**.
 
-Plan: [`PLAN.md`](PLAN.md). The chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering notes per phase (what was built, how it is tested, why): [`docs/`](docs/README.md). Background: [`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md), [`GLOSSARY.md`](GLOSSARY.md), [`PHASES_IO_AND_HYPERPARAMS.md`](PHASES_IO_AND_HYPERPARAMS.md).
+**The answer so far (21 Oct 2026, four phases run, about 40 H100-hours).** Every stage beats the one
+before it in the format it was trained in, with CIs clear of zero. Decomposed per problem, the whole
+paired gain of both on-policy stages (RFT, then GRPO) sits on problems the previous policy failed to
+terminate; on problems both policies finished, accuracy did not move. Sampling tells the same story:
+pass@k on GSM8K is pure sharpening, and on MATH-500 GRPO reaches a few problems RFT never solved in 32
+tries (+1.9 [0.4, 3.5] at k = 16), the one signal that is not termination. Against the base model's
+own best prompt the three stages add +6 on GSM8K and +11 on MATH-500, so the pipeline did add
+something a user could not get for free, but **at 1.7B and one GPU-day per method, on-policy
+post-training in the trained format taught the model to stop looping and answer, and little else**.
+Whether that is a property of the scale or an artefact of the 1,536-token training cap is the
+experiment running now (EXP-015, section 4).
 
-## Status
+Chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Plan
+and rigour standards: [`PLAN.md`](PLAN.md). Pre-registration: [`experiments.md`](experiments.md).
+Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering notes and journals per phase:
+[`docs/`](docs/README.md). Background: [`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md),
+[`GLOSSARY.md`](GLOSSARY.md), [`PHASES_IO_AND_HYPERPARAMS.md`](PHASES_IO_AND_HYPERPARAMS.md).
+Checkpoints and sample sets: [`Raviteja546`](https://huggingface.co/Raviteja546) on Hugging Face.
 
-| Phase | Branch | State | Report |
-|---|---|---|---|
-| 0 Scaffold, harness, from-scratch references | `phase-0-scaffold-harness` | merged 14 Oct 2026, tag `phase-0` | [`outputs/reports/phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines and pass@k ceiling | `phase-1-baselines` | merged 2026-10-14, tag `phase-1`; local part done 14 Oct 2026 (EXP-001, 003, 003b); EXP-002 complete 18 Oct 2026 (four sets on a rented L4, Countdown on the H100; report addendum: base pass@64 98.8 GSM8K, 87.8 MATH-500, 63.8 Countdown) | [`outputs/reports/phase-1.md`](outputs/reports/phase-1.md) |
-| 2 SFT | `phase-2-sft` | merged 20 Oct 2026 (through `phase-3-rft`, PR #4), tag `phase-2`; runs done 18-19 Oct 2026 on a TIR H100 (EXP-005, 006, 008; EXP-007 LoRA cut for budget): SFT think-tag greedy 74.8 GSM8K (+13.0 paired), 50.6 MATH-500 (+5.8); zero-shot 82.2 / 63.2; pass@64 unchanged on GSM8K, +5.2 on MATH-500; a quarter of think-tag generations never terminate; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`outputs/reports/phase-2.md`](outputs/reports/phase-2.md) |
-| 3 RFT | `phase-3-rft` | merged 20 Oct 2026 (PR #4), tag `phase-3`; runs done 19 Oct 2026 on the same H100 (EXP-009, 010, 010b and four post-hoc runs): RFT beats SFT in the trained format by +3.3 GSM8K / +5.8 MATH-500 (paired; three seeds +4.6 / +4.3), halves the looping, no pass@k loss, no Countdown transfer; a token-matched control gains nothing; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`outputs/reports/phase-3.md`](outputs/reports/phase-3.md) |
-| 4 GRPO + ablations | `phase-4-grpo` | plan and pre-registration written 19 Oct 2026 (shape B: 32 x 8, 200 steps, main + seed + three ablations, two sessions, about 26 H100-hours; `docs/phase-4-plan.md`, EXP-010g/h, EXP-012, 013, 014a-c); code, preflight, session script and the reference-vs-TRL correctness check done 20 Oct 2026 (gradients agree to 1.4e-5 in fp32); ceiling raised to INR 22,000 the same day; **session 1 run 20-21 Oct 2026 on a TIR H100** (EXP-010g/h, 012, 013): GRPO beats RFT in the trained format on every set with n >= 500, paired (+4.1 GSM8K, +7.0 MATH-500, +7.0 Countdown); the whole paired gain sits on problems RFT truncated (truncation 15 -> 5 %, 40 -> 21 %; accuracy among problems both finished unchanged within CI); pass@k says sharpening on GSM8K and a small persistent gain on MATH-500; the seed repeat reproduces GSM8K and Countdown to within a point and lands 4.8 lower on MATH-500; checkpoint `Raviteja546/reasoning-rlvr-grpo`; next: session 2 (A1 KL off, A2 dynamic sampling, A3 Dr. GRPO) | [`outputs/reports/phase-4.md`](outputs/reports/phase-4.md) |
-| 5 DPO | | | |
-| 6 Test-time compute | | | |
-| 7 Distil, quantise, serve | | | |
-| 8 Write-up | | | |
+## 1. The finding in one table
 
-## Results
+Qwen3-1.7B-Base, greedy, think-tag format (the format the RL stages train in), 4,096-token window.
+Each stage's gain is paired against the previous checkpoint on shared problems. "On truncated" is the
+part of that gain that sits on problems the previous policy did not finish; "both finished" is the
+paired accuracy difference restricted to problems both policies answered (`scripts/decompose_gain.py`,
+`outputs/reports/phase-4.md` section 4.5).
 
-Each number carries a 95 % bootstrap CI over problems and the commit that produced it; greedy, batch-invariant vLLM.
+| stage (experiment) | GSM8K gain | on truncated | both finished | MATH-500 gain | on truncated | both finished | truncation GSM8K / MATH-500 |
+|---|---|---|---|---|---|---|---|
+| base, think-tag | 61.8 | | | 44.8 | | | 36 / 20 % |
+| SFT, 23k distilled traces (EXP-006) | +13.0 [10.0, 15.8] | not split | | +5.8 [0.6, 11.0] | not split | | 28 / 52 % |
+| RFT, one round of selection (EXP-010) | +3.3 [1.0, 5.8] | +6.9 [5.2, 8.6] | -0.8 [-2.5, 0.9] | +5.8 [1.6, 10.2] | +12.2 [8.8, 15.6] | -2.5 [-7.0, 1.5] | 15 / 40 % |
+| GRPO, 200 steps (EXP-012) | +4.1 [2.0, 6.1] | +4.2 [3.0, 5.5] | +1.1 [-0.6, 2.8] | +7.0 [2.8, 11.0] | +10.2 [7.4, 13.2] | 0.0 [-4.3, 3.9] | 5 / 21 % |
+| final, think-tag | 82.3 | | | 63.4 | | | |
+| final, zero-shot (the model's best prompt) | 84.3 (base 77.9) | | | 64.4 (base 53.8) | | | |
+
+Three facts make the decomposition a conclusion rather than a correlation. The truncated generations
+are loops, not slow solutions: at an 8,192-token cap they still do not finish and accuracy moves by
+under a point (EXP-010c). Half of RFT's stopping effect on GSM8K is the length filter itself: choosing
+two random correct traces per problem instead of the two shortest costs 2.4 [0.1, 4.7] points
+(EXP-010h). And the seed repeat of GRPO lands 4.8 points lower on MATH-500 for the same reason: it
+truncates 34 problems RFT had finished, against 23 for seed 0, with no difference in accuracy among
+finished answers (EXP-013). The 4.8 is the project's noise row on MATH-500, larger than most MATH-500
+gains people report at this scale with one seed.
+
+## 2. How the question arose, phase by phase
+
+Each phase's question came from the previous phase's numbers; the record is in
+[`docs/research-narrative.md`](docs/research-narrative.md), with the predictions written before each run.
+
+1. **Phase 0.** Three identical greedy evals differed by up to 6 points because vLLM's default scheduler
+   is not batch-invariant; with batch-invariant mode they are bit-identical. The harness is deterministic
+   before any model is compared (EXP-000).
+2. **Phase 1.** The base model does 12 points better on MATH-500 with a bare instruction than with four
+   Minerva shots, and the think-tag format the RL stages need costs it 16 points on GSM8K because 36 %
+   of generations loop. pass@64 is 98.8 / 87.8 / 63.8 (GSM8K / MATH-500 / Countdown), so the latent
+   headroom is large everywhere (EXP-001, 002). Two bars were set here: every trained model is read
+   against the base model's best prompt, and every gain in the trained format is read against the loops.
+3. **Phase 2.** SFT on distilled traces teaches the format (+13.0 on GSM8K in that format) but the
+   trained format still loses to zero-shot because a quarter to a half of its generations never
+   terminate (EXP-006). Data scaling buys +4.0 [1.4, 6.7] on GSM8K from 25 to 100 % of the data
+   (EXP-008). The question written at the end of this phase, "better at mathematics or better at
+   stopping", became the project's question.
+4. **Phase 3.** Rejection sampling keeps only finished correct traces, so it selects for stopping whether
+   intended or not. The controls were designed for that: the same tokens of distilled data gain nothing
+   (EXP-010b, 010e), the loops do not finish at 8,192 tokens (EXP-010c), and the gain persists to k = 32
+   in the trained format but the SFT and RFT pass@k curves coincide under 4-shot CoT (EXP-010f). Two
+   mechanisms were still confounded, the correctness filter and the length filter, and two ablations were
+   added to separate them (EXP-010g, 010h).
+5. **Phase 4, session 1.** GRPO from the RFT checkpoint, 32 prompts x 8 samples, 200 steps, reward 1 only
+   for a finished, well-formed, correct answer. Beats RFT on every set; the per-problem decomposition
+   above; a seed repeat for the noise row; pass@k for sharpening versus capability. The method was stable
+   (KL 0.006, no clipping, no hacking signal), the reward plateaued by step 50, and 30 % of groups had
+   zero variance throughout.
+
+## 3. What every number carries
+
+- **Paired comparisons with CIs.** Every difference between checkpoints is computed per problem on shared
+  ids with a 95 % bootstrap CI over problems; a difference whose CI covers zero is reported as such.
+- **A deterministic harness.** `rlvr-eval` runs batch-invariant vLLM; three identical evals are
+  bit-identical. Extraction rules are unit-tested and logged. The 4-shot-CoT rows reproduce the Qwen3
+  technical report within 1-2 points (EXP-001).
+- **Pre-registration.** Each run has a hypothesis, a metric and a falsifier in `experiments.md` before it
+  starts. Failed predictions are kept: Countdown doubled under GRPO when the plan said it would not move;
+  the seed-to-seed noise on MATH-500 was 4.8 against a predicted 3; EXP-010g had no power by construction.
+- **Controls that cost compute.** Token-matched and step-matched controls, a cap experiment, a
+  no-correctness-filter run, a random-selection run, a seed repeat. One design error is recorded where
+  the number is quoted: the Phase 3 controls trained on a seen subset of the SFT data, so they support
+  "not more steps on the distilled distribution", not "not fresh traces".
+- **Three contamination probes**, on the base model and after every stage: 13-gram and fuzzy overlap
+  between every training set and every eval set (3 of 500 MATH-500 items dropped from training), a
+  perturbed GSM8K twin with a names-only control (the 10-point gap is arithmetic brittleness, not
+  recall), and a partial-prompt completion probe. No stage added a memorisation signal.
+- **From-scratch references, checked against the library.** `src/rlvr/ref/` holds the GRPO loss with its
+  three aggregations, group advantages, the k1/k2/k3 KL estimators, unbiased pass@k, the SFT loss and a
+  minimal sampler, each under tests. The TRL + vLLM trainer used for the scaled runs matches the
+  reference loss to 1e-9 and its gradients to 1.4e-5 in fp32 (`scripts/grpo_correctness_check.py`).
+- **A reward-hacking watch** on every RL run, five flags read off the per-step statistics: length growth
+  without accuracy, format-only outputs, groups agreeing on one wrong answer, "wait" spam, truncation
+  rising; plus the KL, clip-fraction and zero-variance-group curves. Diagnoses go to
+  `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
+- **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
+  about 41 H100-hours and 11 L4-hours, under USD 200, against a stated ceiling.
+- **Reproducibility.** Every run is a config plus a commit hash; a preflight compares the resolved
+  config with the plan's table, the prompt file with its committed manifest hash, the start checkpoint
+  with the run it came from, and the eval subsets with their pinned hashes before a rented GPU starts;
+  the harness refuses to run on a dirty tree; CI runs ruff and the CPU tests (193 in the gate) on every
+  push.
+
+## 4. What is running and what comes next
+
+**Session 2 (running 21 Oct 2026; `docs/phase-4-plan.md` section 9).** Three one-knob runs from the
+same checkpoint, read against the noise row: KL off (EXP-014a); dynamic sampling, since a third of the
+compute produced no gradient (EXP-014b); and the run that bears on the central claim, **GRPO at a
+2,048-token cap** (EXP-015). The main run kept the p90 completion length pinned at the 1,536 cap
+throughout training and scored a quarter of completions 0 for being cut, so the finished-only reward
+may have selected for brevity over solving. Prediction: the both-finished paired difference against RFT
+rises by at least 2 points and pass@16 by at least 3. Falsifier: both inside the main run's CIs, in
+which case the cap is not what limits the reasoning gain.
+
+**After that, each in the narrative before it runs.** Budget forcing on the SFT checkpoint (inject a
+stop at the cap, no training): if a decoding rule recovers most of the RFT and GRPO gains, the training
+taught what a rule provides. DPO on (finished-correct, looping) pairs as a mechanism test: can an
+off-policy method buy the termination gain without rollouts, at a tenth of the cost. A matched-incorrect
+rejection-sampling set, the test EXP-010g lacked the power for. Dr. GRPO's length normalisation
+(EXP-014c, pre-registered, deferred for budget).
+
+## 5. Status
+
+| Phase | State | Report |
+|---|---|---|
+| 0 Harness, from-scratch references | merged 14 Oct 2026, tag `phase-0` | [`phase-0.md`](outputs/reports/phase-0.md) |
+| 1 Baselines, pass@k ceiling, contamination probes | merged 14 Oct 2026 (EXP-002 completed 18 Oct), tag `phase-1` | [`phase-1.md`](outputs/reports/phase-1.md) |
+| 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
+| 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
+| 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013); session 2 running 21 Oct (EXP-014a/b, 015); checkpoint `Raviteja546/reasoning-rlvr-grpo` | [`phase-4.md`](outputs/reports/phase-4.md) |
+| 5 DPO as a mechanism test | planned; narrative link before the first run | |
+| 6 Test-time compute, budget forcing | planned | |
+| 7 Distillation, quantisation, serving | planned, an engineering deliverable | |
+| 8 Write-up | | |
+
+## 6. Full results
+
+Each number carries a 95 % bootstrap CI over problems and the commit that produced it; greedy,
+batch-invariant vLLM. Paired tables are in `outputs/reports/phase-N-compare-*.md`.
 
 **Base models (Phase 1, commit ffd3018).** pass@1 %, full eval sets.
 
@@ -32,28 +164,54 @@ Each number carries a 95 % bootstrap CI over problems and the commit that produc
 | Qwen3-0.6B-Base | 4-shot-CoT | 61.9 [59.3, 64.6] | 56.5 [53.1, 59.9] | 28.0 [24.0, 31.8] | - |
 | Qwen3-0.6B-Base | zero-shot | 64.9 [62.3, 67.5] | 59.5 [56.1, 62.9] | 37.6 [33.4, 41.6] | - |
 
-After training (Qwen3-1.7B-Base, greedy, 4,096-token window; paired differences against the previous checkpoint on shared problems; 18-19 Oct 2026, TIR H100):
+**After training** (Qwen3-1.7B-Base, greedy, 4,096-token window; paired differences against the previous
+checkpoint on shared problems; 18-21 Oct 2026, TIR H100):
 
 | checkpoint | prompt | GSM8K | GSM8K perturbed | MATH-500 | Countdown | truncated GSM8K / MATH-500 |
 |---|---|---|---|---|---|---|
 | base | think-tag | 61.8 [59.2, 64.4] | 51.4 [48.1, 54.8] | 44.8 [40.4, 49.2] | 1.2 [0.4, 2.2] | 36 / 20 % |
 | SFT (EXP-006) | think-tag | 74.8 (+13.0 [10.0, 15.8]) | 66.0 (+14.6) | 50.6 (+5.8 [0.6, 11.0]) | 3.8 (+2.6) | 28 / 52 % |
 | RFT (EXP-010) | think-tag | 78.2 (+3.3 [1.0, 5.8]) | 69.0 (+3.0) | 56.4 (+5.8 [1.6, 10.2]) | 7.0 (+3.2) | 15 / 40 % |
-| GRPO (EXP-012) | think-tag | 82.3 (+4.1 [2.0, 6.1]) | 73.9 (+4.8) | 63.4 (+7.0 [2.8, 11.0]) | 14.0 (+7.0 [3.6, 10.4]) | 5 / 21 % |
+| GRPO (EXP-012) | think-tag | 82.3 (+4.1 [2.0, 6.1]) | 73.9 (+4.8 [1.9, 7.6]) | 63.4 (+7.0 [2.8, 11.0]) | 14.0 (+7.0 [3.6, 10.4]) | 5 / 21 % |
+| GRPO seed 1 (EXP-013) | think-tag | 82.0 (-0.3 vs seed 0) | 73.6 (-0.2) | 58.6 (-4.8 [-9.0, -0.8]) | 14.6 (+0.6) | |
 | base | zero-shot | 77.9 [75.6, 80.1] | 69.9 | 53.8 [49.4, 58.2] | - | 1-9 % |
 | SFT | zero-shot | 82.2 (+4.3 [1.8, 6.6]) | 72.7 | 63.2 (+9.4 [5.0, 14.0]) | - | 17 / 59 % |
 | RFT | zero-shot | 81.1 (-1.1) | 74.7 (+2.0) | 64.8 (+1.6) | - | |
+| GRPO | zero-shot | 84.3 (+3.2 [1.5, 4.8]) | | 64.4 (-0.4) | - | |
 
-pass@64 (4-shot-CoT, n = 64, T = 0.6): base 98.8 / 90.2 / 87.8 / 63.8 (Countdown, think-tag), SFT 98.2 / 88.8 / 93.0 / 62.0, RFT (300-problem subsets) 98.7 / 92.3 / 94.0. The trained format loses to a plain zero-shot prompt on its own checkpoints because a quarter (SFT) to a sixth (RFT) of its generations never terminate, at any cap. Details: `outputs/reports/phase-2.md`, `outputs/reports/phase-3.md`.
+**pass@k.** 4-shot-CoT, n = 64, T = 0.6: base 98.8 / 90.2 / 87.8 / 63.8 (GSM8K / perturbed / MATH-500 /
+Countdown under think-tag), SFT 98.2 / 88.8 / 93.0 / 62.0, RFT (300-problem subsets) 98.7 / 92.3 / 94.0.
+In the trained format at T = 0.6, n = 32, on pinned 300-problem subsets: RFT's gain over SFT persists at
++2.0-2.5 to k = 32 on MATH-500; GRPO over RFT is -0.3 [-0.9, 0.3] at k = 16 on GSM8K (no problem newly
+solved in 32 tries) and +1.9 [0.4, 3.5] on MATH-500 (10 problems newly solved, 2 lost). Figures:
+`outputs/reports/figures/`.
 
-Calibration: the 4-shot-CoT rows match the Qwen3 technical report (75.44 / 59.59 on GSM8K) within 1-2 points. Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for the 1.7B base; a names-only control moves nothing (-0.4 [-3.3, 2.5]), so the gap is arithmetic brittleness, not recall. Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs). Details: `outputs/reports/phase-1.md`.
+**Controls.** Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for
+the base, 11.6 after RFT, 11.1 [8.2, 14.1] after GRPO; a names-only control moves nothing (-0.4 [-3.3,
+2.5]). Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs), unchanged by
+training. Phase 3 ablations: the same tokens of distilled data instead of the selected traces gain nothing
+(74.8 to 74.1 GSM8K); unfiltered traces land on RFT but were 93 % correct by construction (EXP-010g, no
+power); random instead of shortest traces -2.4 [-4.7, -0.1] GSM8K (EXP-010h). GRPO training: reward 0.34
+to 0.68, finished rate 0.35 to 0.75, mean completion 1,406 to 1,201 tokens with p90 at the cap, KL 0.006,
+clip fraction 0, zero-variance groups 30 % flat, 56 s/step on one H100.
 
-Phase 0 produced one methodological result rather than a model result: in vLLM's default mode three
-identical greedy evals of Qwen3-0.6B-Base differed by up to 6 points on 100-problem subsets because the
-generated text itself changed between runs; with vLLM's batch-invariant mode (now the harness default)
-they are bit-identical. Details in `outputs/reports/phase-0.md`, EXP-000 in `experiments.md`.
+## 7. Repository map
 
-## Reproduce
+| where | what |
+|---|---|
+| `src/rlvr/eval/` | the harness: datasets, prompts, extraction, metrics, bootstrap CIs, batch-invariant sampler |
+| `src/rlvr/ref/` | from-scratch references: GRPO loss, advantages, KL estimators, pass@k, SFT loss, sampler |
+| `src/rlvr/train/` | `rlvr-sft` (TRL SFT, packed, flash attention) and `rlvr-grpo` (TRL GRPOTrainer + vLLM colocate, dynamic-sampling subclass, hacking watch) |
+| `src/rlvr/data/` | SFT and RFT data builders, contamination, perturbed GSM8K, partial-prompt probe |
+| `scripts/` | per-phase rental session scripts (resumable), preflight checks, paired compares, the gain decomposition, plots |
+| `tests/` | 193 CPU tests plus GPU-marked ones; `scripts/check.sh` is the gate before every commit |
+| `experiments.md` | pre-registration: hypothesis, metric, falsifier, result, conclusion per run |
+| `outputs/reports/` | one report per phase with every table, plus the paired compare tables and figures |
+| `docs/` | research narrative, per-phase engineering notes and journals, rental and handoff procedure |
+| `cards/` | model cards with config, data, compute and the eval table with CIs |
+| `COMPUTE.md`, `FAILURES_AND_LEARNINGS.md` | the ledger and the incident log |
+
+## 8. Reproduce
 
 ```bash
 # inside WSL2 Ubuntu or any Linux box with a CUDA GPU; no sudo needed
@@ -62,8 +220,9 @@ source ~/venvs/rlvr/bin/activate
 bash scripts/check.sh                # ruff + fast CPU tests (the pre-commit gate)
 python scripts/triton_check.py       # GPU sanity: a Triton kernel compiles and runs
 bash scripts/phase0_smoke.sh         # Phase 0 exit check on Qwen3-0.6B-Base
+rlvr-eval --help                     # score any HF checkpoint on GSM8K, perturbed GSM8K, MATH-500, Countdown, AIME24
 ```
 
-CPU-only (what CI does): `bash scripts/setup_env.sh --cpu` then `pytest -q -m "not gpu"`.
-
-Per-phase commands are listed in `scripts/` as they are added.
+CPU-only (what CI does): `bash scripts/setup_env.sh --cpu` then `pytest -q -m "not gpu"`. The rented-GPU
+sessions are `scripts/phase{1,2,3,4}_rental.sh`, each step resumable, with `docs/rental-setup.md` and
+`docs/e2e-session-handoff.md` as the procedure.
