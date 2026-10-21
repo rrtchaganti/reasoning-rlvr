@@ -14,8 +14,20 @@ export HF_HUB_DISABLE_XET=1
 STEP="${1:-exp016}"
 BUDGETS="${RLVR_FORCE_BUDGETS:-1536 1024 2048 768 3072}"
 CKPTS="${RLVR_FORCE_CKPTS:-sft rft}"
-declare -A MODEL=([sft]=Raviteja546/reasoning-rlvr-sft [rft]=Raviteja546/reasoning-rlvr-rft [grpo]=Raviteja546/reasoning-rlvr-grpo)
-mkdir -p outputs/eval
+# The Hub repos hold seed, control and ablation checkpoints in subfolders; vLLM's Hub loader pulls
+# every model.safetensors in a repo (six extra 7 GB files for the SFT repo, found 21 Oct 2026), so
+# the `download` step fetches the root checkpoint only, as scripts/phase4_rental.sh does, and the
+# runs use the local copies under $RLVR_MODELS (default ~/models).
+RLVR_MODELS="${RLVR_MODELS:-$HOME/models}"
+declare -A REPO=([sft]=Raviteja546/reasoning-rlvr-sft [rft]=Raviteja546/reasoning-rlvr-rft [grpo]=Raviteja546/reasoning-rlvr-grpo)
+declare -A MODEL=([sft]="$RLVR_MODELS/reasoning-rlvr-sft" [rft]="$RLVR_MODELS/reasoning-rlvr-rft" [grpo]="$RLVR_MODELS/reasoning-rlvr-grpo")
+download() {  # <ckpt>: the root checkpoint of its repo, nothing from the subfolders
+  local c="$1" dir="${MODEL[$c]}"
+  if [[ -e "$dir/config.json" && -e "$dir/model.safetensors" ]]; then echo "== have $dir"; return; fi
+  echo "== $(date -u +%H:%M:%S) UTC: download ${REPO[$c]} -> $dir"
+  hf download "${REPO[$c]}" --local-dir "$dir" --exclude "ablations/*" --exclude "controls/*" --exclude "seeds/*" --exclude "*.md"
+}
+mkdir -p outputs/eval "$RLVR_MODELS"
 run_eval() {  # <out dir> <model> <extra flags...>
   local out="$1" model="$2"; shift 2
   if [[ -e "$out/metrics.json" ]]; then echo "== skip (exists): $out"; return; fi
@@ -40,12 +52,15 @@ for r in forced[:2]:
     print("---", r["finish_reason"], r["num_tokens"], "tokens; tail:", repr(r["text"][-120:]))
 EOF
     ;;
+  download)
+    for c in $CKPTS; do download "$c"; done ;;
   exp016)
+    for c in $CKPTS; do download "$c"; done
     for B in $BUDGETS; do for c in $CKPTS; do
       run_eval "outputs/eval/${c}_force${B}_think_tag" "${MODEL[$c]}" --force-stop-at "$B" --force-stop-continue 128
     done; done ;;
   exp016-ctrl)
-    for c in $CKPTS; do run_eval "outputs/eval/${c}_laptop_think_tag" "${MODEL[$c]}"; done ;;
+    for c in $CKPTS; do download "$c"; run_eval "outputs/eval/${c}_laptop_think_tag" "${MODEL[$c]}"; done ;;
   *) echo "unknown step $STEP"; exit 2 ;;
 esac
 echo "== done ($(date -u +%H:%M:%S) UTC): $STEP"
