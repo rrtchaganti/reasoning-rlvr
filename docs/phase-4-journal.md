@@ -241,7 +241,7 @@ three parallel streams, the archive at 00:00 UTC (188 MB, 875 files). The user, 
 UTC, asked the agent for a fast-restart recipe for session 2; the agent uploaded the three wheels to
 the Hub with a hash file, wrote the recipe as section 11 of the hand-back, and, since the archive was
 already built, uploaded the final hand-back, log and notes as a separate 26 KB addendum. Stop at
-about 01:20 UTC. The user was away from 15:30 UTC; the agent wrote its own decision policy for
+01:30 UTC (07:00 IST). The user was away from 15:30 UTC; the agent wrote its own decision policy for
 failures before anything happened (ten-minute rule, one OOM fallback, relaunch once on a non-OOM
 crash, no new steps, never Stop) and nothing in it was needed.
 

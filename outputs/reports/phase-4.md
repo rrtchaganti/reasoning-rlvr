@@ -47,7 +47,7 @@ self-distillation (section 3); choosing two *random* correct traces per problem 
 shortest costs 2.4 [0.1, 4.7] points on GSM8K and leaves GSM8K truncation 7 points higher, with
 MATH-500 unchanged: about half of RFT's stopping effect on GSM8K is length selection.
 
-Session 1 cost 13.1 node-hours including the Stop (INR 4,965), against 12.0 planned; the work itself
+Session 1 cost 13.3 node-hours including the Stop (INR 5,030), against 12.0 planned; the work itself
 finished inside the estimate and the overrun is 88 idle minutes of a stalled environment build plus
 the idle time until the user's Stop. Micro-batch 32 did not fit beside vLLM; every GRPO run used
 micro-batch 16 with gradient accumulation 16 (the same 256-completion update).
@@ -395,16 +395,16 @@ completions rose, format-only outputs stayed under 2 %, "Wait" per completion fe
 
 ## 9. Compute (session 1)
 
-Node-hours from the first tmux marker (12:14 UTC, 20 Oct) to the user's Stop (about 01:20 UTC,
-21 Oct): about 13.1 h, INR 4,965, against the plan's 12.0 h / INR 4,570. GPU work 13:52-23:47 UTC
+Node-hours from the first tmux marker (12:14 UTC, 20 Oct) to the user's Stop (01:30 UTC, 07:00 IST,
+21 Oct): 13.3 h, INR 5,030, against the plan's 12.0 h / INR 4,570. GPU work 13:52-23:47 UTC
 (9 h 55 min) with about 17 idle minutes inside the steps; the environment build to the first GPU
-job 1 h 28 min (all idle); uploads, hand-back and archive 13 minutes; idle until the Stop about
-1 h 20 min. Per step: setup 14 min, smoke 2, the two Phase 3 ablations 53, debugging run 62
+job 1 h 28 min (all idle); uploads, hand-back and archive 13 minutes; idle until the Stop
+1 h 30 min. Per step: setup 14 min, smoke 2, the two Phase 3 ablations 53, debugging run 62
 (including two OOM attempts and the question), main 3 h 18, seed 3 h 18, evals 56 (the n = 32
 sampling 28 min, a five-set greedy eval 7.5-8 min, the three-template set 19 min). Rows in
 `COMPUTE.md`. Rates for session 2: 56 s per GRPO step at micro-batch 16 on the MATH-heavy mix, 3 h
 18 min per 200-step run with four dev evals, 8 min per five-set greedy eval, path A restart 5
-minutes. Project to date about INR 16,500 of the INR 22,000 ceiling.
+minutes. Project to date about INR 16,600 of the INR 22,000 ceiling.
 
 ## 10. Session 2, and what this report still needs
 

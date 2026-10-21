@@ -112,8 +112,8 @@ GPU idle for 25 of them. Rates INR 379.05 per hour.
 | EXP-012 main run (200 steps + 4 dev evals) | 3.8 | 1,440 | 3.3 h (56.3 s/step) |
 | EXP-012 evals (greedy x3 + gap + probe; n = 32 trained-format sampling) | 1.2 | 455 | 0.8 h |
 | EXP-013 seed repeat + its greedy eval | 4.0 | 1,520 | 3.4 h |
-| archive, Hub uploads, Stop (handoff section 5 item 4) | 0.5 | 190 | 0.2 h of work + about 1.3 h idle until the Stop |
-| **session 1** | **12.0** | **4,570** | **13.1 h, INR 4,965** (the Stop time is the user's estimate) |
+| archive, Hub uploads, Stop (handoff section 5 item 4) | 0.5 | 190 | 0.2 h of work + 1.5 h idle until the Stop |
+| **session 1** | **12.0** | **4,570** | **13.3 h, INR 5,030** (Stop 07:00 IST) |
 
 | session 2 (re-estimated 21 Oct at session 1's rates) | hours | INR |
 |---|---|---|

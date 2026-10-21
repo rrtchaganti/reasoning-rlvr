@@ -78,9 +78,9 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 | 2026-10-20 | 4 | EXP-012 main run: 200 GRPO steps at 56.3 s/step + four dev evals (a8b9f69) | TIR H100 SXM 80 GB | 3.3 | INR 1,251 (USD 14.9) | 62 M | 62 M | peak 70.4 GB; W&B 4b2hf5vo |
 | 2026-10-20 | 4 | EXP-013 seed 1: 200 steps at 56.2 s/step + four dev evals (a8b9f69) | TIR H100 SXM 80 GB | 3.3 | INR 1,251 (USD 14.9) | 62 M | 62 M | W&B w0dhqitz |
 | 2026-10-20 | 4 | EXP-012 evals: three templates, gap, probe, subsets check, n = 32 think-tag samples (28 min); EXP-013 five-set eval (a8b9f69) | TIR H100 SXM 80 GB | 0.93 | INR 353 (USD 4.2) | 45 M | 0 | all sets of a checkpoint in one process |
-| 2026-10-20/21 | 4 | uploads (four finals, 8.5 min in parallel), hand-back, archive (188 MB, 875 files), the wheels upload and the addendum; idle until the user's Stop at about 01:20 UTC | TIR H100 SXM 80 GB (idle) | 1.55 | INR 588 (USD 7.0) | - | - | GPU idle from 23:47 UTC; the Stop time is the user's estimate |
+| 2026-10-20/21 | 4 | uploads (four finals, 8.5 min in parallel), hand-back, archive (188 MB, 875 files), the wheels upload and the addendum; idle until the user's Stop at 01:30 UTC (07:00 IST) | TIR H100 SXM 80 GB (idle) | 1.72 | INR 652 (USD 7.8) | - | - | GPU idle from 23:47 UTC |
 
-| 2026-10-20/21 | 4 | TIR H100 notebook, session 1 whole life (12:14 UTC 20 Oct to the Stop at about 01:20 UTC 21 Oct) | TIR H100 SXM 80 GB | 13.1 | INR 4,965 (USD 59) | about 195 M | about 170 M | the rows above are inside this one; plan 12.0 h / INR 4,570; the work itself 9 h 55 min of GPU time; the overrun is the build stall and the idle tail; the disk (320 GB) about INR 107 a day while the notebook exists, Stopped or not |
+| 2026-10-20/21 | 4 | TIR H100 notebook, session 1 whole life (12:14 UTC 20 Oct to the Stop at 01:30 UTC (07:00 IST) 21 Oct) | TIR H100 SXM 80 GB | 13.27 | INR 5,030 (USD 60) | about 195 M | about 170 M | the rows above are inside this one; plan 12.0 h / INR 4,570; the work itself 9 h 55 min of GPU time; the overrun is the build stall and the idle tail; the disk (320 GB) about INR 107 a day while the notebook exists, Stopped or not |
 
 Phase 3 part: about 10.3 node-hours, INR 3,900: core 4.1 h, the gap-analysis runs 4.0 h, the
 analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A100-hours.
@@ -88,7 +88,7 @@ analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A
 **Running totals (after Phase 4 session 1, 21 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
 A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100 notebook 28.1 h
 (INR 10,640) and its disk (INR 132 to the Stop), the second H100 notebook's session 1 13.1 h
-(INR 4,965, the Stop time estimated) and its disk (about INR 107 a day from 20 Oct): about INR 16,500
+(INR 5,030) and its disk (about INR 107 a day from 20 Oct): about INR 16,600
 (USD 196). Local: 6.70 h. Budget used: about 75 % of the INR 22,000 (USD 262) ceiling the user set on
 20 Oct; session 2 at the measured rates is about 12 h, INR 4,550, which fits with about INR 700 to
 spare if the GPU is never idle (plan section 5; drop order section 8).

@@ -31,7 +31,7 @@ node never edits tracked files, commits or pushes (`CLAUDE.md`).
   watch's repeated-answer flag counts repeated *incorrect* answers; `rlvr-build-rft` writes its
   report next to the data. **The node must `git pull --ff-only` before anything else** (the user
   types the token); every run of session 2 is on the pulled commit.
-- **Budget:** the project has spent about INR 16,500 (sessions to 21 Oct plus the disk) of the
+- **Budget:** the project has spent about INR 16,600 (sessions to 21 Oct plus the disk) of the
   INR 22,000 ceiling. Session 2 is about 13.4 node-hours, INR 5,060, at the measured rates, which
   lands within about INR 200 of the ceiling if the GPU is never idle. No run is repeated without
   asking; the drop order inside this session is the `cap` run's n = 32 sampling first, then `a1`
