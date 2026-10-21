@@ -195,3 +195,91 @@ section 11, COMPUTE.md and the handoff's section 0. Headroom over the estimate i
 under two H100-hours, so the plan's drop order and the ten-minute rule are the only answers to a
 failed run; a rerun is a question for the user. With that, everything on the laptop side of the
 handoff is done and the next step is the notebook.
+
+## 5. Session 1 on the node (20-21 Oct) and the laptop fold-in (21 Oct)
+
+**Before the node started (20 Oct, laptop).** Three things came up in the hour before the notebook
+was created, all from the user's questions. The user merged PR #4 (phase-3-rft, which carried
+phase-2-sft) into main; the tags `phase-2` and `phase-3` were added and the README rows updated, and
+the Phase 4 branch needs no rebase since its base commit is in main. The user asked whether to Stop
+or Delete between the sessions: at INR 112 a day for the disk against INR 285 and 45 minutes for a
+path B rebuild, Stop wins for any gap under about 2.5 days, so the handoff and the plan were changed
+to Stop after session 1 and Delete after session 2 (4339c36). And the user asked what the `EXIT=`
+line the chaining relies on was, which found a bug: the session script printed its own
+`EXIT=0 step=<run>` after training and before the dev evals of the checkpoints, so a watcher on
+`^EXIT=` would have launched the next step on top of the evals, the GPU collision the rules forbid.
+The script now prints no `EXIT=` line and the handoff's watcher reads only the log's last line,
+anchored (a8b9f69); the user relayed the anchored watcher to the node in chat and pulled the fix
+between `setup` and `smoke`, so every run of record is on the fixed commit.
+
+Two practical lessons from starting Claude Code on the node: `--dangerously-skip-permissions` is
+refused for root, and the 18 Oct session's transcript shows it ran in `auto` permission mode, so
+that is what session 1 used (`claude --permission-mode auto`). And the GitHub token is typed once at
+the clone and once more for a mid-session pull; nothing stores it.
+
+**The session, in order (UTC, 20 Oct; the node's session log and notes are in the archive).**
+12:14 tmux started; 12:24 path B build launched with the model download in parallel. The build
+stalled: uv sat on the torch and triton downloads with the cache size flat, three times, because
+the PyTorch index serves triton from a host this node reached at under 1 MB/s with multi-minute
+stalls; the node fetched the two wheels with `curl -C -`, checked them against the index's sha256,
+installed them `--no-deps`, and the fourth attempt took 2.5 minutes. First GPU job at 13:52, 88
+minutes after billing began (INR 555 of idle against INR 160 planned). `setup` 14 min with two
+relaunches (the RFT builder rewrote the tracked Phase 3 data report's date line and the harness
+refused the dirty tree; torchcodec had come back through the extras install), every hash equal to
+the committed manifests. `smoke` 2 min. The two Phase 3 ablations 53 min (EXP-010g's set turned out
+only 6.9 % incorrect: the shortest two finished traces of a problem are mostly correct ones). The
+debugging run hit CUDA OOM twice at the plan's micro-batch of 32 (first with 11 GiB of fragmentation,
+then with the expandable-segments allocator and vLLM at 0.30: 76.7 GiB allocated, so the need was
+real: 32 completions of about 1,700 tokens over a 151,936-token vocabulary in fp32 is about 33 GB of
+logits on top of 58 GB of weights, optimiser, reference and vLLM). The agent stopped and asked as rule
+3 required; the user decided at 15:23 UTC: micro-batch 16, gradient accumulation 16, vLLM 0.30,
+expandable segments, for every run alike, with one fallback to 8 allowed without asking. The debugging
+run then measured 54.1 s per step (3.3 h projected for 200 steps against the plan's 3.8), the main run
+launched at 16:13 and finished at 19:31 (56.3 s per step), the seed run 19:32 to 22:50 (56.2 s), the
+evals 22:51 to 23:47 (the n = 32 sampling 28 min against 43 estimated), the uploads 8.5 minutes in
+three parallel streams, the archive at 00:00 UTC (188 MB, 875 files). The user, back at about 00:15
+UTC, asked the agent for a fast-restart recipe for session 2; the agent uploaded the three wheels to
+the Hub with a hash file, wrote the recipe as section 11 of the hand-back, and, since the archive was
+already built, uploaded the final hand-back, log and notes as a separate 26 KB addendum. Stop at
+about 01:20 UTC. The user was away from 15:30 UTC; the agent wrote its own decision policy for
+failures before anything happened (ten-minute rule, one OOM fallback, relaunch once on a non-OOM
+crash, no new steps, never Stop) and nothing in it was needed.
+
+**The fold-in (21 Oct, laptop).** The user downloaded the archive and sent the agent's closing
+screenshot; the first extraction and reading went on the main archive, then the user said a second
+file with the setup steps "changed the hash": the main archive's hash was unchanged, the new material
+was the addendum on the Hub, fetched into its own folder. The paired tables are the `report` step's
+job on the node, but the `rft` eval folders were not on the new disk (they live in the Phase 3
+archive), so the laptop computed them from the per-sample files of the two archives with the same
+`compare_checkpoints.py`: ten comparisons (grpo vs rft on three templates and vs sft, seed 1 vs
+main and vs rft, the two Phase 3 ablations vs rft, and the n = 32 pass@k tables). The last two needed
+the `rft` and `sft` n = 32 sample files, which the Phase 3 archive does not carry (only their
+metrics), so they were fetched from the Hub dataset. Two tooling notes for the record: Git Bash's
+MSYS path conversion mangles `/mnt/c/...` arguments and shell variables inside a `wsl -- bash -lc`
+string, so WSL work goes through script files run with `MSYS_NO_PATHCONV=1`; and the pass@k plot
+script draws one series per eval set, so a figure with three sample runs merges them (the committed
+figure is the GRPO run alone, with the paired tables carrying the comparison). A new
+`scripts/plot_grpo_curves.py` draws the per-step statistics and the dev curves of the two runs.
+
+The node's three patches were applied (`git apply`): micro-batch 16 and vLLM 0.30 in the config,
+pinned by the preflight (the code defaults too, which a unit test caught); `setup_env.sh`
+pre-installs torch and triton wheels found under the wheels folder, removes torchcodec after the
+extras step and fails its verify if it is back. The three suggestions were done too: the RFT builder
+writes its report and figure next to the data; the session script excludes `controls/` (13 GB) from
+the RFT download; and the hacking watch's repeated-answer flag now needs repeated *incorrect*
+answers, because the plain rate rose with accuracy and flagged both healthy runs (the test suite
+covers the new statistic and the fallback for older logs). Committed as fb856a8 with the tables and
+figures; the report, registry, ledger, plan and the session 2 handoff followed.
+
+**What session 1 settled (the report has the tables).** GRPO beat `rft` on every set with 500 or more
+problems, paired, in the trained format (+4.1 GSM8K, +4.8 perturbed, +7.0 MATH-500, +7.0 Countdown),
+and the gain is mostly termination: truncation fell from 15 to 5 % and 40 to 21 %, the other
+templates did not move except zero-shot GSM8K, and the pass@k curves say sharpening on GSM8K with a
+small persistent gain on MATH-500 (+1.9 at k = 16), the same shape RFT had. The seed repeat
+reproduced the GSM8K-family and Countdown gains to within a point and landed 4.8 points lower on
+MATH-500, so that gain is positive in both seeds with its size unresolved and the ablations will be
+read against a 4.8-point noise row there. Two hypotheses were wrong and are written as such: Countdown
+doubled instead of staying put (termination transferred to the one task where nothing finished), and
+the seed difference on MATH-500 exceeded 3 points. One pre-registered rule was under-specified (the
+format clause of the method falsifier does not say whether truncated completions count) and is read
+by its intent with the literal number beside it. EXP-010g has no power by construction and says so.

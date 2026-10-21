@@ -103,33 +103,37 @@ starts with path B of `docs/h100-next-session.md`: environment build 25 min, fla
 (CPU, concurrent), model and sample downloads from the Hub, data step 5 min; about 45 minutes,
 GPU idle for 25 of them. Rates INR 379.05 per hour.
 
-| session 1 | hours | INR |
+| session 1 (plan, 20 Oct) | hours | INR | actual (20-21 Oct) |
+|---|---|---|---|
+| rebuild (path B) and the `rft` dev-split eval | 0.8 | 300 | 1.9 h: the build stalled 88 min (INR 555 idle); setup 14 min |
+| EXP-010g and EXP-010h (two 12-minute trainings + two 10-minute evals) | 0.75 | 285 | 0.9 h |
+| debugging run on GSM8K-train, 50 steps, rate measurement (PLAN.md step 2; not a result) | 1.0 | 380 | 1.0 h incl. two OOM attempts; 54.1 s/step |
+| EXP-012 main run (200 steps + 4 dev evals) | 3.8 | 1,440 | 3.3 h (56.3 s/step) |
+| EXP-012 evals (greedy x3 + gap + probe; n = 32 trained-format sampling) | 1.2 | 455 | 0.8 h |
+| EXP-013 seed repeat + its greedy eval | 4.0 | 1,520 | 3.4 h |
+| archive, Hub uploads, Stop (handoff section 5 item 4) | 0.5 | 190 | 0.2 h of work + about 1.3 h idle until the Stop |
+| **session 1** | **12.0** | **4,570** | **13.1 h, INR 4,965** (the Stop time is the user's estimate) |
+
+| session 2 (re-estimated 21 Oct at session 1's rates) | hours | INR |
 |---|---|---|
-| rebuild (path B) and the `rft` dev-split eval | 0.8 | 300 |
-| EXP-010g and EXP-010h (two 12-minute trainings + two 10-minute evals) | 0.75 | 285 |
-| debugging run on GSM8K-train, 50 steps, rate measurement (PLAN.md step 2; not a result) | 1.0 | 380 |
-| EXP-012 main run (200 steps + 4 dev evals) | 3.8 | 1,440 |
-| EXP-012 evals (greedy x3 + gap + probe; n = 32 trained-format sampling) | 1.2 | 455 |
-| EXP-013 seed repeat + its greedy eval | 4.0 | 1,520 |
-| archive, Hub uploads, Stop (handoff section 5 item 4) | 0.5 | 190 |
-| **session 1** | **12.0** | **4,570** |
+| path A restart (Stopped notebook: secrets, pull, env check) and `setup` (hashes only) | 0.15 | 55 |
+| EXP-014a (3.3 h), EXP-014b (4.0 h: dynamic sampling over-generates 2x), EXP-014c (3.3 h), each with its four dev evals | 10.6 | 4,020 |
+| three five-set greedy evals | 0.4 | 150 |
+| `report` (ablation compares, card, uploads), hand-back, archive, Delete | 0.7 | 265 |
+| **session 2** | **11.85** | **4,490** |
 
-| session 2 | hours | INR |
-|---|---|---|
-| restart: path A after a Stop (0.1 h, INR 40, plus the disk at about INR 112 a day for the gap) or path B after a Delete (0.75 h) | 0.75 | 285 |
-| EXP-014a, b, c (3.8 h each; b about 1.3x on sampling) + three greedy evals | 12.5 | 4,740 |
-| archive, Hub uploads, Delete | 0.5 | 190 |
-| **session 2** | **13.75** | **5,215** |
+Session 1's work itself (9 h 55 min of GPU time) came in under the plan; the overrun is the
+environment build's stall and the idle tail until the Stop. Session 2 is estimated at the measured
+56 s per step; the 20 Oct estimate of 13.75 h / INR 5,215 (path B, 3.8 h per run) is superseded.
+The notebook is Stopped between the sessions (the user's point on 20 Oct: the disk at about INR 107
+a day is cheaper than the INR 285 rebuild for a gap under 2.5 days, and the local checkpoints survive).
 
-Between the sessions the notebook is Stopped, not Deleted, when session 2 follows within about
-2.5 days (the user's point on 20 Oct): the disk at INR 112 a day is cheaper than the INR 285 rebuild
-up to that gap, and the local checkpoints survive. The session 2 row above is the Delete case; the
-Stop case saves about INR 245 minus the disk days.
-
-Phase 4 total about 26 node-hours, INR 9,800 (USD 117), against the INR 6,500 quoted for the five
-runs alone on 19 Oct: the difference is the two rebuilds, the Phase 3 ablations, the debugging run
-and the evals. Project to date is about INR 11,450; after Phase 4 about INR 21,300 (USD 254), so
-the ceiling had to rise from the INR 14,300 confirmed on 13 Oct.
+Phase 4 total at these numbers about 25 node-hours, INR 9,450 (USD 113). Project to date about
+INR 16,500 after session 1; after session 2 about INR 21,100 plus the disk days, so session 2 fits
+the ceiling with about INR 700 to spare only if the GPU is never idle; the drop order of section 8
+(A3, then A1) is the answer if it is not. On 20 Oct the arithmetic was: project to date about
+INR 11,450; after Phase 4 about INR 21,300 (USD 254), so the ceiling had to rise from the INR 14,300
+confirmed on 13 Oct.
 
 **Decided 20 Oct 2026: the ceiling is INR 22,000 (USD 262).** The user chose B on 19 Oct knowing
 the five runs' cost; the extras above (two rebuilds, the Phase 3 ablations, the debugging run, the
@@ -138,7 +142,10 @@ two H100-hours: no 200-step run can be repeated inside it, so a failed run is ha
 order of section 8 and the ten-minute rule of section 7, not by a rerun. COMPUTE.md carries the
 running total against this ceiling.
 If session 1 shows GRPO at or below `rft` (the EXP-012 falsifier), session 2 still runs: the
-ablations are about the method, not about beating RFT.
+ablations are about the method, not about beating RFT. **Session 1's verdict (21 Oct): the falsifier
+did not fire (+4.1 GSM8K, +7.0 MATH-500, paired); the noise row is 0.3 / 0.2 / 4.8 / 0.6; session 2
+runs all three ablations at session 1's settings (micro-batch 16, vLLM 0.30, pinned by the
+preflight).** Results in `outputs/reports/phase-4.md`.
 
 ## 6. Code to write on the laptop before session 1
 
