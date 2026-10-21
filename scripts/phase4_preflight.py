@@ -44,6 +44,8 @@ SHAPE_B: dict[str, Any] = {
     "prompt_seed": 0,
     "seed": 0,
     "model": "outputs/train/rft_1p7b/final",
+    "per_device_batch": 16,  # the H100 session-wide value (20 Oct 2026); the same for every run
+    "vllm_gpu_memory_utilization": 0.30,
     "limit_prompts": None,  # the prompt file and manifest are checked by content below, not by path
 }
 

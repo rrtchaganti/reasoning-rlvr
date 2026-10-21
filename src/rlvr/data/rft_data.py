@@ -20,7 +20,10 @@ excluded, think-tag template, n samples per problem at T = 1.0). Pipeline, every
 
 Outputs under ``outputs/data/rft/``: ``train.jsonl`` (SFT schema, git-ignored),
 ``manifest.json`` (the trainer checks its hash), ``solve_rate.jsonl``, ``learnable_prompts.jsonl``;
-the figure ``outputs/reports/figures/phase-3-solve-rate.png`` and ``outputs/reports/phase-3-data.md``.
+the figure ``solve_rate.png`` and the data report ``report.md`` in the same folder (``--figure`` and
+``--report`` override; the Phase 3 copies live in ``outputs/reports/`` as ``phase-3-solve-rate.png``
+and ``phase-3-data.md``). The defaults changed on 21 Oct 2026: the old default rewrote the tracked
+Phase 3 report's date line on the node and the harness refused the next step on the dirty tree.
 """
 
 from __future__ import annotations
@@ -489,13 +492,13 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument("--select-seed", type=int, default=0, help="seed of --per-problem-select random")
     p.add_argument("--out", type=Path, default=None, help="default outputs/data/rft")
-    p.add_argument(
-        "--figure", type=Path, default=Path("outputs/reports/figures/phase-3-solve-rate.png")
-    )
-    p.add_argument("--report", type=Path, default=Path("outputs/reports/phase-3-data.md"))
+    p.add_argument("--figure", type=Path, default=None, help="default <out>/solve_rate.png")
+    p.add_argument("--report", type=Path, default=None, help="default <out>/report.md")
     args = p.parse_args(argv)
     out_dir = args.out or (output_dir() / "data" / "rft")
     out_dir.mkdir(parents=True, exist_ok=True)
+    figure = args.figure or out_dir / "solve_rate.png"
+    report = args.report or out_dir / "report.md"
     print(f"[rft] samples {args.samples}, splits {args.splits}")
     problems = _problems_from_loaders(args.splits)
     eval_items = _eval_items(args.evals)
@@ -506,8 +509,8 @@ def main(argv: list[str] | None = None) -> None:
         count_tokens=_real_token_counter(args.tokenizer),
         eval_items=eval_items,
         out_dir=out_dir,
-        figure=args.figure,
-        report=args.report,
+        figure=figure,
+        report=report,
         per_problem=args.per_problem,
         max_tokens=args.max_tokens,
         run_fuzzy=not args.no_fuzzy,

@@ -58,6 +58,14 @@ else
     # also hosts an old `packaging`, and uv stops at the first index that has a package (17 Oct).
     # The vLLM wheel is the matching release asset (vllm-<ver>+<cuda>-...manylinux_2_28_<arch>.whl).
     export UV_TORCH_BACKEND="$VLLM_CUDA"
+    # The PyTorch index serves triton (and sometimes torch) from download-r2.pytorch.org, which the TIR
+    # H100 node reached at under 1 MB/s with multi-minute stalls on 20 Oct 2026 (uv hung three times,
+    # 87 min lost). Any torch-*/triton-* wheel under $RLVR_HOME/wheels (fetched with `curl -C -` and
+    # sha256-checked against the index's #sha256= fragment) installs first, so uv has nothing to fetch
+    # from that host. The versions must be the ones the vllm wheel pins (torch 2.13.0+cu129, triton 3.7.1).
+    for w in "${RLVR_HOME:-$HOME}"/wheels/torch-*.whl "${RLVR_HOME:-$HOME}"/wheels/triton-*.whl; do
+      [ -f "$w" ] && { echo "== pre-installing $w"; uv pip install --no-deps "$w"; }
+    done
     WHEEL="https://github.com/vllm-project/vllm/releases/download/v${VLLM_VERSION}/vllm-${VLLM_VERSION}+${VLLM_CUDA}-cp38-abi3-manylinux_2_28_$(uname -m).whl"
     echo "== installing vllm ${VLLM_VERSION}+${VLLM_CUDA} from the release wheel; torch backend ${UV_TORCH_BACKEND}"
     uv pip install "$WHEEL"
@@ -85,6 +93,9 @@ else
   else
     uv pip install -e ".[dev,gpu]"
   fi
+  # The extras install re-resolves vllm's dependencies and brings torchcodec back (20 Oct 2026: the
+  # rft dev eval died on libnvrtc.so.13). Remove it again here, after the last install into the venv.
+  if [ -n "$VLLM_CUDA" ]; then uv pip uninstall torchcodec || true; fi
   # flash-attention: no prebuilt wheel exists for the locked torch 2.13 (Dao-AILab stops at torch 2.8),
   # so a wheel is built once per image and kept on the persistent disk (13 min on the TIR H100 image
   # with its nvcc 12.9, 19 Oct 2026; the build recipe is in docs/rental-setup.md section 2b). Any
@@ -111,6 +122,9 @@ try:
     print("flash_attn", flash_attn.__version__)
 except Exception as e:  # noqa: BLE001
     print("flash_attn absent:", type(e).__name__)
+import importlib.util, os
+if os.environ.get("UV_TORCH_BACKEND", "").startswith("cu12") and importlib.util.find_spec("torchcodec"):
+    raise SystemExit("torchcodec is installed in a cu12x venv: it needs CUDA 13 and breaks `import vllm` at run time")
 PY
   if python -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
     # @triton.jit needs a real .py file (not stdin), so the kernel test lives in its own script.

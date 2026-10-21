@@ -25,6 +25,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 STEP="${1:-session1}"
 GRPO_EXTRA="${RLVR_GRPO_EXTRA:-}"   # unquoted below on purpose
+# The allocator setting of every GRPO run since 20 Oct 2026 (two OOMs at micro-batch 32 showed 11 GiB
+# of fragmentation; the config now holds per_device_batch 16 and vLLM 0.30, pinned by the preflight).
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 HF_REPO_SFT="${HF_REPO_SFT:-Raviteja546/reasoning-rlvr-sft}"
 HF_REPO_RFT="${HF_REPO_RFT:-Raviteja546/reasoning-rlvr-rft}"
 HF_REPO_SAMPLES="${HF_REPO_SAMPLES:-Raviteja546/reasoning-rlvr-samples}"
@@ -63,7 +66,7 @@ grpo_run() {  # grpo_run <run name> <out dir> <--set ...>  (preflight, train, de
 step_setup() {
   mkdir -p outputs/train/sft_1p7b outputs/train/rft_1p7b outputs/samples
   [[ -e "$SFT/config.json" ]] || hf download "$HF_REPO_SFT" --local-dir "$SFT" --exclude "ablations/*"
-  [[ -e "$RFT/config.json" ]] || hf download "$HF_REPO_RFT" --local-dir "$RFT" --exclude "seeds/*"
+  [[ -e "$RFT/config.json" ]] || hf download "$HF_REPO_RFT" --local-dir "$RFT" --exclude "seeds/*" --exclude "controls/*" --exclude "ablations/*"
   for s in sft_1.7b_rft_n8 sft_1.7b_n32_think_tag_t06 rft_1.7b_n32_think_tag_t06; do
     [[ -e "outputs/samples/$s/metrics.json" || -e "outputs/samples/$s/gsm8k/samples.jsonl" ]] || \
       hf download "$HF_REPO_SAMPLES" --repo-type dataset --include "$s/*" --local-dir outputs/samples
@@ -146,29 +149,27 @@ step_evals() {
 }
 
 step_report() {
+  # The paired tables against rft and sft, the seed-1 noise row and the n = 32 pass@k tables were
+  # computed on the laptop from the session 1 archive (21 Oct 2026) and are committed; a compare runs
+  # here only when its file is missing (an ablation's), and a missing reference folder (the rft evals
+  # are not on a fresh disk) is skipped rather than fatal.
   mkdir -p outputs/reports/figures
-  python scripts/compare_checkpoints.py --ref outputs/eval/rft_1.7b_think_tag --new outputs/eval/grpo_1.7b_think_tag \
-    --label-ref rft --label-new grpo --out outputs/reports/phase-4-compare-think_tag.md
+  paired() { local out="$1"; shift; run_if_missing "$out" python scripts/compare_checkpoints.py "$@" --out "$out" || true; }
+  paired outputs/reports/phase-4-compare-think_tag.md --ref outputs/eval/rft_1.7b_think_tag --new outputs/eval/grpo_1.7b_think_tag --label-ref rft --label-new grpo
   for t in few_shot_cot zero_shot; do
-    python scripts/compare_checkpoints.py --ref "outputs/eval/rft_1.7b_${t}" --new "outputs/eval/grpo_1.7b_${t}" \
-      --label-ref rft --label-new grpo --out "outputs/reports/phase-4-compare-${t}.md" || true
+    paired "outputs/reports/phase-4-compare-${t}.md" --ref "outputs/eval/rft_1.7b_${t}" --new "outputs/eval/grpo_1.7b_${t}" --label-ref rft --label-new grpo
   done
-  python scripts/compare_checkpoints.py --ref outputs/eval/sft_1.7b_think_tag --new outputs/eval/grpo_1.7b_think_tag \
-    --label-ref sft --label-new grpo --out outputs/reports/phase-4-compare-sft-think_tag.md || true
-  for pair in "grpo_1p7b_seed1 seed1 grpo_1p7b main" "grpo_1p7b_a1_nokl a1 grpo_1p7b main" "grpo_1p7b_a2_dynamic a2 grpo_1p7b main" "grpo_1p7b_a3_drgrpo a3 grpo_1p7b main"; do
+  paired outputs/reports/phase-4-compare-sft-think_tag.md --ref outputs/eval/sft_1.7b_think_tag --new outputs/eval/grpo_1.7b_think_tag --label-ref sft --label-new grpo
+  for pair in "grpo_1p7b_seed1 seed1" "grpo_1p7b_a1_nokl a1" "grpo_1p7b_a2_dynamic a2" "grpo_1p7b_a3_drgrpo a3"; do
     set -- $pair
     [[ -e "outputs/eval/$1_think_tag/metrics.json" ]] || continue
-    python scripts/compare_checkpoints.py --ref outputs/eval/grpo_1.7b_think_tag --new "outputs/eval/$1_think_tag" \
-      --label-ref "$4" --label-new "$2" --out "outputs/reports/phase-4-compare-$2-vs-main.md"
+    paired "outputs/reports/phase-4-compare-$2-vs-main.md" --ref outputs/eval/grpo_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref main --label-new "$2"
+    paired "outputs/reports/phase-4-compare-think_tag-$2.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref rft --label-new "$2"
   done
-  if [[ -e outputs/samples/grpo_1.7b_n32_think_tag_t06/metrics.json ]]; then
-    python scripts/compare_checkpoints.py --ref outputs/samples/rft_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_1.7b_n32_think_tag_t06 \
-      --all-samples --label-ref rft --label-new grpo --out outputs/reports/phase-4-compare-think_tag_n32_t06.md
-  fi
+  paired outputs/reports/phase-4-compare-think_tag_n32_t06.md --ref outputs/samples/rft_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_1.7b_n32_think_tag_t06 --all-samples --label-ref rft --label-new grpo
   for r in rft_1p7b_nofilter rft_1p7b_random2; do
     [[ -e "outputs/eval/${r/_1p7b/_1.7b}_think_tag/metrics.json" ]] || continue
-    python scripts/compare_checkpoints.py --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/${r/_1p7b/_1.7b}_think_tag" \
-      --label-ref rft --label-new "${r#rft_1p7b_}" --out "outputs/reports/phase-3-compare-${r#rft_1p7b_}-vs-rft.md"
+    paired "outputs/reports/phase-3-compare-${r#rft_1p7b_}-vs-rft.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/${r/_1p7b/_1.7b}_think_tag" --label-ref rft --label-new "${r#rft_1p7b_}"
   done
   python scripts/push_to_hub.py model --run "$MAIN" --repo "$HF_REPO_GRPO" --base-model-id "$HF_REPO_RFT" \
     --evals outputs/eval/grpo_1.7b_think_tag outputs/eval/grpo_1.7b_few_shot_cot outputs/eval/grpo_1.7b_zero_shot \

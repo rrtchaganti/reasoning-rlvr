@@ -134,11 +134,17 @@ def test_group_stats_and_hacking_flags():
     # the explicit check of the repeated-answer rule: three identical answers out of four
     same = g.group_stats([good, good, good, bad], group_size=4)
     assert same["repeated_answer_group_rate"] == 1.0
+    # agreeing on the right answer is accuracy, not collapse: only a repeated wrong answer counts
+    assert same["repeated_incorrect_answer_group_rate"] == 0.0
+    same_wrong = g.group_stats([bad, bad, bad, good], group_size=4)
+    assert same_wrong["repeated_answer_group_rate"] == 1.0
+    assert same_wrong["repeated_incorrect_answer_group_rate"] == 1.0
     base = {
         "mean_tokens": 100.0,
         "correct_rate": 0.5,
         "format_only_rate": 0.1,
-        "repeated_answer_group_rate": 0.1,
+        "repeated_answer_group_rate": 0.9,  # a healthy run agrees on right answers
+        "repeated_incorrect_answer_group_rate": 0.1,
         "wait_per_completion": 0.5,
         "finished_rate": 0.9,
     }
@@ -151,6 +157,11 @@ def test_group_stats_and_hacking_flags():
     ]
     assert g.hacking_flags(better)["flags"]["length_growth_without_accuracy"] is False
     assert g.hacking_flags(flat[:10])["evaluated"] is False
+    assert g.hacking_flags(flat)["flags"]["repeated_answers"] is False
+    collapsed = [{**base, "repeated_incorrect_answer_group_rate": 0.6} for _ in range(40)]
+    assert g.hacking_flags(collapsed)["flags"]["repeated_answers"] is True
+    old_log = [{k: v for k, v in base.items() if k != "repeated_incorrect_answer_group_rate"}]
+    assert g.hacking_flags(old_log * 40)["flags"]["repeated_answers"] is True  # falls back
 
 
 def test_select_groups_keeps_informative_groups_first_and_fills_from_the_front():
@@ -172,7 +183,7 @@ def test_select_groups_keeps_informative_groups_first_and_fills_from_the_front()
 def test_grpo_config_matches_shape_b(tmp_path):
     cfg = g.load_config(None, ["use_vllm=false", "report_to=none"])
     args = g.make_grpo_config(cfg, tmp_path)
-    assert args.per_device_train_batch_size == 32 and args.gradient_accumulation_steps == 8
+    assert args.per_device_train_batch_size == 16 and args.gradient_accumulation_steps == 16
     assert (
         args.num_generations == 8 and args.max_completion_length == 1536 and args.max_steps == 200
     )

@@ -74,9 +74,9 @@ DEFAULTS: dict[str, Any] = {
     "scale_rewards": "group",  # group | none
     "dynamic_sampling": False,  # ablation A2
     "oversample": 2,  # prompts generated per step as a multiple of num_prompts_per_step (A2 only)
-    "per_device_batch": 32,  # micro-batch of completions; grad_accum = completions_per_step / this
+    "per_device_batch": 16,  # micro-batch of completions (grad_accum = completions_per_step / this); 32 OOMed on the H100 beside vLLM at a 1,536 cap (20 Oct 2026)
     "use_vllm": True,
-    "vllm_gpu_memory_utilization": 0.35,
+    "vllm_gpu_memory_utilization": 0.30,  # every Phase 4 run (20 Oct 2026)
     "attn_implementation": "flash_attention_2",
     "load_dtype": "float32",  # fp32 master weights under bf16 autocast, as every run of the study
     "bf16": True,
@@ -280,17 +280,25 @@ def group_stats(records: Sequence[dict[str, Any]], group_size: int) -> dict[str,
     n = max(len(records), 1)
     rate = lambda key: sum(1 for r in records if r[key]) / n  # noqa: E731
     repeated = 0.0
+    repeated_incorrect = 0.0
     zero_var = 0.0
     groups = [records[i : i + group_size] for i in range(0, len(records), group_size)]
     groups = [g for g in groups if len(g) == group_size]
     if groups:
         for g in groups:
             answers = Counter(normalize_for_vote(r["extracted"] or "") for r in g)
-            top = answers.most_common(1)[0][1]
-            repeated += 1.0 if top >= group_size - 1 else 0.0
+            top_answer, top = answers.most_common(1)[0]
+            if top >= group_size - 1:
+                repeated += 1.0
+                # the collapse signal: the group agrees on one answer and that answer is wrong
+                # (a group agreeing on the right answer is accuracy, not collapse; 20 Oct 2026)
+                holders = [r for r in g if normalize_for_vote(r["extracted"] or "") == top_answer]
+                if not any(r["correct"] for r in holders):
+                    repeated_incorrect += 1.0
             rewards = {r["reward"] for r in g}
             zero_var += 1.0 if len(rewards) == 1 else 0.0
         repeated /= len(groups)
+        repeated_incorrect /= len(groups)
         zero_var /= len(groups)
     return {
         "reward": sum(r["reward"] for r in records) / n,
@@ -307,6 +315,7 @@ def group_stats(records: Sequence[dict[str, Any]], group_size: int) -> dict[str,
         else 0.0,
         "wait_per_completion": sum(r["wait_count"] for r in records) / n,
         "repeated_answer_group_rate": repeated,
+        "repeated_incorrect_answer_group_rate": repeated_incorrect,
         "zero_variance_group_rate": zero_var,
     }
 
@@ -353,7 +362,13 @@ def make_reward_fn(
 
 
 def hacking_flags(stats: Sequence[dict[str, Any]], *, window: int = 20) -> dict[str, Any]:
-    """PLAN.md Phase 4 step 6, read off the per-step reward statistics at the end of a run."""
+    """PLAN.md Phase 4 step 6, read off the per-step reward statistics at the end of a run.
+
+    ``repeated_answers`` reads the repeated *incorrect* answer rate (groups that agree on one wrong
+    answer); the H100 session of 20 Oct 2026 showed the plain repeated-answer rate rising with
+    accuracy (0.375 to 0.625 in the main run) and flagging healthy runs. Older logs without the
+    incorrect-only key fall back to the plain rate.
+    """
     if len(stats) < 2 * window:
         return {"evaluated": False, "reason": f"fewer than {2 * window} logged steps"}
     first, last = stats[:window], stats[-window:]
@@ -363,7 +378,11 @@ def hacking_flags(stats: Sequence[dict[str, Any]], *, window: int = 20) -> dict[
     flags = {
         "length_growth_without_accuracy": len1 > 1.3 * len0 and acc1 < acc0 + 0.01,
         "format_only_outputs": max(r["format_only_rate"] for r in stats) > 0.2,
-        "repeated_answers": max(r["repeated_answer_group_rate"] for r in stats) > 0.5,
+        "repeated_answers": max(
+            r.get("repeated_incorrect_answer_group_rate", r["repeated_answer_group_rate"])
+            for r in stats
+        )
+        > 0.5,
         "wait_spam": mean(last, "wait_per_completion")
         > 3 * max(mean(first, "wait_per_completion"), 0.5),
         "truncation_rose": (1 - mean(last, "finished_rate"))

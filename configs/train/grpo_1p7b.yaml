@@ -34,9 +34,9 @@ loss_type: grpo
 scale_rewards: group
 dynamic_sampling: false
 oversample: 2
-per_device_batch: 32
+per_device_batch: 16  # 32 does not fit the H100 beside vLLM (two OOMs, 20 Oct 2026); grad_accum 16 gives the same gradient
 use_vllm: true
-vllm_gpu_memory_utilization: 0.35
+vllm_gpu_memory_utilization: 0.30  # 0.35 left the trainer short (20 Oct 2026); every Phase 4 run used 0.30
 attn_implementation: flash_attention_2
 load_dtype: float32
 bf16: true
