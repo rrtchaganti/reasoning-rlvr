@@ -72,17 +72,27 @@ Since 19 Oct an explicit `rlvr-eval` flag overrides the config whatever value it
 and 6,145 workarounds are no longer needed), and a `--limit` on gsm8k_perturbed keeps the problems paired with
 gsm8k's subset. Still confirm the first set's name and the cap in the log within the first minutes of a launch.
 
-## Path B: new disk (about 45 minutes; GPU idle only until step 4 finishes, about 25 minutes)
+## Path B: new disk (about 15 minutes with the Hub wheels, 20 Oct 2026; 45 minutes without them)
 
 Run steps 1-3 of path A first (git clone instead of fetch: the repo URL and read-only token are on the laptop;
 `mkdir -p /home/jovyan/rlvr && cd /home/jovyan/rlvr && git clone <url> reasoning-rlvr && git checkout <branch>`).
 
 ```bash
 cd /home/jovyan/rlvr/reasoning-rlvr
-# 4. environment build, cu129 route (25 min on 18 Oct; CPU + network only), and the model downloads in parallel (5 min)
+# 3b. (20 Oct 2026) the three wheels the build needs are on the Hub: torch 2.13.0+cu129, triton 3.7.1 and the
+#     flash-attn 2.8.3.post2 build for this image, with sha256.txt (1.1 GB, about 1 min at 28 MB/s). Fetch them
+#     first: setup_env.sh installs any torch-*/triton-*/flash_attn-* wheel it finds under /home/jovyan/rlvr/wheels,
+#     so uv fetches neither torch nor triton from download-r2.pytorch.org (under 1 MB/s with stalls from this node;
+#     87 minutes lost on 20 Oct) and flash-attn is not compiled again (19 min).
+hf download Raviteja546/reasoning-rlvr-samples --repo-type dataset --include "wheels/*" --local-dir /home/jovyan/rlvr
+(cd /home/jovyan/rlvr/wheels && sha256sum -c sha256.txt)      # all three must say OK
+# 4. environment build, cu129 route (2.5 min with the wheels present, 25 min without; CPU + network only), and the
+#    model download in parallel (Qwen3-1.7B-Base only: the 0.6B student is not used before Phase 6)
 tmux new -d -s build -e HF_TOKEN="$HF_TOKEN" "source scripts/e2e_env.sh && RLVR_VLLM_CUDA=cu129 bash scripts/setup_env.sh > outputs/h100_setup_env.log 2>&1; echo EXIT=\$? >> outputs/h100_setup_env.log"
-tmux new -d -s dl -e HF_TOKEN="$HF_TOKEN" "export HF_HOME=/home/jovyan/rlvr/hf; hf download Qwen/Qwen3-1.7B-Base && hf download Qwen/Qwen3-0.6B-Base > outputs/h100_download.log 2>&1"
-#    wait for EXIT=0 in outputs/h100_setup_env.log, then:
+tmux new -d -s dl -e HF_TOKEN="$HF_TOKEN" "export HF_HOME=/home/jovyan/rlvr/hf HF_HUB_DISABLE_XET=1; hf download Qwen/Qwen3-1.7B-Base > outputs/h100_download.log 2>&1; echo EXIT=\$? >> outputs/h100_download.log"
+#    wait for the last line of outputs/h100_setup_env.log to be EXIT=0 (anchored watcher), then:
+#    (if the build stalls: `du -sm /home/jovyan/rlvr/uv-cache` twice five minutes apart; flat means kill the tmux
+#    session and rerun the same line, uv keeps what it has)
 source scripts/e2e_env.sh
 python scripts/triton_check.py              # setup_env.sh already removed torchcodec (PyPI's wheel needs CUDA 13)
 
@@ -119,9 +129,9 @@ patches, shim) in the dataset Raviteja546/reasoning-rlvr-samples.
 
 | job | time |
 |---|---|
-| environment build (setup_env.sh, cu129) | 25 min |
+| environment build (setup_env.sh, cu129) | 25 min on 18 Oct; 2.5 min on 20 Oct with torch and triton pre-installed from the Hub wheels; 87 min on 20 Oct when download-r2.pytorch.org stalled |
 | model downloads (two Qwen3 bases) | 5 min, in parallel with the build |
-| flash-attention wheel build | 13 min (12 jobs); install from the wheel 1 s |
+| flash-attention wheel build | 13 min (12 jobs) alone, 19 min at nice 10 beside a GPU job; install from the wheel 1 s; the wheel is on the Hub since 20 Oct |
 | data step | 4.5 min |
 | smoke eval | about 5 min incl. vLLM start |
 | greedy think-tag eval, five sets | 8 min; three templates + gap + probe 22 min |

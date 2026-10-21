@@ -50,6 +50,7 @@ rlvr-probe-partial = "rlvr.data.partial_prompt:main"
 rlvr-build-sft = "rlvr.data.sft_data:main"
 rlvr-sft = "rlvr.train.sft:main"
 rlvr-build-rft = "rlvr.data.rft_data:main"
+rlvr-grpo = "rlvr.train.grpo:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

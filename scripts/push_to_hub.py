@@ -85,12 +85,99 @@ def model_card(
     lora = cfg.get("lora")
     hours = (info.get("train_runtime_s") or 0) / 3600
     header_base = card_base_model(str(base), base_model_id)
+    is_grpo = info.get("kind") == "grpo"
+    if is_grpo:
+        # rlvr-grpo's run_info (src/rlvr/train/grpo.py): prompts, shape, reward and the training
+        # signal; the SFT fields (data hash, epochs, cross-entropy) do not exist for it. The card
+        # the H100 node generated on 21 Oct 2026 printed them as None, hence this branch.
+        pct = lambda x: f"{100 * x:.0f} %" if isinstance(x, (int, float)) else "?"  # noqa: E731
+        num = lambda x, f=".3f": format(x, f) if isinstance(x, (int, float)) else "?"  # noqa: E731
+        tags = "tags: [reasoning, math, grpo, rlvr, qwen3, rlvr-study]"
+        datasets = "datasets: [openai/gsm8k, EleutherAI/hendrycks_math]"
+        training = [
+            f"- Start: `{base}`; full fine-tune; GRPO (TRL `GRPOTrainer` with vLLM colocated) with a "
+            "verifiable reward: 1 only when the completion finished, has the think/answer format and "
+            "is correct (`rlvr.train.grpo.score_completion`), else 0.",
+            f"- Prompts: `{cfg.get('prompts')}` (manifest `{cfg.get('manifest')}`, hash "
+            f"`{info.get('prompt_file_hash')}`); {info.get('num_prompts_used')} of "
+            f"{info.get('num_prompts_total')} prompts drawn over the run, by source "
+            f"{json.dumps(info.get('prompts_by_source'))}.",
+            f"- Shape: {cfg.get('num_prompts_per_step')} prompts x {cfg.get('num_generations')} samples "
+            f"per step ({info.get('completions_per_step')} completions), {cfg.get('max_new_tokens')}-token "
+            f"cap, T = {cfg.get('temperature')}, {info.get('global_steps')} steps, micro-batch "
+            f"{cfg.get('per_device_batch')}, one optimiser step per generation batch "
+            f"(clip active: {info.get('clip_active')}).",
+            f"- Optimiser: AdamW ({cfg.get('adam_beta1')}, {cfg.get('adam_beta2')}), lr "
+            f"{cfg.get('learning_rate')} {cfg.get('lr_scheduler')} (warmup {cfg.get('warmup_steps')} "
+            f"steps), weight decay {cfg.get('weight_decay')}, grad clip {cfg.get('max_grad_norm')}; loss "
+            f"`{cfg.get('loss_type')}` with `scale_rewards={cfg.get('scale_rewards')}`, KL beta "
+            f"{cfg.get('kl_beta')}, epsilon {cfg.get('epsilon')}"
+            + (
+                f" (epsilon_high {cfg['epsilon_high']})"
+                if cfg.get("epsilon_high") is not None
+                else ""
+            )
+            + f", dynamic sampling {cfg.get('dynamic_sampling')}; bf16={cfg.get('bf16')} "
+            f"({cfg.get('attn_implementation')}); seed {cfg.get('seed')}.",
+            f"- Training signal, first -> last step: reward {num(info.get('reward_first_step'))} -> "
+            f"{num(info.get('reward_last_step'))}, finished rate {pct(info.get('finished_rate_first_step'))} "
+            f"-> {pct(info.get('finished_rate_last_step'))}, mean completion "
+            f"{num(info.get('mean_tokens_first_step'), '.0f')} -> {num(info.get('mean_tokens_last_step'), '.0f')} "
+            f"tokens; zero-variance groups {pct(info.get('zero_variance_group_rate_mean'))} of groups on "
+            "average; hacking-watch flags raised: "
+            + (
+                ", ".join(
+                    k
+                    for k, v in (info.get("hacking_watch") or {}).items()
+                    if v is True and k not in ("any", "evaluated")
+                )
+                or "none"
+            )
+            + " (what each flag reads is in the phase report).",
+            f"- Compute: {hours:.2f} GPU-hours on {info.get('gpu', '?')}, peak memory "
+            f"{info.get('peak_memory_gb')} GB.",
+        ]
+        reproduce = [
+            f"python scripts/phase4_preflight.py --run main --config {cfg.get('_config_path', 'configs/train/grpo_1p7b.yaml')}",
+            f"rlvr-grpo --config {cfg.get('_config_path', 'configs/train/grpo_1p7b.yaml')}",
+            "rlvr-eval --config configs/eval/grpo_1.7b_think_tag.yaml",
+        ]
+        paired_intro = "Paired on the same problems against the checkpoint it was trained from:"
+        extra_failure = (
+            "- In the trained format the gain over the start checkpoint is a termination gain: the "
+            "policy stops looping and answers; among problems both checkpoints finish the paired "
+            "accuracy difference is inside its CI (`outputs/reports/phase-4.md`, section 4.5)."
+        )
+    else:
+        tags = "tags: [reasoning, math, sft, qwen3, rlvr-study]"
+        datasets = "datasets: [open-r1/OpenR1-Math-220k]"
+        training = [
+            f"- Base: `{base}`; {'LoRA ' + json.dumps(lora) + ', merged' if lora else 'full fine-tune'}; "
+            f"bf16={cfg.get('bf16')}, packing={cfg.get('packing')} ({cfg.get('attn_implementation')}).",
+            f"- Data: `{cfg.get('data')}` built by `rlvr-build-sft` (manifest hash `{info.get('data_hash')}`, "
+            f"{info.get('num_examples_used')} of {info.get('num_examples_total')} examples, "
+            f"subset fraction {cfg.get('subset_fraction')}, {info.get('tokens_per_epoch')} tokens per epoch).",
+            f"- Optimiser: AdamW ({cfg.get('adam_beta1')}, {cfg.get('adam_beta2')}), lr {cfg.get('learning_rate')}, "
+            f"{cfg.get('lr_scheduler')} to {cfg.get('min_lr_rate')} of peak, warmup {cfg.get('warmup_ratio')}, "
+            f"weight decay {cfg.get('weight_decay')}, grad clip {cfg.get('max_grad_norm')}, "
+            f"effective batch {cfg.get('per_device_batch', 0) * cfg.get('grad_accum', 0)} sequences of "
+            f"{cfg.get('max_length')} tokens, {cfg.get('epochs')} epochs ({info.get('global_steps')} steps), seed {cfg.get('seed')}.",
+            f"- Loss: cross-entropy on completion tokens only; final train loss {info.get('train_loss')}.",
+            f"- Compute: {hours:.2f} GPU-hours on {info.get('gpu', '?')}, peak memory {info.get('peak_memory_gb')} GB.",
+        ]
+        reproduce = [
+            "rlvr-build-sft                                   # regenerates the data, checks the manifest hash",
+            f"rlvr-sft --config {cfg.get('_config_path', 'configs/train/sft_1p7b.yaml')}",
+            "rlvr-eval --config configs/eval/sft_1.7b_think_tag.yaml",
+        ]
+        paired_intro = "Paired against the base model on the same problems:"
+        extra_failure = None
     lines = [
         "---",
         "license: apache-2.0",
         *([f"base_model: {header_base}"] if header_base else []),
-        "tags: [reasoning, math, sft, qwen3, rlvr-study]",
-        "datasets: [open-r1/OpenR1-Math-220k]",
+        tags,
+        datasets,
         "---",
         "",
         f"# {repo.split('/')[-1]}",
@@ -102,30 +189,25 @@ def model_card(
         "",
         "## Training",
         "",
-        f"- Base: `{base}`; {'LoRA ' + json.dumps(lora) + ', merged' if lora else 'full fine-tune'}; "
-        f"bf16={cfg.get('bf16')}, packing={cfg.get('packing')} ({cfg.get('attn_implementation')}).",
-        f"- Data: `{cfg.get('data')}` built by `rlvr-build-sft` (manifest hash `{info.get('data_hash')}`, "
-        f"{info.get('num_examples_used')} of {info.get('num_examples_total')} examples, "
-        f"subset fraction {cfg.get('subset_fraction')}, {info.get('tokens_per_epoch')} tokens per epoch).",
-        f"- Optimiser: AdamW ({cfg.get('adam_beta1')}, {cfg.get('adam_beta2')}), lr {cfg.get('learning_rate')}, "
-        f"{cfg.get('lr_scheduler')} to {cfg.get('min_lr_rate')} of peak, warmup {cfg.get('warmup_ratio')}, "
-        f"weight decay {cfg.get('weight_decay')}, grad clip {cfg.get('max_grad_norm')}, "
-        f"effective batch {cfg.get('per_device_batch', 0) * cfg.get('grad_accum', 0)} sequences of "
-        f"{cfg.get('max_length')} tokens, {cfg.get('epochs')} epochs ({info.get('global_steps')} steps), seed {cfg.get('seed')}.",
-        f"- Loss: cross-entropy on completion tokens only; final train loss {info.get('train_loss')}.",
-        f"- Compute: {hours:.2f} GPU-hours on {info.get('gpu', '?')}, peak memory {info.get('peak_memory_gb')} GB.",
+        *training,
         "",
         "## Evaluation (greedy, batch-invariant vLLM, 95 % bootstrap CI over problems)",
         "",
     ]
     if eval_dirs:
         lines.append(eval_table(eval_dirs))
+        lines.append(
+            "The `trunc %` and `extract-fail %` columns are the largest value over the sets of that "
+            "row (Countdown under the think-tag template dominates both); per-set rates are in each "
+            "eval's `metrics.json`."
+        )
     if compare_md:
-        lines += ["", "Paired against the base model on the same problems:", "", compare_md]
+        lines += ["", paired_intro, "", compare_md]
     lines += [
         "",
         "## Known failure modes",
         "",
+        *([extra_failure] if extra_failure else []),
         "- Trained on olympiad-style traces capped at 4096 tokens; longer reasoning is cut at the cap "
         "(truncation rate in the table).",
         "- Answers are graded with math-verify on the `<answer>` block; prose answers without a box "
@@ -137,9 +219,7 @@ def model_card(
         "## Reproduce",
         "",
         "```bash",
-        "rlvr-build-sft                                   # regenerates the data, checks the manifest hash",
-        f"rlvr-sft --config {cfg.get('_config_path', 'configs/train/sft_1p7b.yaml')}",
-        "rlvr-eval --config configs/eval/sft_1.7b_think_tag.yaml",
+        *reproduce,
         "```",
         "",
     ]

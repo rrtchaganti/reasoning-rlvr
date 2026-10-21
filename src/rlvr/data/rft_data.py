@@ -20,7 +20,10 @@ excluded, think-tag template, n samples per problem at T = 1.0). Pipeline, every
 
 Outputs under ``outputs/data/rft/``: ``train.jsonl`` (SFT schema, git-ignored),
 ``manifest.json`` (the trainer checks its hash), ``solve_rate.jsonl``, ``learnable_prompts.jsonl``;
-the figure ``outputs/reports/figures/phase-3-solve-rate.png`` and ``outputs/reports/phase-3-data.md``.
+the figure ``solve_rate.png`` and the data report ``report.md`` in the same folder (``--figure`` and
+``--report`` override; the Phase 3 copies live in ``outputs/reports/`` as ``phase-3-solve-rate.png``
+and ``phase-3-data.md``). The defaults changed on 21 Oct 2026: the old default rewrote the tracked
+Phase 3 report's date line on the node and the harness refused the next step on the dirty tree.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import random
 import time
 from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
@@ -134,9 +138,10 @@ def learnable_prompts(
 # --------------------------------------------------------------------------- step 2: selection
 
 
-def rft_reject_reason(rec: Mapping[str, Any]) -> str | None:
-    """Why a sample cannot become a training example (None = usable)."""
-    if not rec.get("correct"):
+def rft_reject_reason(rec: Mapping[str, Any], *, keep_incorrect: bool = False) -> str | None:
+    """Why a sample cannot become a training example (None = usable). ``keep_incorrect`` drops
+    the correctness filter and nothing else (EXP-010g: selection or self-distillation?)."""
+    if not rec.get("correct") and not keep_incorrect:
         return "incorrect"
     if rec.get("finish_reason") != "stop":
         return "truncated"
@@ -167,9 +172,16 @@ def select_examples(
     per_problem: int = 2,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     drops: Counter | None = None,
+    keep_incorrect: bool = False,
+    select: str = "shortest",
+    select_seed: int = 0,
 ) -> list[SftExample]:
     """The kept examples for one split: per problem the shortest ``per_problem`` distinct,
-    usable samples that fit the cap, in the SFT schema with the think-tag prompt rebuilt."""
+    usable samples that fit the cap, in the SFT schema with the think-tag prompt rebuilt.
+    ``select='random'`` draws the ``per_problem`` samples at random (seeded per problem) instead
+    of shortest first (EXP-010h: how much of the stopping effect is length selection?)."""
+    if select not in ("shortest", "random"):
+        raise ValueError(f"select must be 'shortest' or 'random', got {select!r}")
     drops = drops if drops is not None else Counter()
     out: list[SftExample] = []
     for pid in sorted(groups):
@@ -182,7 +194,7 @@ def select_examples(
         usable: list[Mapping[str, Any]] = []
         seen: set[str] = set()
         for rec in groups[pid]:
-            why = rft_reject_reason(rec)
+            why = rft_reject_reason(rec, keep_incorrect=keep_incorrect)
             if why is not None:
                 drops[why] += 1
                 continue
@@ -192,7 +204,11 @@ def select_examples(
                 continue
             seen.add(key)
             usable.append(rec)
-        usable.sort(key=lambda r: (int(r.get("num_tokens", 0)), int(r.get("sample_idx", 0))))
+        if select == "random":
+            # a per-problem seed keeps the draw independent of how many problems precede it
+            random.Random(f"{select_seed}:{pid}").shuffle(usable)
+        else:
+            usable.sort(key=lambda r: (int(r.get("num_tokens", 0)), int(r.get("sample_idx", 0))))
         kept = 0
         for rec in usable:
             if kept >= per_problem:
@@ -216,6 +232,7 @@ def select_examples(
                         "problem_id": pid,
                         "level": problem.meta.get("level"),
                         "sample_idx": int(rec.get("sample_idx", 0)),
+                        "correct": bool(rec.get("correct")),  # always true unless keep_incorrect
                     },
                 )
             )
@@ -331,6 +348,9 @@ def build(
     run_fuzzy: bool = True,
     min_coverage: float | None = MIN_COVERAGE,
     name: str = "rft_iter1",
+    keep_incorrect: bool = False,
+    select: str = "shortest",
+    select_seed: int = 0,
 ) -> dict[str, Any]:
     t0 = time.time()
     rate_rows: list[dict[str, Any]] = []
@@ -353,6 +373,9 @@ def build(
             per_problem=per_problem,
             max_tokens=max_tokens,
             drops=drops,
+            keep_incorrect=keep_incorrect,
+            select=select,
+            select_seed=select_seed,
         )
     if not examples:
         raise ValueError(f"no usable examples under {samples_dir}; drops: {dict(drops)}")
@@ -398,6 +421,12 @@ def build(
         "evals_decontaminated": sorted(eval_items),
         "fuzzy": run_fuzzy,
         "min_coverage": min_coverage,
+        "keep_incorrect": keep_incorrect,
+        "select": select,
+        "select_seed": select_seed,
+        "fraction_incorrect": round(
+            sum(1 for ex in examples if not ex.meta.get("correct", True)) / len(examples), 4
+        ),
         "num_examples": len(examples),
         "content_hash": content_hash(examples),
         "kept_token_stats": token_stats([ex.n_tokens for ex in examples]),
@@ -450,14 +479,26 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--no-fuzzy", action="store_true")
     p.add_argument("--min-coverage", type=float, default=MIN_COVERAGE)
     p.add_argument("--name", default="rft_iter1")
-    p.add_argument("--out", type=Path, default=None, help="default outputs/data/rft")
     p.add_argument(
-        "--figure", type=Path, default=Path("outputs/reports/figures/phase-3-solve-rate.png")
+        "--keep-incorrect",
+        action="store_true",
+        help="EXP-010g: keep finished, well-formed samples whether or not they are correct",
     )
-    p.add_argument("--report", type=Path, default=Path("outputs/reports/phase-3-data.md"))
+    p.add_argument(
+        "--per-problem-select",
+        choices=("shortest", "random"),
+        default="shortest",
+        help="EXP-010h: which usable samples to keep per problem (default: the shortest)",
+    )
+    p.add_argument("--select-seed", type=int, default=0, help="seed of --per-problem-select random")
+    p.add_argument("--out", type=Path, default=None, help="default outputs/data/rft")
+    p.add_argument("--figure", type=Path, default=None, help="default <out>/solve_rate.png")
+    p.add_argument("--report", type=Path, default=None, help="default <out>/report.md")
     args = p.parse_args(argv)
     out_dir = args.out or (output_dir() / "data" / "rft")
     out_dir.mkdir(parents=True, exist_ok=True)
+    figure = args.figure or out_dir / "solve_rate.png"
+    report = args.report or out_dir / "report.md"
     print(f"[rft] samples {args.samples}, splits {args.splits}")
     problems = _problems_from_loaders(args.splits)
     eval_items = _eval_items(args.evals)
@@ -468,13 +509,16 @@ def main(argv: list[str] | None = None) -> None:
         count_tokens=_real_token_counter(args.tokenizer),
         eval_items=eval_items,
         out_dir=out_dir,
-        figure=args.figure,
-        report=args.report,
+        figure=figure,
+        report=report,
         per_problem=args.per_problem,
         max_tokens=args.max_tokens,
         run_fuzzy=not args.no_fuzzy,
         min_coverage=args.min_coverage,
         name=args.name,
+        keep_incorrect=args.keep_incorrect,
+        select=args.per_problem_select,
+        select_seed=args.select_seed,
     )
     for key, s in manifest["solve_rates"].items():
         print(f"[rft] {key}: {s}")

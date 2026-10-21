@@ -1,0 +1,20 @@
+# EXP-012 pass@k in the trained format (the EXP-010f protocol): think-tag, n = 32, T = 0.6, top-p 0.95,
+# on the seeded 300-problem subsets the SFT and RFT n = 32 samples used (manifest hashes pinned in
+# docs/phase-4-plan.md section 3: gsm8k 58c8ded1c644f332, math500 5ca9795b45227236). Paired against
+# outputs/samples/{sft,rft}_1.7b_n32_think_tag_t06 with compare_checkpoints.py --all-samples.
+# Samples are stored, so batch-invariant mode is off for throughput.
+model: outputs/train/grpo_1p7b/final
+evals: [gsm8k, math500]
+template: think_tag
+n: 32
+temperature: 0.6
+top_p: 0.95
+max_tokens: 4096
+seed: 0
+limit: 300
+backend: vllm
+batch_invariant: false
+dtype: bfloat16
+gpu_memory_utilization: 0.90
+max_model_len: 6144
+out: outputs/samples/grpo_1.7b_n32_think_tag_t06

@@ -15,5 +15,11 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 | 0 Scaffold, harness, from-scratch references | [`phase-0-engineering-notes.md`](phase-0-engineering-notes.md) | [`phase-0-journal.md`](phase-0-journal.md) |
 | 1 Baselines and pass@k ceiling | [`phase-1-engineering-notes.md`](phase-1-engineering-notes.md) | [`phase-1-journal.md`](phase-1-journal.md) |
 | 2 SFT on distilled traces | [`phase-2-engineering-notes.md`](phase-2-engineering-notes.md) (results section after the rental) | [`phase-2-journal.md`](phase-2-journal.md) |
+| 3 Rejection-sampling fine-tuning | [`phase-3-engineering-notes.md`](phase-3-engineering-notes.md) | [`phase-3-journal.md`](phase-3-journal.md) |
+| 4 GRPO and ablations | [`phase-4-engineering-notes.md`](phase-4-engineering-notes.md) | [`phase-4-journal.md`](phase-4-journal.md) |
 
-Also here: [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on.
+Also here: [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
+known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled
+without its link there), and [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on; the plan
+pages [`phase-3-plan.md`](phase-3-plan.md), [`phase-4-plan.md`](phase-4-plan.md) and
+[`phase-5-plan.md`](phase-5-plan.md) (the next phases, awaiting the user's signal).
