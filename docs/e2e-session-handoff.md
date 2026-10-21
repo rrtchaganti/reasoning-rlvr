@@ -8,7 +8,7 @@ node never edits tracked files, commits or pushes (`CLAUDE.md`).
 
 ## 0. State on 21 Oct 2026
 
-- **The notebook exists and is Stopped** (the user's Stop at about 01:20 UTC on 21 Oct after
+- **The notebook exists and is Stopped** (the user's Stop at 01:30 UTC, 07:00 IST, on 21 Oct after
   downloading the session 1 archive). Its disk holds the venv (torch 2.13.0+cu129, vLLM 0.31.0,
   TRL 1.15.0, flash-attn 2.8.3.post2), the three wheels under `/home/jovyan/rlvr/wheels`, the HF
   cache, the SFT and RFT finals, the sample sets, the rebuilt data (hashes checked on 20 Oct), the

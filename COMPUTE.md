@@ -87,7 +87,7 @@ analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A
 
 **Running totals (after Phase 4 session 1, 21 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
 A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100 notebook 28.1 h
-(INR 10,640) and its disk (INR 132 to the Stop), the second H100 notebook's session 1 13.1 h
+(INR 10,640) and its disk (INR 132 to the Stop), the second H100 notebook's session 1 13.3 h
 (INR 5,030) and its disk (about INR 107 a day from 20 Oct): about INR 16,600
 (USD 196). Local: 6.70 h. Budget used: about 75 % of the INR 22,000 (USD 262) ceiling the user set on
 20 Oct; session 2 at the measured rates is about 12 h, INR 4,550, which fits with about INR 700 to

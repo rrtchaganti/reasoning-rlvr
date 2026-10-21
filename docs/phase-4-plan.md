@@ -131,7 +131,7 @@ The notebook is Stopped between the sessions (the user's point on 20 Oct: the di
 a day is cheaper than the INR 285 rebuild for a gap under 2.5 days, and the local checkpoints survive).
 
 Phase 4 total at these numbers about 25 node-hours, INR 9,450 (USD 113). Project to date about
-INR 16,500 after session 1; after session 2 about INR 21,100 plus the disk days, so session 2 fits
+INR 16,600 after session 1; after session 2 about INR 21,700 plus the disk days, so session 2 fits
 the ceiling with about INR 700 to spare only if the GPU is never idle; the drop order of section 8
 (A3, then A1) is the answer if it is not. On 20 Oct the arithmetic was: project to date about
 INR 11,450; after Phase 4 about INR 21,300 (USD 254), so the ceiling had to rise from the INR 14,300
