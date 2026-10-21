@@ -181,6 +181,8 @@ def test_select_groups_keeps_informative_groups_first_and_fills_from_the_front()
 
 
 def test_grpo_config_matches_shape_b(tmp_path):
+    # CI installs the core dependencies only (no TRL); the laptop gate and the node have it.
+    pytest.importorskip("trl")
     cfg = g.load_config(None, ["use_vllm=false", "report_to=none"])
     args = g.make_grpo_config(cfg, tmp_path)
     assert args.per_device_train_batch_size == 16 and args.gradient_accumulation_steps == 16

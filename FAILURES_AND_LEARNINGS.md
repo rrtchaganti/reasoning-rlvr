@@ -352,3 +352,22 @@ a set of similar length; read the rate off every set's progress line, not the fi
 **Learning.** The cheapest set finishes first and sets the mood. Before a multi-set run, write the
 per-set token estimate down and find the most expensive set; run it first when the budget is tight,
 so a stop costs the least.
+
+## 2026-10-21  CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install        [phase 4] [ci] [tests]
+**Symptom.** The Phase 4 PR (opened as a draft on 21 Oct) showed two failed checks (the workflow runs
+on the push and on the pull_request event). The laptop gate and the CI's own commands were green
+locally (ruff clean, 198 tests including the slow ones).
+**Diagnosis.** CI installs the core dependencies only (`pip install -e ".[dev]"`; the GPU extras
+`trl`, `vllm`, `peft`, `wandb` are not installed). `tests/test_train_grpo.py::test_grpo_config_matches_shape_b`
+calls `make_grpo_config` and `make_trainer_class`, which import TRL lazily, so on the runner it raised
+`ModuleNotFoundError`. The other TRL-using tests (`test_train_sft.py`) guard with
+`pytest.importorskip("trl")`; this one, added with the Phase 4 code on 20 Oct, did not, so every CI run
+of the branch since then was red and nobody looked until the PR. Reproduced on the laptop by running
+the suite with `sys.modules["trl"] = None` (and vllm, peft, wandb): the one test fails; with the guard
+it skips and 194 pass.
+**Fix.** `pytest.importorskip("trl")` at the top of the test (commit below). The guard means CI never
+exercises that test; the laptop gate and the node, which have TRL, do.
+**Learning.** Any test that reaches a GPU-extra import, even lazily, needs the `importorskip`, and the
+branch's CI status should be read after the first push of a phase, not at the PR. A CI simulation with
+the extras blocked (`scratchpad/ci_no_trl.sh`, the `sys.modules[...] = None` trick) is cheap enough to
+run before each PR.
