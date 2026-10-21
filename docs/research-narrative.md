@@ -202,15 +202,70 @@ of the cut budget. Reading (ii) is testable for one run's cost, and it bears on 
 central claim; the normalisation ablation (A3, Dr. GRPO) bears on the method's length behaviour.
 The user chose, on 21 Oct, to run the cap test (EXP-015) in session 2 in A3's place and defer A3.
 
-## Open now (21 Oct 2026): session 2
+## Phase 4, session 2 (21 Oct 2026): three knobs, and the cap test
 
-| run | what we know | the intuition | the question | prediction / falsifier | id |
-|---|---|---|---|---|---|
-| KL off | KL to `rft` reached only 0.006 at beta 0.04; the policy barely moved | the penalty is a safety margin, not a source of accuracy, at 200 steps | is the reference model needed at this scale? | within the noise row; KL grows 2-5x / worse on MATH-500 by more than 4.8 with the KL curve diverging | EXP-014a |
-| dynamic sampling | 30 % of groups had zero variance at every point of both runs; a third of the compute produced no gradient | refilling the batch with informative groups is the same optimiser steps on more signal | does the prompt filter leave enough variance, and does DAPO's fix buy anything here? | +1-3 on MATH-500 at 1.3-1.6x sampling / within the noise row on both sets | EXP-014b |
-| 2,048 cap | the whole gain is termination; p90 at the cap throughout; 25 % of training completions cut and scored 0 | the cap turns the reward into a brevity reward; a longer cap lets the policy be rewarded for solving long problems | is the missing reasoning gain an artefact of the cut budget? | both-finished paired diff vs `rft` rises by at least 2 (main: 0.0) and pass@16 by at least 3 (main: +1.9) / both inside main's CIs: the cap is not what limits it | EXP-015 |
-| Dr. GRPO (deferred) | lengths fell under the standard loss; the length-bias claim predicts the opposite | at a finished-only reward the normalisation's bias may be invisible | does the normalisation grow length here? | deferred; the pre-registration stands | EXP-014c |
-| matched-incorrect RFT set (debt) | EXP-010g had no power | a kept set with as many wrong as right traces separates selection from self-distillation | is the correctness filter the mechanism? | not scheduled | (none yet) |
+**Known before.** Session 1's decomposition; the noise row (0.3 / 0.2 / 4.8 / 0.6); the measured rates.
+The session 2 table as pre-registered: KL off (EXP-014a), dynamic sampling (EXP-014b), the 2,048 cap
+(EXP-015) in A3's slot.
 
-After session 2 the chain continues with Phase 5 (DPO) and the distillation and test-time-compute
-phases, each of which gets its section here before its first run.
+**Intuitions, written before the runs (the table of 21 Oct, kept in `docs/phase-4-plan.md` section 9).**
+(a) The KL penalty is a safety margin, not a source of accuracy, at 200 steps: KL off lands within
+noise with 2-5x the drift. (b) Refilling the batch with informative groups is the same optimiser steps
+on more signal: +1-3 on MATH-500 at 1.3-1.6x the sampling. (c) The cap turned the reward into a
+brevity reward; with 2,048 tokens the both-finished difference rises by at least 2 and pass@16 by 3.
+
+**Runs and what they said.**
+- EXP-014a (KL off): the hypothesis failed in sign. +2.2 / +3.3 / +5.6 over the main run on GSM8K,
+  perturbed and MATH-500 (the last above the noise row), at half the length and a third of the
+  truncation; offline KL to `rft` 15x the main run's (0.098 against 0.006 per token). Decomposed, +5.4
+  of the +5.6 sits on problems the main run truncated (both-finished +2.7 [-1.3, 6.5]); under zero-shot
+  the gain is zero (-1.5 / +0.4 / +1.8, CIs covering 0) while the brevity carries. The penalty was a
+  brake on stopping; without it the policy stops sooner and the trained-format score rises. One
+  non-termination cell: perturbed GSM8K both-finished +2.2 [0.1, 4.3] (noise row 0.2), single-seed.
+- EXP-014b (dynamic sampling): the falsifier fired. Inside the noise row everywhere at 1.5x the step
+  time; the learnable-prompt filter left 32 informative groups in 199 of 200 steps (one zero-advantage
+  fill in the run). DAPO's fix addresses a batch the filter had fixed.
+- EXP-015 (2,048 cap): the falsifier fired on both counts. Both-finished against `rft` 0.0 [-4.1,
+  4.1] (main 0.0 [-4.3, 3.9]); pass@16 +0.8 [-0.6, 2.3] (main +1.9 [0.4, 3.5]); against the main run
+  inside the noise row on every set, with longer completions and *more* truncation at eval. The cap
+  is not what limits the reasoning gain.
+
+**What session 2 raised.** Four things.
+1. The "termination only" result is a property of the method at this scale, data and budget: a longer
+   cap, a looser policy (no KL) and a better-filled batch all buy more or less of the same stopping,
+   and nothing on problems both policies finish. Reading (ii) of session 1 is closed; reading (i) stands.
+2. No on-policy stage after SFT has moved the best-prompt (zero-shot) accuracy beyond noise: RFT -1.1 /
+   +1.6, GRPO +3.2 / -0.4, KL off -1.5 / +1.8. The pipeline's template-independent gain is SFT's. The
+   question for any further RL spend is whether the recipe can add anything a user sees without the
+   trained format.
+3. The prompts may be the limit rather than the method: the pool is MATH levels 1-3 plus GSM8K, the
+   eval gains sit on levels 1-3, 30-50 % of groups were all-correct and the reward plateaued by step 50.
+   The policy may have seen nothing it could not already do.
+4. If the gain is stopping, the question becomes how cheaply stopping can be bought: a decoding rule
+   (budget forcing on `sft`, no training), an off-policy preference pair (DPO on finished-versus-looping
+   traces, no rollouts), rejection sampling (12 minutes), or GRPO (3 hours). The cost per point of
+   termination is the comparison the plan's Phases 5 and 6 should make, and the first two cost nothing
+   or almost nothing.
+
+Not changed by session 2: the Countdown gain (every run +5 to +8 over `rft`, all on `rft`-truncated
+problems), the perturbation gap and the probe (no memorisation signal), the seed row.
+
+## Open now (21 Oct 2026, after session 2): the next phases
+
+Each row is a candidate for the next plan page (`docs/phase-5-plan.md`); the entries exist in
+`experiments.md` as "proposed" and none runs before the user's signal and, for the two that rent a
+GPU, a new ceiling. Order: the free ones first, because they bear on whether any further rental is
+worth it.
+
+| run | what we know | the intuition | the question | prediction / falsifier | cost | id |
+|---|---|---|---|---|---|---|
+| budget forcing on `sft` and `rft` | every post-SFT gain in the trained format is termination; the loops hold partial derivations (EXP-010c: they do not finish at 8,192) | forcing `</think><answer>` at a budget makes the model answer from what it has; if that recovers the gain, the training taught what a rule provides | how much of RFT's and GRPO's gain does a decoding rule recover with no training? | `sft`+force recovers at least half of RFT's +3.3 / +5.8 and a third of GRPO's cumulative gain / under a quarter at every budget: the loops are not usable derivations | laptop, INR 0 | EXP-016 |
+| accuracy against tokens from the existing samples | n = 32 and n = 64 sample sets of base, `sft`, `rft`, `grpo`, cap exist; pass@k says sharpening on GSM8K, at most a small widening on MATH-500 | at matched tokens, voting over the earlier checkpoint may equal the RL policy's greedy number | is the GRPO policy the cheapest way to its own accuracy? | maj@4 of `rft` at or above `grpo` greedy on MATH-500 / maj@k of `sft` and `rft` below `grpo` greedy at every k to 32: the first capability signal of the project | INR 0 | EXP-017 |
+| GRPO on MATH levels 3-5 | gains sit on levels 1-3; level 4 flat; 30-50 % all-correct groups; reward flat after step 50 | the policy saw nothing it could not already do; harder prompts with solve rate in (0, 0.5] carry the gradient the easy pool lacked | is the termination-only result about the prompts? | levels 4-5 at least +4 paired over `rft` with both-finished at least +2 / both inside EXP-012's CIs: the prompts were not the limit either | about 4.5 H100-h, INR 1,700 | EXP-018 |
+| DPO on finished-correct vs looping pairs | the EXP-009 samples of `sft` hold a correct finished trace and a looping one for most prompts; RFT's 12-minute step bought most of the stopping | a preference pair is the cheapest signal for "stop"; no rollouts, no reference forward at train time beyond `sft` | can an off-policy method buy the termination gain at a tenth of GRPO's cost? | within the noise row of `rft` with truncation at or below `rft`'s / below `rft` by more than noise with truncation not falling | about 1.5 H100-h, INR 800 | EXP-019 |
+| Dr. GRPO normalisation (deferred) | lengths fell under the standard loss in every run; a1 shows the KL term, not the normalisation, held length up | the normalisation's length bias is invisible under a finished-only reward | does the normalisation grow length here? | the pre-registration stands | about 3.5 H100-h, INR 1,400 | EXP-014c |
+| matched-incorrect RFT set | EXP-010g had no power (93 % correct by construction) | a set with as many wrong as right finished traces separates selection from self-distillation | is the correctness filter the mechanism of RFT? | below `rft` by 2 / 3 points with truncation unchanged / within noise: self-distillation plus stopping | about 0.5 H100-h, INR 300 | EXP-010i |
+
+Distillation and serving (PLAN.md Phase 7) have no question pulling on them from the data and stay an
+engineering deliverable, last or cut. Phase 6's reward-model best-of-N is dropped unless EXP-017 shows
+voting matches the policy, in which case a verifier is the natural next ask.

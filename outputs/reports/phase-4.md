@@ -2,13 +2,15 @@
 
 Branch `phase-4-grpo`. Code and the reference-vs-TRL correctness check on the laptop, 20 Oct 2026;
 session 1 (the two Phase 3 ablations, the debugging run, the main run, the seed repeat, the evals)
-on the E2E TIR H100 SXM 80 GB notebook on 20-21 Oct 2026 at commit a8b9f69; session 2 (the three
-ablations) pending. Written up 21 Oct 2026 from the session 1 archive. Numbers are greedy,
+on the E2E TIR H100 SXM 80 GB notebook on 20-21 Oct 2026 at commit a8b9f69; session 2 (EXP-014a,
+EXP-014b, EXP-015, their evals and the cap run's sampling) on the same notebook on 21 Oct 2026 at
+commit 8e94fb5. Sections 1-9 written 21 Oct 2026 from the session 1 archive, sections 10-18 the
+same day from the session 2 archive (`../h100_p4_session2_archive`, sha256 683c621e...). Numbers are greedy,
 batch-invariant vLLM, 95 % bootstrap CIs over problems, paired on shared problem ids unless stated;
 the paired tables were computed on the laptop from the per-sample files
 (`outputs/reports/phase-4-compare-*.md`, `phase-3-compare-{nofilter,random2}-vs-rft.md`).
 Pre-registration: `experiments.md` EXP-010g, EXP-010h, EXP-012, EXP-013 (this report) and
-EXP-014a-c (session 2). Plan: `docs/phase-4-plan.md`.
+EXP-014a, EXP-014b, EXP-015 (sections 10-18; EXP-014c deferred). Plan: `docs/phase-4-plan.md`.
 
 ## 1. Summary (session 1)
 
@@ -51,6 +53,21 @@ Session 1 cost 13.3 node-hours including the Stop (INR 5,030), against 12.0 plan
 finished inside the estimate and the overrun is 88 idle minutes of a stalled environment build plus
 the idle time until the user's Stop. Micro-batch 32 did not fit beside vLLM; every GRPO run used
 micro-batch 16 with gradient accumulation 16 (the same 256-completion update).
+
+**Session 2 (21 Oct 2026; sections 10-18).** Three one-knob runs from the same start, read against the
+noise row. **KL off (EXP-014a)** beats the main run on GSM8K (+2.2 [0.4, 4.0]), perturbed GSM8K
+(+3.3 [1.1, 5.5]) and MATH-500 (+5.6 [1.6, 9.4]) at half the completion length and a third of the
+truncation; decomposed, the gain is again on problems the main run truncated (+5.4 of +5.6 on
+MATH-500; both-finished +2.7 [-1.3, 6.5]), so the penalty was a brake on the termination gain, not a
+source of accuracy; one non-termination signal, +2.2 [0.1, 4.3] on perturbed GSM8K among problems both
+finished, is small and single-seed. **Dynamic sampling (EXP-014b)** is inside the noise row on every
+set at 1.5x the step time; the learnable-prompt filter left 32 informative groups in 199 of 200 steps,
+so its falsifier fired. **The 2,048-token cap (EXP-015)** is inside the main run's CIs everywhere, with
+pass@16 on MATH-500 at +0.8 [-0.6, 2.3] against `rft` and the both-finished paired difference against
+the main run at +1.2 [-3.0, 5.2]: its falsifier fired, the cap is not what limits the reasoning gain,
+and the "termination only" reading of EXP-012 stands as a property of the method at this scale and
+budget rather than of the cut. Session 2 cost 13.0 node-hours (INR 4,930), nothing dropped; Phase 4
+in all 26.3 node-hours, INR 9,960, plus the disk.
 
 ## 2. The runs as they were made
 
@@ -406,17 +423,320 @@ sampling 28 min, a five-set greedy eval 7.5-8 min, the three-template set 19 min
 18 min per 200-step run with four dev evals, 8 min per five-set greedy eval, path A restart 5
 minutes. Project to date about INR 16,600 of the INR 22,000 ceiling.
 
-## 10. Session 2, and what this report still needs
+## 10. Session 2: the three ablations as they were made
 
-Session 2 runs EXP-014a (KL 0), EXP-014b (dynamic sampling; clip-higher 0.28 set and inert) and
-EXP-015 (the 2,048-token cap of the original plan, in EXP-014c's slot: the user's decision on
-21 Oct after section 4.5, since the termination-only result may be an artefact of the 1,536 cap's
-length pressure; EXP-014c is deferred), each 200 steps at the session 1 settings, then their
-five-set greedy evals and EXP-015's n = 32 sampling, paired against the main run and `rft` and read
-against the noise row of section 5. About 13.4 node-hours, INR 5,060, which lands within about
-INR 200 of the ceiling if the node is never idle; the drop order inside the session is EXP-015's
-sampling first, then EXP-014a. The chain of reasoning behind every run is `docs/research-narrative.md`. The pre-
-registered falsifier of EXP-012 did not fire, so session 2 goes ahead as planned; nothing in
-session 1 changes the ablation set. Sections to be written after it: the ablation table, the
-A2 zero-variance and sampling-time comparison, the A3 length comparison, the closing summary and
-the model card (`cards/grpo.md`, written by the `report` step from this report's paired tables).
+Node started by the user about 03:25 UTC on 21 Oct (path A, no build); `git pull --ff-only` to 8e94fb5;
+every step launched by an anchored EXIT watcher within 60 s of the previous step's `EXIT=0`; no
+preflight failed, no run was relaunched, no OOM, nothing dropped (`../h100_p4_session2_addendum/
+outputs/h100_p4_handback.md`, S2.1-S2.12; log rows 49-81). Each run is EXP-012's config plus its one
+pre-registered switch, seed 0, micro-batch 16, vLLM 0.30.
+
+| run | switch | commit | steps | wall-clock | s/step | peak GB | W&B |
+|---|---|---|---|---|---|---|---|
+| `grpo_1p7b_a1_nokl` (EXP-014a) | `kl_beta=0` | 8e94fb5 | 200 | 2 h 24 min | 40.3 | 63.9 | qaqbv90s |
+| `grpo_1p7b_a2_dynamic` (EXP-014b) | `dynamic_sampling=true`, `epsilon_high=0.28` (inert) | 8e94fb5 | 200 | 4 h 55 min | 85.3 | 70.4 | m5kzgl0x |
+| `grpo_1p7b_cap2048` (EXP-015) | `max_new_tokens=2048` | 8e94fb5 | 200 | 4 h 10 min | 71.8 | 73.4 | gvxhkztz |
+
+a1 ran 15 s/step faster than the main run because TRL 1.15 does not instantiate the reference model at
+`kl_beta=0` (section 16); a2's step is 1.5x the main run's because 64 groups are generated for the 32
+kept; the cap run's 1.28x matched the 73 s projection. Evals: three five-set greedy think-tag evals
+(7-9 min each) and the cap run's n = 32, T = 0.6 sampling on the pinned subsets (36 min; hashes
+re-checked before it). The `report` step wrote the compares against the main run, the cap sampling
+compares and the cap-vs-main decomposition on the node; the compares against `rft` (its eval folders
+were not on that disk) and the a1/a2/cap decompositions against `rft`, plus a1 against the main run,
+were computed on the laptop from the archive (`phase-4-compare-{a1,a2,cap}-vs-rft.md`,
+`phase-4-gain-decomposition-{a1,a2,cap}-vs-rft.md`, `phase-4-gain-decomposition-a1-vs-main.md`).
+
+## 11. The ablation table
+
+**Finals, greedy think-tag, full sets** (`outputs/eval/grpo_1p7b_{a1_nokl,a2_dynamic,cap2048}_think_tag/
+metrics.json`; main and seed 1 from session 1):
+
+| set | n | main (EXP-012) | seed 1 (EXP-013) | a1 KL 0 | a2 dynamic | cap 2,048 |
+|---|---|---|---|---|---|---|
+| gsm8k | 1,319 | 82.3 [80.2, 84.2] | 82.0 | 84.5 [82.5, 86.6] | 84.0 [82.0, 86.1] | 82.5 [80.4, 84.5] |
+| gsm8k_perturbed | 830 | 73.9 [70.7, 77.0] | 73.6 | 77.1 [74.2, 80.1] | 74.8 [71.8, 78.0] | 72.3 [69.4, 75.4] |
+| math500 | 500 | 63.4 [59.4, 67.6] | 58.6 | 69.0 [65.0, 73.0] | 61.4 [57.2, 65.6] | 60.8 [56.6, 64.8] |
+| countdown | 500 | 14.0 [11.0, 17.0] | 14.6 | 14.8 [11.6, 18.2] | 12.0 [9.2, 15.0] | 12.4 [9.6, 15.2] |
+| aime24 | 30 | 3.3 [0.0, 10.0] | 0.0 | 6.7 [0.0, 16.7] | 3.3 [0.0, 10.0] | 6.7 [0.0, 16.7] |
+| truncation gsm8k / math500 | | 4.6 / 20.8 % | 6.7 / 26.0 % | **2.1 / 13.4 %** | 3.8 / 22.4 % | 9.6 / 26.2 % |
+| mean tokens gsm8k / math500 | | 999 / 1,944 | 1,066 / 2,118 | **490 / 1,248** | 938 / 1,940 | 1,241 / 2,199 |
+
+**Paired against the main run** (`phase-4-compare-{a1,a2,cap}-vs-main.md`), read against the EXP-013
+noise row (0.3 / 0.2 / 4.8 / 0.6):
+
+| set | a1 - main | a2 - main | cap - main |
+|---|---|---|---|
+| gsm8k | **+2.2 [0.4, 4.0]** | +1.7 [-0.1, 3.6] | +0.2 [-1.7, 2.2] |
+| gsm8k_perturbed | **+3.3 [1.1, 5.5]** | +1.0 [-1.4, 3.4] | -1.6 [-4.1, 1.1] |
+| math500 | **+5.6 [1.6, 9.4]** (above the noise row) | -2.0 [-6.0, 2.0] (inside it) | -2.6 [-6.4, 1.2] (inside it) |
+| countdown | +0.8 [-3.0, 4.6] | -2.0 [-5.6, 1.2] | -1.6 [-5.2, 2.2] |
+| aime24 | +3.3 [0.0, 10.0] | 0.0 | +3.3 [0.0, 10.0] |
+
+**Paired against `rft`** (`phase-4-compare-{a1,a2,cap}-vs-rft.md`; main's row from section 4 for
+reference):
+
+| set | main - rft | a1 - rft | a2 - rft | cap - rft |
+|---|---|---|---|---|
+| gsm8k | +4.1 [2.0, 6.1] | **+6.3 [4.2, 8.3]** | +5.8 [3.8, 8.0] | +4.3 [2.1, 6.6] |
+| gsm8k_perturbed | +4.8 [1.9, 7.6] | **+8.1 [5.5, 10.6]** | +5.8 [3.0, 8.4] | +3.3 [0.5, 6.0] |
+| math500 | +7.0 [2.8, 11.0] | **+12.6 [8.0, 16.8]** | +5.0 [0.8, 9.4] | +4.4 [0.2, 8.6] |
+| countdown | +7.0 [3.6, 10.4] | +7.8 [4.2, 11.6] | +5.0 [1.6, 8.6] | +5.4 [2.2, 8.8] |
+
+**The decompositions** (`scripts/decompose_gain.py`, as section 4.5; reference truncation defines the
+split; both-finished is the paired accuracy difference on problems both policies answered):
+
+| comparison | set | net | on problems the reference truncated | on problems it finished | both finished (n) | paired diff there |
+|---|---|---|---|---|---|---|
+| a1 - main | gsm8k | +2.2 | +2.0 [1.3, 2.7] | +0.2 [-1.5, 2.0] | 1,241 | +1.0 [-0.7, 2.7] |
+| a1 - main | gsm8k_perturbed | +3.3 | +1.8 [0.8, 2.8] | +1.4 [-0.6, 3.6] | 764 | **+2.2 [0.1, 4.3]** |
+| a1 - main | math500 | +5.6 | +5.4 [3.4, 7.6] | +0.2 [-3.0, 3.2] | 372 | +2.7 [-1.3, 6.5] |
+| a1 - main | countdown | +0.8 | +8.4 [6.0, 11.0] | -7.6 [-10.4, -4.8] | 46 | +15.2 [6.5, 26.1] |
+| a1 - rft | gsm8k | +6.3 | +5.5 [4.2, 6.9] | +0.8 [-0.8, 2.4] | 1,103 | +1.4 [-0.5, 3.4] |
+| a1 - rft | gsm8k_perturbed | +8.1 | +5.5 [3.9, 7.3] | +2.5 [0.6, 4.5] | 682 | **+3.5 [1.3, 5.7]** |
+| a1 - rft | math500 | +12.6 | +12.8 [10.0, 16.0] | -0.2 [-3.2, 2.8] | 291 | +2.4 [-2.1, 7.2] |
+| a2 - rft | gsm8k | +5.8 | +5.3 [3.9, 6.7] | +0.5 [-1.0, 2.0] | 1,093 | +1.6 [-0.1, 3.3] |
+| a2 - rft | math500 | +5.0 | +8.8 [5.8, 11.8] | -3.8 [-6.8, -0.8] | 277 | -0.7 [-5.8, 4.0] |
+| cap - rft | gsm8k | +4.3 | +5.9 [4.5, 7.3] | -1.6 [-3.4, 0.2] | 1,047 | +0.6 [-1.3, 2.5] |
+| cap - rft | gsm8k_perturbed | +3.3 | +4.0 [2.4, 5.7] | -0.7 [-3.0, 1.4] | 641 | +2.5 [0.2, 4.8] |
+| cap - rft | math500 | +4.4 | +9.0 [5.8, 12.2] | -4.6 [-7.4, -1.8] | 268 | 0.0 [-4.1, 4.1] |
+| cap - main | gsm8k | +0.2 | +2.4 [1.6, 3.3] | -2.1 [-3.9, -0.4] | 1,149 | +1.1 [-0.6, 2.9] |
+| cap - main | math500 | -2.6 | +3.2 [1.6, 4.8] | -5.8 [-9.4, -2.2] | 330 | +1.2 [-3.0, 5.2] |
+
+Every session 2 checkpoint's gain over `rft` on MATH-500 sits on problems `rft` truncated, as the main
+run's did; on problems both finished no MATH-500 difference has a CI clear of zero. The perturbed
+GSM8K both-finished cells of a1 (+2.2 against the main run, +3.5 against `rft`, noise row 0.2) and the
+cap run (+2.5 against `rft`) are the only non-termination cells with CIs clear of zero in the whole
+phase; they are small, single-seed, and one of fifteen rows in this table, and are reported as a signal
+to test, not a result.
+
+Dev curves (greedy think-tag, gsm8k_dev 250 + math_dev 250; `rft` 86.0 / 62.4; half-widths about 5):
+
+| checkpoint | gsm8k_dev ck50 / 100 / 150 / 200 | math_dev ck50 / 100 / 150 / 200 | math truncation at ck200 | math mean tokens at ck200 |
+|---|---|---|---|---|
+| main (EXP-012) | 86.8 / 84.4 / 88.0 / 87.6 | 66.8 / 63.2 / 64.4 / 65.2 | 16.4 % | 1,875 |
+| seed 1 (EXP-013) | 87.2 / 84.4 / 84.0 / 86.0 | 68.0 / 66.0 / 67.6 / 68.8 | 18.0 % | 1,986 |
+| a1 KL 0 | 88.0 / 89.2 / 88.4 / 88.0 | 67.6 / 67.6 / 74.4 / 74.0 | 10.4 % | 1,136 |
+| a2 dynamic | 84.8 / 87.6 / 87.2 / 88.8 | 63.6 / 67.6 / 64.4 / 67.6 | 15.6 % | 1,865 |
+| cap 2,048 | 81.2 / 86.4 / 86.4 / 84.0 | 65.2 / 65.6 / 63.6 / 60.8 | 24.0 % | 2,225 |
+
+## 12. EXP-014a: the reference model off
+
+**Pre-registered.** Within the noise row of the main run; KL to `rft` (logged, not penalised) 2-5x
+the main run's; length and truncation within 10 % of the main run's. Falsifier: worse on MATH-500 by
+more than the noise row with the KL diverging. The parenthesis in the falsifier ("better by more than
+the noise row: the penalty costs accuracy here, also reported") is the case that occurred.
+
+**What happened.** The hypothesis failed on every clause. a1 is above the main run on the GSM8K family
+and on MATH-500 with CIs clear of zero and the MATH-500 delta (5.6) above the noise row (4.8); its
+completions are half the length (490 against 999 tokens on GSM8K, 1,248 against 1,944 on MATH-500) and
+its truncation a third (2.1 / 13.4 % against 4.6 / 20.8 %). In training (section 15) the finished rate
+rose to 0.96 against the main run's 0.75, the mean completion fell to 611 tokens against 1,197, the
+p90 left the cap at step 100 (the only run of the phase where it did), and zero-variance groups rose
+to half (more all-correct groups). No KL was logged: TRL 1.15 does not run the reference forward at
+beta 0 (section 16). **Offline KL against `rft`** (the node's `outputs/kl_offline.py` on 512 logged
+completions from steps 191-200 of each run, re-tokenised, both models in bf16; k3 per token with a
+bootstrap CI over completions; `outputs/reports/phase-4-kl-offline.json`): a1 0.0977 [0.0905,
+0.1074], main 0.0062 [0.0061, 0.0064], cap 0.0043 [0.0042, 0.0046]; per sequence 49.5, 7.4 and 6.3
+nats. The estimator reproduces TRL's logged in-training KL where one exists (main 0.0062 at step
+200, cap 0.0041), so the scale is right: **a1 is 15x further from `rft` per token and 7x per
+sequence**, far beyond the pre-registered 2-5x. The penalty at beta 0.04 held the other runs near
+0.006 nats per token.
+
+**Decomposed** (section 11), the gain over the main run is the termination pattern a third time: +5.4
+of +5.6 on MATH-500 sits on problems the main run truncated and a1 finished; the both-finished paired
+difference is +2.7 [-1.3, 6.5] on MATH-500 and +1.0 [-0.7, 2.7] on GSM8K. Against `rft` the picture is
+the main run's at larger scale: +12.8 of +12.6 on `rft`-truncated MATH-500 problems, both-finished
++2.4 [-2.1, 7.2]. The exception is perturbed GSM8K, where the both-finished difference is +2.2 [0.1,
+4.3] against the main run and +3.5 [1.3, 5.7] against `rft` (noise row 0.2). MATH-500 by level against
+`rft`: +16.3, +12.2, +22.9 on levels 1-3, +8.6 [0.8, 17.2] on level 4 (the main run: 0.0 [-8.6, 9.4]),
++7.5 [-1.5, 16.4] on level 5.
+
+**What the completions look like.** From the completion logs of the last ten steps (2,560 training
+completions): mean 1,718 characters (p10 985, p90 2,802) against the main run's 3,450 (p10 2,317);
+none under 400 characters in either run. The policy did not collapse to an empty think block; it
+writes shorter derivations and stops. The format-only rate (tags present, nothing correct) ran
+0.09-0.16 from step 50 against the main run's 0.03-0.07, below the 0.2 flag.
+
+**Reading.** At beta 0.04 the KL term is a brake on the one thing the reward pays for at this scale,
+stopping. Without it the policy shortens faster and finishes more, and the eval gain over the main run
+is the extra finishing. The reference model is not needed for stability at 200 steps and this
+learning rate: no hacking flag, entropy 0.31 at the end (main 0.43), the zero-variance groups rose
+because more groups were all correct, not all wrong. **Conclusion:** the pre-registered hypothesis
+("the penalty is a safety margin, not a source of accuracy") was wrong in sign: the penalty cost
+accuracy in the trained format by holding length up, and the cost was termination. One seed; the
+MATH-500 delta is one noise row above zero; the perturbed GSM8K both-finished cell is the candidate
+non-termination effect and needs a seed before it is called one.
+
+**Outside the trained format, nothing.** a1's zero-shot greedy eval (addendum 2;
+`outputs/reports/phase-4-compare-a1-vs-main-zero_shot.md`, paired against the main run's zero-shot
+folder on the full sets): GSM8K -1.5 [-3.3, 0.3] (82.8 against 84.3), perturbed +0.4 [-1.8, 2.4],
+MATH-500 +1.8 [-2.0, 5.4] (66.2 against 64.4), AIME24 -6.7 [-16.7, 0.0]; every CI covers zero. The
+brevity carries (truncation 5.6 / 23.2 % against the main run's 16.0 / 65.0 %, completions 40 %
+shorter), the accuracy does not. Dropping the reference term let the policy drift 15x further and get
+much shorter, which bought a trained-format gain and no template-independent one: the same shape as
+the main run's gain over `rft` in session 1 (+3.2 / -0.4 under zero-shot, section 4.3).
+
+## 13. EXP-014b: dynamic sampling
+
+**Pre-registered.** Zero-variance fraction 20-40 % and rising; dynamic sampling +1-3 on MATH-500 at
+1.3-1.6x the sampling time. Falsifier: within the noise row on both sets.
+
+**What happened.** The falsifier fired. a2 is inside the noise row and inside its CI on every set
+(+1.7 [-0.1, 3.6] GSM8K, -2.0 [-6.0, 2.0] MATH-500 against the main run); against `rft` it reproduces
+the main run's gains (+5.8 / +5.0) with the same decomposition (MATH-500 +8.8 on `rft`-truncated
+problems, both-finished -0.7 [-5.8, 4.0]). The mechanism did run: 64 groups generated per step, a mean
+43.5 informative (fraction 0.68, min 0.48 at step 195), and **one step in 200 (step 195) filled one
+group with zero advantage**; the main run's own zero-variance fraction was 30 % and flat, not rising.
+Step time 85.3 s against 56.3 (1.5x, inside the pre-registered 1.3-1.6x). Clip-high 0.28 was inert at
+every step (`clip_ratio/high_mean` 0), as pre-registered. The logged `zero_variance_group_rate` of
+this run is over the 64 generated groups (0 over the kept 32 by construction; section 16).
+
+**Conclusion.** With the learnable-prompt filter (solve rate in (0, 1) for the SFT policy) the batch
+already carries 70 % informative groups and 32 of them in 199 of 200 steps; dropping the rest and
+refilling buys nothing measurable here at 1.5x the cost. The DAPO fix addresses a batch the filter
+had already fixed. What it does not test: a harder prompt pool, where the main run's 30 % all-correct
+groups would become all-wrong ones.
+
+## 14. EXP-015: the 2,048-token cap
+
+**Pre-registered.** Training truncation at step 200 below 15 % (EXP-012: 25 %); mean length above
+1,200; net MATH-500 gain over `rft` at least +7.0; the both-finished paired difference over `rft` up by
+at least 2 (EXP-012: 0.0 [-4.3, 3.9]) and pass@16 over `rft` up by at least 3 (EXP-012: +1.9 [0.4,
+3.5]). Falsifier: both-finished inside EXP-012's CI and pass@16 within 1 point of EXP-012's.
+
+**What happened.** The falsifier fired on both counts. Both-finished against `rft` on MATH-500: 0.0
+[-4.1, 4.1] (EXP-012: 0.0 [-4.3, 3.9]); against the main run +1.2 [-3.0, 5.2]. pass@16 on the pinned
+MATH-500 subset against `rft`: +0.8 [-0.6, 2.3] (EXP-012: +1.9 [0.4, 3.5]); against the main run -1.2
+[-2.7, 0.3]; solved in 32 tries, 300 problems: both 269, only `rft` 3, only cap 6 (EXP-012: 10 and 2).
+The net gains over `rft` (+4.3 / +3.3 / +4.4 / +5.4) are below the main run's on every set and the
+MATH-500 one (+4.4 [0.2, 8.6]) is below the pre-registered +7.0; the decomposition puts +9.0 of it on
+`rft`-truncated problems and -4.6 on `rft`-finished ones. Training (section 15): the finished rate
+started 16 points higher than the main run's (the longer cap cuts fewer) and ended 7 higher (0.82),
+the mean length fell 1,690 to 1,458 (14 %, the main run's 15 %), the p90 stayed at the 2,048 cap at
+every step, the training truncation ended at 18 %, not below 15 %, and the KL to `rft` ended lower
+(0.0041 against 0.0062). At eval the cap policy writes longer completions (1,241 / 2,199 tokens against
+999 / 1,944) and truncates *more* at the 4,096 window (9.6 / 26.2 % against 4.6 / 20.8 %); its dev
+MATH-500 curve ends at 60.8, below `rft`'s 62.4, with 24 % truncation.
+
+**Conclusion.** The cap is not what limits the reasoning gain. With 33 % more room the policy learns
+the same thing, stop and answer, more slowly and less completely, and nothing moves on the problems
+both policies finish or in the number of problems reachable in 32 samples. The "termination only"
+reading of EXP-012 is a property of the method at this scale, data and budget, not of the cut from
+2,048 to 1,536 tokens. What the run does not test: a cap long enough that the loops themselves finish
+(EXP-010c says 8,192 is not that cap either), or a prompt pool where finishing is not the binding
+constraint (section 18).
+
+## 15. Training dynamics and the hacking watch, session 2 (`figures/phase-4-grpo-curves-ablations.png`)
+
+Centred nine-step window means at steps 1, 50, 100, 150, 200 (`figures/phase-4-grpo-curves-ablations.md`;
+a2's reward is over its 32 kept groups, which exclude the all-correct groups that raise the main run's
+mean, so its level is not comparable):
+
+| run | reward | finished rate | mean tokens | KL to `rft` | zero-variance groups |
+|---|---|---|---|---|---|
+| main | 0.354 / 0.548 / 0.605 / 0.627 / 0.625 | 0.370 / 0.593 / 0.658 / 0.685 / 0.701 | 1,393 / 1,264 / 1,220 / 1,216 / 1,197 | 0.0008 / 0.0037 / 0.0049 / 0.0051 / 0.0061 | 0.325 / 0.264 / 0.323 / 0.260 / 0.294 |
+| a1 KL 0 | 0.352 / 0.731 / 0.804 / 0.859 / 0.869 | 0.366 / 0.857 / 0.908 / 0.945 / 0.965 | 1,396 / 964 / 820 / 674 / 611 | not logged | 0.344 / 0.375 / 0.417 / 0.556 / 0.506 |
+| a2 dynamic | 0.398 / 0.658 / 0.652 / 0.682 / 0.695 | 0.419 / 0.720 / 0.727 / 0.742 / 0.769 | 1,367 / 1,159 / 1,166 / 1,153 / 1,141 | 0.0008 / 0.0052 / 0.0062 / 0.0065 / 0.0072 | 0.284 / 0.326 / 0.280 / 0.339 / 0.359 (of 64 generated) |
+| cap 2,048 | 0.515 / 0.677 / 0.688 / 0.719 / 0.711 | 0.560 / 0.747 / 0.758 / 0.789 / 0.787 | 1,659 / 1,462 / 1,423 / 1,447 / 1,469 | 0.0008 / 0.0031 / 0.0039 / 0.0040 / 0.0041 | 0.237 / 0.295 / 0.306 / 0.299 / 0.338 |
+
+Entropy at step 200: main 0.427, a1 0.315, a2 0.425, cap 0.451. "Wait" per completion at step 200:
+main 3.6, a1 0.65, a2 3.4, cap 4.7. The p90 length is at the cap at every step of every run except
+a1, whose p90 falls to 866 by step 200. Correct-of-finished at step 200: main 0.79, a1 0.89, a2 0.77
+(kept groups), cap 0.81.
+
+**Hacking watch** (`run_info.json`, with the correctness term of fb856a8): no flag on any of the three
+runs. Length growth without accuracy, format-only outputs above 0.2, repeated incorrect answers above
+0.5, "Wait" spam, truncation rising: all false; first-to-last window tokens / correct rate: a1 1,298 /
+0.65 to 603 / 0.87, a2 1,254 / 0.68 to 1,149 / 0.79, cap 1,531 / 0.72 to 1,451 / 0.79. The
+repeated-*incorrect* rate is 0.00-0.03 at every sampled step of every run (the flag that fired on the
+session 1 runs was reading repeated *correct* answers). a1's format-only rate (0.09-0.16 from step
+50) is the one statistic that moved toward a flag without reaching it (section 12).
+
+## 16. Deviations and incidents, session 2 (the node's S2.10, and what changed on the laptop)
+
+1. **The step-10 watcher for a1 waited on `train_log.jsonl`, which `rlvr-grpo` writes once at the end
+   of the run**; the live `step_time` is only in the stdout log. The projection was computed 65 min
+   late (0.90x the estimate; the run was never at risk); a2's and the cap run's were on time from the
+   stdout log. Laptop: handoff rule 5 now names the stdout log as the live source; a per-step
+   `train_log.jsonl` is a debt (engineering notes).
+2. **TRL 1.15 does not run the reference model at `kl_beta=0`**: a1 has no logged KL and ran 40 s/step.
+   The config comment and the handoff said the KL would be logged; both corrected. The drift was
+   estimated offline before the Delete (section 12; the node's `kl_offline.py`, kept in the archive
+   with its first run's output, whose bootstrap CI was degenerate and was fixed in a rerun).
+3. **a2's logged `zero_variance_group_rate` is over the 64 generated groups**, not the 32 kept; this
+   report reads it as "1 minus the informative fraction" and takes the kept-batch fact (0 by
+   construction, one fill in 200 steps) from `dynamic_sampling_log.jsonl`.
+4. **The ablation finals' uploads were not in `scripts/phase4_rental.sh report`**; the node ran the
+   three `hf upload` calls by hand (`ablations/{a1_nokl,a2_dynamic,cap2048}` of
+   `Raviteja546/reasoning-rlvr-grpo`, commits af382d1b, 204ebba5, a1ba6694). The step now uploads
+   any seed or ablation final it finds.
+5. **The GRPO model card the `report` step generated was SFT-shaped** (data hash `None`, epochs `None`,
+   "cross-entropy"), and that card went to the Hub (commit 7e6e7acb). `scripts/push_to_hub.py` now
+   writes a GRPO section from the run's own `run_info` (prompts, shape, reward, training signal), with
+   a test; `cards/grpo.md` is regenerated from the archive; the Hub copy is replaced when the user
+   next pushes with their token (`hf upload Raviteja546/reasoning-rlvr-grpo cards/grpo.md README.md`).
+6. **Micro-batch:** the user asked mid-run whether 24 would fit; 24 is not valid (256 completions per
+   step must be a multiple of the micro-batch), 32 did not fit on 20 Oct, so 16 stays (plan section 6).
+7. **Disk at 96 %** at the end of the session (six 33 GB run folders); a seventh run would not have fit.
+   The notebook is to be Deleted after the laptop has the archive (it has).
+8. The cap run's n = 32 sampling took 36 min against the 28 estimated (longer samples); the compares
+   against `rft` were skipped on the node (folders absent) and computed here, as the handoff said.
+9. **Two additions after the archive, at the user's request (16:33-16:48 UTC):** the offline KL of the
+   a1, main and cap finals against `rft` and a zero-shot greedy eval of the a1 final (4.4 min), about
+   8 GPU-minutes and INR 95, delivered as `h100_p4_session2_addendum2.tar.gz` (sha256 38fae1df...).
+   Then the user Deleted the notebook.
+
+## 17. Compute, session 2 and Phase 4
+
+| | plan | actual |
+|---|---|---|
+| GPU work, `setup` launch to `report` EXIT | 12.65 h | 12 h 29 min (03:30:44 to 16:00:07 UTC), under 5 min idle between steps |
+| the three GRPO runs | 11.6 h | 11 h 29 min (a1 2.40, a2 4.91, cap 4.18) |
+| evals and report | 1.25 h | 1.0 h |
+| tail: uploads, hand-back, archive | 0.33 h | about 0.4 h (to about 16:25) |
+| node-hours, Start (about 03:25) to the archive (about 16:25) | 13.4 h / INR 5,060 | **about 13.0 h / INR 4,930** |
+
+The drop order (plan section 8) was not needed. Phase 4 in all: session 1 13.27 h (INR 5,030) plus
+session 2 about 13.0 h (INR 4,930) = 26.3 node-hours, INR 9,960, plus the notebook's disk (about
+INR 107 a day from 20 Oct to the Delete), the two additions of addendum 2 (about INR 95) and the idle
+time from 16:48 UTC to the user's Delete on 21 Oct. Project to date about INR 21,700 at the Delete,
+against the INR 22,000 ceiling (`COMPUTE.md`).
+
+## 18. What Phase 4 supports, and what it does not
+
+**Supported by the evidence.**
+- GRPO with a finished-and-correct reward from `rft` beats `rft` paired on every set with 500 or more
+  problems, in the trained format (section 4); the seed repeat reproduces the GSM8K-family and Countdown
+  gains within a point and the MATH-500 gain with a 4.8-point spread (section 5).
+- The gain in the trained format is a termination gain. Four independent reads agree: the per-problem
+  decomposition of the main run, the seed, a1, a2 and the cap run (every MATH-500 both-finished cell
+  inside its CI); EXP-010c (the loops do not finish at 8,192 tokens); the cap test (33 % more room
+  changes nothing on finished problems or in pass@16); and the KL-off run (removing the brake on
+  shortening buys more of the same gain). Phase 3's RFT step decomposes the same way.
+- Outside the trained format the pipeline's gain over the base model's best prompt is +6 on GSM8K and
+  +11 on MATH-500 (SFT most of it; sections 4.1, 4.3).
+- The method is stable at this learning rate with or without the reference model: KL to `rft` under
+  0.01, no clipping, no hacking flag with the corrected watch, entropy not collapsing (0.31-0.45).
+- Dynamic sampling is unnecessary when the prompt pool is already filtered by solve rate.
+- pass@k: GSM8K pure sharpening in every run; MATH-500 a small widening in the main run (+1.9 [0.4,
+  3.5] at k = 16) that the cap run does not reproduce (+0.8 [-0.6, 2.3]); the two are inside each
+  other's CIs, so the honest statement is "at most a small widening".
+
+**Not supported, or not tested.**
+- The cap hypothesis (EXP-015) and the dynamic-sampling hypothesis (EXP-014b) failed their
+  pre-registered tests; the KL hypothesis (EXP-014a) failed in sign.
+- Any claim about reasoning gains from GRPO at this scale: the only both-finished cells with CIs clear
+  of zero are on perturbed GSM8K (a1 and the cap run, +2.2 to +3.5), single-seed, one row in fifteen.
+- The loss normalisation (EXP-014c, Dr. GRPO) was not run; the selection-versus-self-distillation
+  question of RFT (EXP-010g) still has no powered test.
+- Removing the KL term buys nothing outside the trained format (a1's zero-shot row, section 12);
+  no on-policy stage after SFT has moved the best-prompt accuracy beyond the noise (RFT -1.1 / +1.6,
+  GRPO +3.2 / -0.4, a1 -1.5 / +1.8 on GSM8K / MATH-500).
+- Whether the termination-only result is about the *prompts* rather than the method: the pool is
+  MATH levels 1-3 plus GSM8K, the eval gains sit on levels 1-3, and 30-50 % of groups were all-correct.
+  A run on level 3-5 prompts is the test, and it is the first candidate for the next plan
+  (`docs/research-narrative.md`, "Open now").
+
+The chain of questions this phase answered, and the ones it raised, are in `docs/research-narrative.md`;
+the engineering record in `docs/phase-4-engineering-notes.md`; the chronology in `docs/phase-4-journal.md`.

@@ -82,8 +82,33 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 
 | 2026-10-20/21 | 4 | TIR H100 notebook, session 1 whole life (12:14 UTC 20 Oct to the Stop at 01:30 UTC (07:00 IST) 21 Oct) | TIR H100 SXM 80 GB | 13.27 | INR 5,030 (USD 60) | about 195 M | about 170 M | the rows above are inside this one; plan 12.0 h / INR 4,570; the work itself 9 h 55 min of GPU time; the overrun is the build stall and the idle tail; the disk (320 GB) about INR 107 a day while the notebook exists, Stopped or not |
 
+| 2026-10-21 | 4 | session 2 start: the user's Start (about 03:25 UTC), secrets, pull to 8e94fb5, env check; `setup` (10 s, everything on disk, hashes re-checked) | TIR H100 SXM 80 GB | 0.10 | INR 38 | 0 | 0 | path A, no build |
+| 2026-10-21 | 4 | EXP-014a `a1` (KL 0): 200 steps at 40.3 s/step (no reference forward at beta 0) + four dev evals (8e94fb5) | TIR H100 SXM 80 GB | 2.40 | INR 910 (USD 10.8) | about 45 M | about 31 M | peak 63.9 GB; projection 0.90x the estimate |
+| 2026-10-21 | 4 | EXP-014b `a2` (dynamic sampling): 200 steps at 85.3 s/step (64 groups generated, 32 kept) + four dev evals | TIR H100 SXM 80 GB | 4.91 | INR 1,861 (USD 22.2) | about 118 M | about 59 M | peak 70.4 GB; 1.34x the estimate at step 10, 1.23x at the end |
+| 2026-10-21 | 4 | EXP-015 `cap` (2,048 cap): 200 steps at 71.8 s/step + four dev evals | TIR H100 SXM 80 GB | 4.18 | INR 1,584 (USD 18.9) | about 77 M | about 75 M | peak 73.4 GB, no OOM at micro-batch 16; 1.01x the estimate |
+| 2026-10-21 | 4 | `evals` (three five-set greedy evals, 7-9 min each; cap n = 32 sampling 36 min) and `report` (under 1 min) | TIR H100 SXM 80 GB | 1.00 | INR 379 (USD 4.5) | about 30 M | 0 | subsets re-checked twice |
+| 2026-10-21 | 4 | uploads (three ablation finals, 12.5 min), hand-back, archive (1,774 paths), addendum | TIR H100 SXM 80 GB (GPU idle) | 0.42 | INR 159 (USD 1.9) | - | - | GPU idle from 15:59 UTC as planned |
+| 2026-10-21 | 4 | additions at the user's request (16:33-16:48 UTC): offline KL of three finals vs `rft` (twice), a1 zero-shot eval (4.4 min), addendum 2 | TIR H100 SXM 80 GB | 0.25 | INR 95 (USD 1.1) | about 1 M | 0 | 8 GPU-minutes of work |
+| 2026-10-21 | 4 | idle: Start to `setup` (about 5 min) and addendum 2 to the user's Delete (about 16:52 UTC) | TIR H100 SXM 80 GB (idle) | 0.15 | INR 57 | - | - | |
+
+| 2026-10-21 | 4 | TIR H100 notebook, session 2 whole life (the user's Start about 03:25 UTC to the Delete about 16:52 UTC, 21 Oct) | TIR H100 SXM 80 GB | 13.45 | INR 5,100 (USD 61) | about 270 M | about 165 M | the rows above are inside this one; plan 13.4 h / INR 5,060; GPU work 12 h 29 min with under 5 min idle between steps; nothing dropped, no run repeated; the disk billed about INR 107 a day from 20 Oct to the Delete (about INR 160) |
+
+Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 160 of disk. The plan's
+Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost
+30 % of that.
+
 Phase 3 part: about 10.3 node-hours, INR 3,900: core 4.1 h, the gap-analysis runs 4.0 h, the
 analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A100-hours.
+
+**Running totals (after Phase 4 session 2 and the Delete, 21 Oct 2026).** Rented: L4 10.55 node-hours
+(INR 524.30), A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100
+notebook 28.1 h (INR 10,640) and its disk (INR 132 to the Stop), the second H100 notebook 13.27 +
+13.45 = 26.7 h (INR 10,130) and its disk (about INR 160, 20 Oct to the Delete): **about INR 21,750
+(USD 259)**. Local: 6.70 h plus the fold-in. Budget used: about 99 % of the INR 22,000 (USD 262)
+ceiling the user set on 20 Oct; nothing on E2E is billing after the Delete (the invoice is the record;
+the notebook rows are the node clock's). Any further rental needs a new ceiling
+(`docs/phase-5-plan.md`). The exact Delete minute was not recorded; the whole-life row carries the
+chat's time and will be replaced by the invoice's.
 
 **Running totals (after Phase 4 session 1, 21 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
 A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100 notebook 28.1 h

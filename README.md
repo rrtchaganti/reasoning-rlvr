@@ -8,7 +8,7 @@ falsifier per run, three contamination probes, a seed-noise row, and a compute l
 the study asks is not "does the recipe work" but **what each stage buys, and whether what it buys is
 reasoning, sharpening, or something cheaper**.
 
-**The answer so far (21 Oct 2026, four phases run, about 40 H100-hours).** Every stage beats the one
+**The answer so far (21 Oct 2026, four phases run, about 55 H100 node-hours).** Every stage beats the one
 before it in the format it was trained in, with CIs clear of zero. Decomposed per problem, the whole
 paired gain of both on-policy stages (RFT, then GRPO) sits on problems the previous policy failed to
 terminate; on problems both policies finished, accuracy did not move. Sampling tells the same story:
@@ -17,8 +17,11 @@ tries (+1.9 [0.4, 3.5] at k = 16), the one signal that is not termination. Again
 own best prompt the three stages add +6 on GSM8K and +11 on MATH-500, so the pipeline did add
 something a user could not get for free, but **at 1.7B and one GPU-day per method, on-policy
 post-training in the trained format taught the model to stop looping and answer, and little else**.
-Whether that is a property of the scale or an artefact of the 1,536-token training cap is the
-experiment running now (EXP-015, section 4).
+Session 2 tested whether that was an artefact of the 1,536-token training cap: a 2,048-token cap, the
+reference model off, and dynamic sampling each bought more or less of the same stopping and nothing
+on the problems both policies finish (EXP-015's falsifier fired; section 4), so the result is a
+property of the method at this scale, data and budget. No on-policy stage after SFT moved the
+best-prompt accuracy beyond noise.
 
 Chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Plan
 and rigour standards: [`PLAN.md`](PLAN.md). Pre-registration: [`experiments.md`](experiments.md).
@@ -41,6 +44,8 @@ paired accuracy difference restricted to problems both policies answered (`scrip
 | SFT, 23k distilled traces (EXP-006) | +13.0 [10.0, 15.8] | not split | | +5.8 [0.6, 11.0] | not split | | 28 / 52 % |
 | RFT, one round of selection (EXP-010) | +3.3 [1.0, 5.8] | +6.9 [5.2, 8.6] | -0.8 [-2.5, 0.9] | +5.8 [1.6, 10.2] | +12.2 [8.8, 15.6] | -2.5 [-7.0, 1.5] | 15 / 40 % |
 | GRPO, 200 steps (EXP-012) | +4.1 [2.0, 6.1] | +4.2 [3.0, 5.5] | +1.1 [-0.6, 2.8] | +7.0 [2.8, 11.0] | +10.2 [7.4, 13.2] | 0.0 [-4.3, 3.9] | 5 / 21 % |
+| ablation, KL off (EXP-014a), against the GRPO run | +2.2 [0.4, 4.0] | +2.0 [1.3, 2.7] | +1.0 [-0.7, 2.7] | +5.6 [1.6, 9.4] | +5.4 [3.4, 7.6] | +2.7 [-1.3, 6.5] | 2 / 13 % |
+| ablation, 2,048 cap (EXP-015), against the GRPO run | +0.2 [-1.7, 2.2] | +2.4 [1.6, 3.3] | +1.1 [-0.6, 2.9] | -2.6 [-6.4, 1.2] | +3.2 [1.6, 4.8] | +1.2 [-3.0, 5.2] | 10 / 26 % |
 | final, think-tag | 82.3 | | | 63.4 | | | |
 | final, zero-shot (the model's best prompt) | 84.3 (base 77.9) | | | 64.4 (base 53.8) | | | |
 
@@ -51,7 +56,11 @@ two random correct traces per problem instead of the two shortest costs 2.4 [0.1
 (EXP-010h). And the seed repeat of GRPO lands 4.8 points lower on MATH-500 for the same reason: it
 truncates 34 problems RFT had finished, against 23 for seed 0, with no difference in accuracy among
 finished answers (EXP-013). The 4.8 is the project's noise row on MATH-500, larger than most MATH-500
-gains people report at this scale with one seed.
+gains people report at this scale with one seed. Session 2 added two more reads: with the reference
+model off the policy drifts 15 times further from RFT, halves its length and gains again only on
+problems the main run truncated, with nothing under zero-shot (EXP-014a); with a 2,048-token cap the
+both-finished difference and pass@16 do not move (EXP-015). Dynamic sampling changed nothing
+(EXP-014b).
 
 ## 2. How the question arose, phase by phase
 
@@ -110,30 +119,34 @@ Each phase's question came from the previous phase's numbers; the record is in
   rising; plus the KL, clip-fraction and zero-variance-group curves. Diagnoses go to
   `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
 - **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
-  about 41 H100-hours and 11 L4-hours, under USD 200, against a stated ceiling.
+  about 55 H100 node-hours and 11 L4-hours, about USD 260, against a stated ceiling of USD 262.
 - **Reproducibility.** Every run is a config plus a commit hash; a preflight compares the resolved
   config with the plan's table, the prompt file with its committed manifest hash, the start checkpoint
   with the run it came from, and the eval subsets with their pinned hashes before a rented GPU starts;
   the harness refuses to run on a dirty tree; CI runs ruff and the CPU tests (193 in the gate) on every
   push.
 
-## 4. What is running and what comes next
+## 4. What session 2 found, and what comes next
 
-**Session 2 (running 21 Oct 2026; `docs/phase-4-plan.md` section 9).** Three one-knob runs from the
-same checkpoint, read against the noise row: KL off (EXP-014a); dynamic sampling, since a third of the
-compute produced no gradient (EXP-014b); and the run that bears on the central claim, **GRPO at a
-2,048-token cap** (EXP-015). The main run kept the p90 completion length pinned at the 1,536 cap
-throughout training and scored a quarter of completions 0 for being cut, so the finished-only reward
-may have selected for brevity over solving. Prediction: the both-finished paired difference against RFT
-rises by at least 2 points and pass@16 by at least 3. Falsifier: both inside the main run's CIs, in
-which case the cap is not what limits the reasoning gain.
+**Session 2 (21 Oct 2026; `outputs/reports/phase-4.md` sections 10-18).** Three one-knob runs from the
+same checkpoint, read against the noise row. The pre-registered prediction for the cap run was that the
+both-finished paired difference against RFT would rise by at least 2 points and pass@16 by at least 3;
+the falsifier was both inside the main run's CIs. Both-finished came out at 0.0 [-4.1, 4.1] and pass@16
+at +0.8 [-0.6, 2.3], so the falsifier fired. The reference model off was predicted to land within
+noise; it landed above the main run on three sets, at half the length, 15 times further from RFT, with
+the gain again on problems the main run truncated and nothing under zero-shot. Dynamic sampling, built
+for the third of groups with zero variance, changed nothing: the prompt filter had already left 32
+informative groups in 199 steps of 200. Every claim and every failed prediction is in the registry.
 
-**After that, each in the narrative before it runs.** Budget forcing on the SFT checkpoint (inject a
-stop at the cap, no training): if a decoding rule recovers most of the RFT and GRPO gains, the training
-taught what a rule provides. DPO on (finished-correct, looping) pairs as a mechanism test: can an
-off-policy method buy the termination gain without rollouts, at a tenth of the cost. A matched-incorrect
-rejection-sampling set, the test EXP-010g lacked the power for. Dr. GRPO's length normalisation
-(EXP-014c, pre-registered, deferred for budget).
+**What comes next, each in the narrative and the registry before it runs** (`docs/phase-5-plan.md`,
+awaiting a decision). The free tests first, because they decide whether more rental is worth it:
+budget forcing on the SFT and RFT checkpoints (inject a stop at the token budget, no training; if a
+decoding rule recovers most of the RFT and GRPO gains, the training taught what a rule provides;
+EXP-016), and accuracy against generated tokens for majority vote over the existing sample sets
+(is the RL policy the cheapest way to its own number; EXP-017). Then, priced and waiting on a budget:
+GRPO on MATH levels 3-5, the test of whether the prompts rather than the method were the limit
+(EXP-018); DPO on finished-versus-looping pairs as the cheapest teacher of termination (EXP-019); the
+matched-incorrect rejection-sampling set (EXP-010i); Dr. GRPO's normalisation (EXP-014c, deferred).
 
 ## 5. Status
 
@@ -143,10 +156,9 @@ rejection-sampling set, the test EXP-010g lacked the power for. Dr. GRPO's lengt
 | 1 Baselines, pass@k ceiling, contamination probes | merged 14 Oct 2026 (EXP-002 completed 18 Oct), tag `phase-1` | [`phase-1.md`](outputs/reports/phase-1.md) |
 | 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
 | 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
-| 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013); session 2 running 21 Oct (EXP-014a/b, 015); checkpoint `Raviteja546/reasoning-rlvr-grpo` | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 DPO as a mechanism test | planned; narrative link before the first run | |
-| 6 Test-time compute, budget forcing | planned | |
-| 7 Distillation, quantisation, serving | planned, an engineering deliverable | |
+| 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/`; PR pending | [`phase-4.md`](outputs/reports/phase-4.md) |
+| 5 Test-time compute and the cost of termination: budget forcing, accuracy against tokens (laptop, free), then the priced runs (harder prompts, DPO pairs, matched-incorrect RFT, Dr. GRPO) | proposed 21 Oct 2026 in `docs/phase-5-plan.md`, pre-registered as EXP-016 to 019 and EXP-010i; awaiting the user's signal and a budget | |
+| 6 Distillation, quantisation, serving | an engineering deliverable, last or cut | |
 | 8 Write-up | | |
 
 ## 6. Full results
@@ -177,13 +189,18 @@ checkpoint on shared problems; 18-21 Oct 2026, TIR H100):
 | base | zero-shot | 77.9 [75.6, 80.1] | 69.9 | 53.8 [49.4, 58.2] | - | 1-9 % |
 | SFT | zero-shot | 82.2 (+4.3 [1.8, 6.6]) | 72.7 | 63.2 (+9.4 [5.0, 14.0]) | - | 17 / 59 % |
 | RFT | zero-shot | 81.1 (-1.1) | 74.7 (+2.0) | 64.8 (+1.6) | - | |
-| GRPO | zero-shot | 84.3 (+3.2 [1.5, 4.8]) | | 64.4 (-0.4) | - | |
+| GRPO | zero-shot | 84.3 (+3.2 [1.5, 4.8]) | 74.7 | 64.4 (-0.4) | - | 16 / 65 % |
+| GRPO, KL off (EXP-014a) | think-tag | 84.5 (+2.2 [0.4, 4.0] vs GRPO) | 77.1 (+3.3) | 69.0 (+5.6 [1.6, 9.4]) | 14.8 (+0.8) | 2 / 13 % |
+| GRPO, KL off | zero-shot | 82.8 (-1.5 [-3.3, 0.3] vs GRPO) | 75.1 (+0.4) | 66.2 (+1.8 [-2.0, 5.4]) | - | 6 / 23 % |
+| GRPO, dynamic sampling (EXP-014b) | think-tag | 84.0 (+1.7 [-0.1, 3.6] vs GRPO) | 74.8 (+1.0) | 61.4 (-2.0 [-6.0, 2.0]) | 12.0 (-2.0) | 4 / 22 % |
+| GRPO, 2,048 cap (EXP-015) | think-tag | 82.5 (+0.2 [-1.7, 2.2] vs GRPO) | 72.3 (-1.6) | 60.8 (-2.6 [-6.4, 1.2]) | 12.4 (-1.6) | 10 / 26 % |
 
 **pass@k.** 4-shot-CoT, n = 64, T = 0.6: base 98.8 / 90.2 / 87.8 / 63.8 (GSM8K / perturbed / MATH-500 /
 Countdown under think-tag), SFT 98.2 / 88.8 / 93.0 / 62.0, RFT (300-problem subsets) 98.7 / 92.3 / 94.0.
 In the trained format at T = 0.6, n = 32, on pinned 300-problem subsets: RFT's gain over SFT persists at
 +2.0-2.5 to k = 32 on MATH-500; GRPO over RFT is -0.3 [-0.9, 0.3] at k = 16 on GSM8K (no problem newly
-solved in 32 tries) and +1.9 [0.4, 3.5] on MATH-500 (10 problems newly solved, 2 lost). Figures:
+solved in 32 tries) and +1.9 [0.4, 3.5] on MATH-500 (10 problems newly solved, 2 lost); the 2,048-cap run
+over RFT +0.8 [-0.6, 2.3] at k = 16 on MATH-500 (6 newly solved, 3 lost). Figures:
 `outputs/reports/figures/`.
 
 **Controls.** Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for
@@ -193,7 +210,10 @@ training. Phase 3 ablations: the same tokens of distilled data instead of the se
 (74.8 to 74.1 GSM8K); unfiltered traces land on RFT but were 93 % correct by construction (EXP-010g, no
 power); random instead of shortest traces -2.4 [-4.7, -0.1] GSM8K (EXP-010h). GRPO training: reward 0.34
 to 0.68, finished rate 0.35 to 0.75, mean completion 1,406 to 1,201 tokens with p90 at the cap, KL 0.006,
-clip fraction 0, zero-variance groups 30 % flat, 56 s/step on one H100.
+clip fraction 0, zero-variance groups 30 % flat, 56 s/step on one H100. KL off: offline KL to RFT 0.098
+per token against the main run's 0.006, finished rate 0.96, mean completion 611 tokens; dynamic
+sampling: 43.5 informative groups of 64 per step, one zero-advantage fill in 200 steps, 85 s/step; the
+2,048 cap: finished rate 0.82, p90 at the cap throughout, 72 s/step.
 
 ## 7. Repository map
 

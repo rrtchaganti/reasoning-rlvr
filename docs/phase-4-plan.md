@@ -228,3 +228,9 @@ Never dropped: the main run's full evals, the pinned subsets, the CIs.
 3. **Documentation rule (the user, 21 Oct):** no run goes into a session table without its link in
    `docs/research-narrative.md` (what was known, the intuition, the question, the prediction and
    falsifier, the id) and its entry in `experiments.md`.
+4. **Outcome (21 Oct 2026, session 2 run as this table says; `outputs/reports/phase-4.md` sections
+   10-18).** EXP-014a's hypothesis failed in sign (KL off is better in the trained format, by
+   termination, and 15x further from `rft`; nothing under zero-shot); EXP-014b's falsifier fired
+   (within noise at 1.5x the step time); EXP-015's falsifier fired (the cap is not what limits the
+   reasoning gain). 13.45 node-hours, INR 5,100, nothing dropped; the notebook Deleted the same day.
+   The next plan is `docs/phase-5-plan.md`, built from `docs/research-narrative.md` "Open now".

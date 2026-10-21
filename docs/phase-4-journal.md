@@ -328,3 +328,63 @@ The user's rule, now in plan section 9: no run goes into a session table without
 new `docs/research-narrative.md`, one section per phase with what was known, the intuition, the
 question, the prediction and falsifier, the id, what the run said and what it raised. The file was
 written for Phases 0 to 4 from the reports and the registry, and its last table is session 2.
+
+## 8. Session 2 on the node, the fold-in, and the Delete (21 Oct 2026)
+
+**Before the restart (morning, laptop).** The user asked for the exact steps from Start to the
+hand-over; the reply was handoff section 1 (Start; `HF_TOKEN` and `WANDB_API_KEY` exported and copied
+into tmux's global environment; the pull with the read-only GitHub token to 8e94fb5; the torch / vLLM /
+flash-attn import line; the torchcodec assert; `triton_check.py`; `claude --permission-mode auto` in a
+tmux session) and the section 7 opening message.
+
+**Session 2 on the node (03:25 to about 16:52 UTC).** From the hand-back (S2.1-S2.13) and log rows
+49-91:
+- 03:30 `setup` skipped everything on disk and re-checked the data and subset hashes (10 s).
+- 03:31 `a1` launched. The ten-minute watcher waited on `train_log.jsonl`, which the trainer writes
+  once at the end; the projection was computed at 04:28 from the stdout log (0.90x). The user asked
+  mid-run whether micro-batch 24 would fit: not a valid value (256 must be a multiple), and 32 had
+  not fit on 20 Oct. a1 ran 40.3 s/step because TRL skips the reference model at beta 0; no KL logged.
+- 05:55 `a2` chained within a minute; 85.3 s/step (64 groups generated, 32 kept); the user asked for a
+  mid-run health check at step 97. 10:50 `cap` chained; 71.8 s/step against the 73 projected; no OOM
+  at micro-batch 16. 15:00 `evals` (59 min), 16:00 `report` (under a minute; the compares against
+  `rft` skipped, its folders absent). 16:01-16:14 the three ablation finals uploaded by hand (the
+  step lacked them). 16:17 hand-back, 16:18 archive (1,774 paths) and its hash on the Hub, 16:19 the
+  addendum.
+- 16:22-16:25 the user asked for the verification commands in a text file, then the Windows versions.
+- 16:33 the laptop session's request, relayed by the user: the offline KL of a1, main and cap
+  against `rft` on their logged completions, and a zero-shot eval of the a1 final. 16:35-16:43: the
+  eval (4.4 min), the KL script twice (the first run's bootstrap CI was degenerate, one generator per
+  resample; fixed and rerun, the first output kept). 16:46 S2.13 and the second addendum. About 15
+  minutes, INR 95.
+- The user Deleted the notebook about 16:52 UTC after both addenda's hashes checked on the laptop.
+
+**While session 2 ran (laptop).** The user asked, from an interviewer's view, whether the phases
+read as a chain of questions or as a recipe run; the answer (the skeleton is the recipe, the
+questions inside each phase came from the previous phase's numbers, two runs were added and one
+displaced by observations, the failed predictions are the proof) led to the README rewrite
+(b039541: the question first, the decomposition table, how the question arose, what every number
+carries) and a resume draft outside the repo. The user then asked about reward hacking: the watch
+is on every run, nothing fired that survived a second look, and the project's structural biases are
+the cap plus the finished-only reward (tested by EXP-015), the loss normalisations (A3, deferred),
+verifier gaming (checked in the code: tag stuffing, hedged answers and post-answer babble all score
+0), reasoning collapse (not measured; the completion lengths say it did not happen) and memorisation
+(the gap and the probe).
+
+**The fold-in (afternoon and evening, laptop).** Archive and addenda fetched from the Hub, hashes
+checked; the compares of a1, a2 and cap against `rft` and the decompositions (a1 against main and
+`rft`, a2 and cap against `rft`) computed; the four-run curves and the cap pass@k figure plotted;
+the node's compare tables, the cap decomposition, the a1 zero-shot compare and the KL json copied in.
+Found on the way: the GRPO model card the node pushed to the Hub was SFT-shaped (`push_to_hub.py`
+had one card template); a GRPO branch with a test was added and `cards/grpo.md` regenerated from the
+archive; the Hub copy waits for the user's token. The node's seven changes were applied (handoff
+rule 5, the config comment, the session script's uploads; the rest recorded). Report sections 10-18,
+the registry closes, the narrative's session 2 section and the "Open now" table for the next phases
+(EXP-016 to 019, EXP-010i), the ledger, these notes, the engineering notes, the README's result lines,
+the PR body and `docs/phase-5-plan.md` written and committed.
+
+**What changed in the picture.** Session 1 left two readings; session 2 closed one. The cap, the
+reference penalty and the batch composition each change how much stopping the policy learns and
+nothing else that the evals can see; outside the trained format no on-policy stage after SFT has
+moved the number. The open question is now whether the prompts were the limit (EXP-018), and the
+cheapest way to buy stopping (EXP-016, EXP-019). The budget is spent to within about INR 250, so
+the free tests go first.
