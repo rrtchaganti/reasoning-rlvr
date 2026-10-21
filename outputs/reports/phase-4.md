@@ -22,11 +22,16 @@ gains to within a point (+3.8, +4.6, +7.6) but lands at +2.2 [-2.0, 6.6] on MATH
 **MATH-500 gain is positive in both seeds and its size is uncertain**: the noise row the ablations
 are read against is 0.3 points on the GSM8K family, 0.6 on Countdown and 4.8 on MATH-500.
 
-What the gain is made of. In the trained format truncation at 4,096 tokens fell from 15 % to 5 % on
-GSM8K and from 40 % to 21 % on MATH-500, with completions 30 % shorter; the training curves show the
-finished rate rising from 0.35 to 0.75 while the correct rate among finished completions rose from
-0.52 to 0.79 and the length fell. Under the 4-shot CoT template the gain is 0.0 on GSM8K and +1.8
-[-1.0, 4.8] on MATH-500; under zero-shot +3.2 [1.5, 4.8] on GSM8K and -0.4 on MATH-500. The pass@k
+What the gain is made of. Decomposed per problem by whether the `rft` completion finished (section
+4.5), **the whole paired gain sits on problems `rft` truncated**: +4.2 [3.0, 5.5] of the +4.1 on
+GSM8K, +10.2 [7.4, 13.2] of the +7.0 on MATH-500, +11.2 [8.6, 14.0] of the +7.0 on Countdown; on the
+problems `rft` finished the net is -0.2, -3.2 and -4.2 (GRPO truncates a few that `rft` finished),
+and on problems both runs finished the paired accuracy difference is +1.1 [-0.6, 2.8] on GSM8K and
+0.0 [-4.3, 3.9] on MATH-500. Truncation at 4,096 tokens fell from 15 % to 5 % on GSM8K and from 40 %
+to 21 % on MATH-500, with completions 30 % shorter. Under the 4-shot CoT template the gain is 0.0 on
+GSM8K and +1.8 [-1.0, 4.8] on MATH-500; under zero-shot +3.2 [1.5, 4.8] on GSM8K and -0.4 on
+MATH-500. Phase 3's RFT step decomposes the same way (section 4.5): at this scale both post-SFT
+stages are termination gains in the trained format. The pass@k
 curves at T = 0.6 (section 6) say what Phase 3 said of RFT: on GSM8K pure sharpening (pass@16 -0.3,
 no problem newly solved in 32 tries), on MATH-500 mostly sharpening with a small persistent gain
 (+1.9 [0.4, 3.5] at k = 16; 10 problems solved by GRPO in 32 tries that `rft` never solved, against
@@ -212,6 +217,49 @@ probe (fraction 0.6, 192 tokens): GSM8K mean similarity 0.591 (chance 0.404), ra
 3.6]; MATH-500 0.615 (chance 0.295), 14.1 % [11.3, 17.4]; `sft` 0.589 / 2.2 % and 0.613 / 14.1 %;
 `rft` 0.590 / 2.4 % and 0.616 / 14.3 %. Nothing in Phase 4 moved either control.
 
+### 4.5 Where the gain is: the paired gain split by termination (`phase-4-gain-decomposition.md`)
+
+The user asked how "mostly by learning to finish" was known rather than assumed. It was an
+inference from correlations (truncation fell where accuracy rose; the other templates did not
+move; the finished rate rose in training), and the per-sample files allow a direct split. For
+every shared problem, the first sample of each run gives (finished, correct); the paired gain in
+points of the set is the sum of per-problem differences, and it splits exactly into the part on
+problems the `rft` completion truncated and the part on problems it finished
+(`scripts/decompose_gain.py`, 95 % bootstrap CIs over problems):
+
+| eval | net gain | on problems `rft` truncated | on problems `rft` finished | both finished (n) | accuracy there, `rft` -> grpo | paired diff there |
+|---|---|---|---|---|---|---|
+| gsm8k | +4.1 [2.0, 6.1] | **+4.2 [3.0, 5.5]** | -0.2 [-1.7, 1.4] | 1,089 | 88.5 -> 89.6 | +1.1 [-0.6, 2.8] |
+| gsm8k_perturbed | +4.8 [2.2, 7.6] | **+4.9 [3.3, 6.7]** | -0.1 [-2.2, 1.9] | 668 | 78.7 -> 80.1 | +1.3 [-0.9, 3.7] |
+| math500 | +7.0 [2.8, 11.2] | **+10.2 [7.4, 13.2]** | -3.2 [-6.0, -0.2] | 279 | 86.7 -> 86.7 | 0.0 [-4.3, 3.9] |
+| countdown | +7.0 [3.8, 10.6] | **+11.2 [8.6, 14.0]** | -4.2 [-6.0, -2.4] | 25 | 68.0 -> 56.0 | -12.0 [-28.0, 4.0] |
+
+The cells behind the MATH-500 row: of 117 problems `rft` truncated and GRPO finished, GRPO is right
+on 54 that `rft` was not and wrong on 4 the other way; of 279 problems both finished, 18 flip each
+way; of 23 problems `rft` finished and GRPO truncated, `rft` is right on 16. Seed 1 decomposes the
+same way (+8.0 [5.4, 10.8] on `rft`-truncated problems, -5.8 on `rft`-finished, both-finished
+-1.5 [-5.6, 2.6]; `phase-4-gain-decomposition-seed1.md`): the 4.8-point seed difference on
+MATH-500 is a difference in how many `rft`-finished problems seed 1 truncates (34 against 23) and
+loses, not a difference in accuracy among finished answers. Under zero-shot, where GRPO changed
+truncation little, the split is flat (`-zero_shot.md`: GSM8K +1.7 and +1.5, MATH-500 +0.8 and
+-1.2, every CI covering or touching 0).
+
+Two caveats keep this descriptive. Truncation is an outcome of each policy, so the cells are not
+fixed strata and a policy that finishes more also changes which problems land in each cell. And
+"the gain is on problems `rft` truncated" does not by itself say `rft` would have failed them with
+more tokens; the Phase 3 cap experiment (EXP-010c, `phase-3.md` section 6) does: at an 8,192-token
+cap `rft`'s truncated generations still do not finish, they loop, and its accuracy moves by under
+a point. So the problems GRPO now gets right are ones `rft` was looping on, and GRPO's policy
+change is to stop looping and answer; among problems both policies answer, GRPO is no more
+accurate than `rft` on MATH-500 and about a point more accurate on GSM8K, inside the CI.
+
+The same split applied to Phase 3's RFT step (`phase-3-gain-decomposition.md`, rft - sft): GSM8K
++6.9 [5.2, 8.6] on `sft`-truncated problems and -3.6 on `sft`-finished, MATH-500 +12.2 [8.8, 15.6]
+and -6.4, both-finished paired diff -0.8 and -2.5 (CIs covering 0). Both post-SFT stages at this
+scale are termination gains in the trained format; what pass@k adds (section 6) is that the
+sampled policy also reaches a few more MATH-500 problems than `rft` did in 32 tries, the one
+signal that is not termination.
+
 ## 5. EXP-013: the seed repeat, the noise row
 
 Seed 1 minus seed 0, paired on the full sets (`phase-4-compare-seed1-vs-main.md`), and seed 1
@@ -333,7 +381,7 @@ completions rose, format-only outputs stayed under 2 %, "Wait" per completion fe
 5. **`rlvr-build-rft` rewrote the tracked Phase 3 data report** (its date line) on the node, which
    made the harness refuse the next step; the node restored the file and relaunched (3 idle
    minutes). The builder now writes its report next to the data (fb856a8).
-6. **The paired tables were computed on the laptop**, not by the node's `report` step: the `rft` eval
+6. **The paired tables and the termination decomposition were computed on the laptop**, not by the node's `report` step: the `rft` eval
    folders were not on the new disk (they are in the Phase 3 archive), and the n = 32 sample files
    of `rft` and `sft` were fetched from the Hub dataset. The same script, the same per-sample files.
 7. **Falsifier 2's format clause** was under-specified (section 4.2) and is read by its intent.

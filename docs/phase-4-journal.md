@@ -283,3 +283,21 @@ doubled instead of staying put (termination transferred to the one task where no
 the seed difference on MATH-500 exceeded 3 points. One pre-registered rule was under-specified (the
 format clause of the method falsifier does not say whether truncated completions count) and is read
 by its intent with the literal number beside it. EXP-010g has no power by construction and says so.
+
+## 6. "How do you know it is termination?" (21 Oct, the user's question)
+
+The first recap said GRPO beat RFT "mostly by learning to finish". The user asked how that was
+known and not assumed. It was an inference from four correlations (truncation fell where accuracy
+rose, the other templates did not move, Countdown's gain tracked its truncation, the finished rate
+rose in training), and one of the same curves pointed the other way (the correct rate among
+finished completions rose from 0.52 to 0.79). The per-sample files allow a direct answer, so the
+answer was computed rather than argued: `scripts/decompose_gain.py` splits the paired gain per
+problem by whether the reference completion finished, with bootstrap CIs. The whole net gain sits on
+problems `rft` truncated (+4.2 of +4.1 on GSM8K, +10.2 of +7.0 on MATH-500, +11.2 of +7.0 on
+Countdown); among problems both runs finished the paired accuracy difference is +1.1 [-0.6, 2.8] and
+0.0 [-4.3, 3.9]; seed 1 and the zero-shot template decompose consistently; Phase 3's RFT step shows
+the same shape against `sft`. With the Phase 3 cap experiment (the truncated generations loop at
+8,192 tokens too) this is as close to "GRPO learnt to stop looping and nothing else measurable at
+greedy" as the data allow, with the caveat written in report section 4.5 that truncation is an
+outcome of the policy, so the split is descriptive, not a fixed-strata causal estimate. The report,
+the registry and the README now say the measured thing instead of "mostly".
