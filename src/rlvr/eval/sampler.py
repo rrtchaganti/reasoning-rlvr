@@ -39,6 +39,9 @@ class Completion:
     text: str
     num_tokens: int
     finish_reason: str  # "stop" | "length" | other backend-specific values
+    # budget forcing (EXP-016): the completion hit the budget without closing its think block
+    # and was given the closing tags plus a short continuation; text and num_tokens include both
+    forced: bool = False
 
     @property
     def truncated(self) -> bool:

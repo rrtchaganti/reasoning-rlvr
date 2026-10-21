@@ -30,6 +30,9 @@ class Prompt:
     stop: tuple[str, ...]
     # prefix the template already emitted that must be re-attached before format checks
     completion_prefix: str = ""
+    # what budget forcing appends to a completion that hit the budget inside its think block
+    # (EXP-016); empty for templates that have no closing tags to force
+    force_suffix: str = ""
 
 
 # --- GSM8K exemplars (Wei et al. 2022, chain-of-thought prompting; first four of the eight) ---
@@ -150,7 +153,15 @@ def build_prompt(problem: Problem, template: str, eval_name: str) -> Prompt:
         # Qwen3 tokenises <think> as one added token that the *base* model has barely seen:
         # with <think> as the final prompt token, greedy output is garbage ("__(*", "⚐ ⚐ ⚐").
         # A newline after it restores normal text (probe, 14 Oct 2026, FAILURES_AND_LEARNINGS.md).
-        return Prompt(text=text, stop=("</answer>", "\nUser:"), completion_prefix="<think>\n")
+        # The trained format closes as "\n</think>\n<answer> 42 </answer>" (every SFT trace and
+        # finished sample ends so); budget forcing appends the first half and lets the model write
+        # the rest.
+        return Prompt(
+            text=text,
+            stop=("</answer>", "\nUser:"),
+            completion_prefix="<think>\n",
+            force_suffix="\n</think>\n<answer>",
+        )
 
     if fam == "countdown":
         raise ValueError("countdown is evaluated with the think_tag template only")
