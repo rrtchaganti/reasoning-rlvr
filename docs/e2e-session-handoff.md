@@ -32,9 +32,13 @@ node never edits tracked files, commits or pushes (`CLAUDE.md`).
   report next to the data. **The node must `git pull --ff-only` before anything else** (the user
   types the token); every run of session 2 is on the pulled commit.
 - **Budget:** the project has spent about INR 16,500 (sessions to 21 Oct plus the disk) of the
-  INR 22,000 ceiling. Session 2 is about 12 node-hours, INR 4,550, at the measured rates: about
-  INR 700 of headroom if the GPU is never idle. No run is repeated without asking; the drop order is
-  plan section 8 (A3, then A1). Rate INR 379.05 per hour; the disk about INR 107 a day.
+  INR 22,000 ceiling. Session 2 is about 13.4 node-hours, INR 5,060, at the measured rates, which
+  lands within about INR 200 of the ceiling if the GPU is never idle. No run is repeated without
+  asking; the drop order inside this session is the `cap` run's n = 32 sampling first, then `a1`
+  (plan section 8). Rate INR 379.05 per hour; the disk about INR 107 a day.
+- **The session 2 table changed on 21 Oct:** EXP-015 (`cap`: the 2,048-token cap, everything else
+  the main run's) runs in A3's slot; A3 (Dr. GRPO) is deferred. Why: `outputs/reports/phase-4.md`
+  section 4.5 and `docs/research-narrative.md`.
 - **The noise row the ablations are read against** (seed 1 minus seed 0, paired, think-tag greedy):
   GSM8K 0.3, perturbed GSM8K 0.2, MATH-500 4.8, Countdown 0.6 (`outputs/reports/phase-4.md`,
   section 5). An ablation delta smaller than these is "within noise" whatever its sign.
@@ -80,14 +84,15 @@ with its four dev evals, 8 min per five-set greedy eval).
 | 2 | `setup` | skips what is on the disk; re-asserts the manifest hashes and the pinned eval subsets | 2 min | a mismatch means the harness changed: stop and ask |
 | 3 | `a1` | EXP-014a: preflight, 200 steps with `kl_beta=0`, four dev evals | 3.3 h | the ten-minute rule at step 10 against 3.3 h (bound 5.0 h); the KL is logged, not penalised |
 | 4 | `a2` | EXP-014b: `dynamic_sampling=true`, `epsilon_high=0.28`; over-generates 2x the prompts and keeps the 32 informative groups | 4.0 h | the sampling half is about 1.3-1.6x session 1's; the bound is 6.0 h; `dynamic_sampling_log.jsonl` is a result (groups generated, informative, filled) |
-| 5 | `a3` | EXP-014c: `loss_type=dr_grpo`, `scale_rewards=none` | 3.3 h | same rule; the length curve is the result |
-| 6 | `evals` | the five-set greedy think-tag eval of each ablation's final checkpoint, one process per checkpoint | 25 min | main's evals and samples exist and are skipped |
+| 5 | `cap` | EXP-015: `max_new_tokens=2048`, everything else the main run's; preflight row `cap`; four dev evals | 4.3 h (projected 73 s/step) | bound 6.5 h; an OOM at micro-batch 16 falls back to 8 once (the logits of 16 x 2,048 are about 20 GB; session 1 peaked at 70.4 GB at 1,536); the length and truncation curves against main's are results |
+| 6 | `evals` | the five-set greedy think-tag eval of each new checkpoint, one process per checkpoint; then the pinned-subset check and the `cap` checkpoint's n = 32, T = 0.6 sampling | 55 min | main's evals and samples exist and are skipped; the sampling is EXP-015's headline read (pass@16) and is the first thing dropped if the session runs long |
 | 7 | `report` | the paired compares of each ablation against main and against `rft` (only those whose file is missing: the laptop computed the rest), the model card from this report's tables, the uploads (main's card and samples; the ablation finals under `ablations/`) | 20 min | `outputs/eval/rft_1.7b_think_tag` is not on this disk; the compares against `rft` are skipped there and the laptop computes them from the archive, as in session 1 |
 | 8 | section 5 | hand-back, archive, then the user's **Delete** (session 2 is the last) | 20 min | |
 
-About 12 node-hours, INR 4,550. The order a1, a2, a3 is the plan's; if time runs short the drop
-order is A3 first, then A1 (plan section 8); A2 stays because its question (does the prompt filter
-leave enough variance) is the one the session 1 curves raised (30 % zero-variance groups throughout).
+About 13.4 node-hours, INR 5,060. The order a1, a2, cap is the plan's; if time runs short the drop
+order is the `cap` sampling first, then A1 (plan section 8); A2 stays because its question (does the
+prompt filter leave enough variance) is the one the session 1 curves raised (30 % zero-variance
+groups throughout), and `cap` stays because its question is the project's central one.
 If the user is away, the session continues through the table on its own; it stops and asks only
 where the table says so, or where a rule of section 3 is about to be broken.
 
@@ -133,6 +138,7 @@ where the table says so, or where a rule of section 3 is about to be broken.
 |---|---|---|
 | GRPO step, shape B, micro-batch 16, MATH-heavy mix | 56 s (60 s at step 10, 54 s on a GSM8K mix) | every 200-step run: 3 h 08 min + 9 min of dev evals |
 | dynamic sampling (A2) | not measured; 2x the completions per step, so 1.3-1.6x on the sampling half | A2 estimate 4.0 h, bound 6.0 h |
+| the 2,048 cap (EXP-015) | not measured; 1.33x the sampled tokens and longer sequences in the update | projected 73 s/step, 4.3 h, bound 6.5 h |
 | five-set greedy think-tag eval | 7.5-8 min | each ablation's final checkpoint |
 | three-template eval set + gap + probe | 19 min | (session 1 only) |
 | n = 32, T = 0.6 on two 300-problem subsets | 28 min | (session 1 only) |
@@ -143,14 +149,15 @@ where the table says so, or where a rule of section 3 is about to be broken.
 ## 5. End of the session: hand-back, archive, uploads, Delete
 
 1. Uploads (inside `report`): the main checkpoint's card to `Raviteja546/reasoning-rlvr-grpo`; the
-   ablation finals under `ablations/{a1_nokl,a2_dynamic,a3_drgrpo}` of the same repo, each with its
+   ablation finals under `ablations/{a1_nokl,a2_dynamic,cap2048}` of the same repo, each with its
    `run_info.json`, `train_log.jsonl`, `reward_log.jsonl` (and `dynamic_sampling_log.jsonl`) inside
    `final/`; `hf upload` in one tmux session per repo.
 2. `outputs/h100_p4_handback.md` continued (session 2 section): the step table with actual times,
    every run's headline numbers with CIs and the file they came from, the preflight outputs, the
    per-step curves' summary at steps 1, 50, 100, 150, 200, the hacking-watch verdicts, A2's
    dynamic-sampling counts (groups generated, informative, filled) and its sampling time per step
-   against main's, A3's length and truncation per step against main's, Hub and W&B URLs,
+   against main's, the `cap` run's length, truncation and reward per step against main's and its
+   `scripts/decompose_gain.py` split against main (the script runs on the node in `report`), Hub and W&B URLs,
    `pip freeze`, `df -h`, node-hours and rupees.
 3. The archive: every `metrics.json`, `report.md`, `run_info.json`, `train_log.jsonl`,
    `reward_log.jsonl`, `dynamic_sampling_log.jsonl`, `prompt_ids.json`, the per-sample files of

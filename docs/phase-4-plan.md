@@ -91,7 +91,8 @@ debugging run and written into the session notes before the main run starts.**
 | EXP-013 | the same config, seed 1 | GRPO's own seed noise | EXP-012 |
 | EXP-014a | KL beta 0 | is the reference model needed? | EXP-012, EXP-013 |
 | EXP-014b | dynamic sampling (drop zero-variance groups, resample to fill the batch); clip-higher set to 0.28 but inert at one update per batch | does the prompt filter leave enough variance? | EXP-012, EXP-013 |
-| EXP-014c | Dr. GRPO loss (no per-sequence length normalisation, no std normalisation) | does the standard normalisation grow length? | EXP-012, EXP-013 |
+| EXP-014c | Dr. GRPO loss (no per-sequence length normalisation, no std normalisation) | does the standard normalisation grow length? | EXP-012, EXP-013 | *deferred 21 Oct (section 9)* |
+| EXP-015 | the 2,048-token cap of the original plan, everything else EXP-012's | is the absence of a non-termination gain (report section 4.5) an artefact of the 1,536 cap's length pressure? | `rft` and EXP-012 (the both-finished paired difference, pass@16), EXP-013 |
 
 Every ablation is one seed and is read against the EXP-013 noise row: a difference smaller than the
 seed-to-seed difference is reported as "within noise", whatever its sign.
@@ -117,10 +118,11 @@ GPU idle for 25 of them. Rates INR 379.05 per hour.
 | session 2 (re-estimated 21 Oct at session 1's rates) | hours | INR |
 |---|---|---|
 | path A restart (Stopped notebook: secrets, pull, env check) and `setup` (hashes only) | 0.15 | 55 |
-| EXP-014a (3.3 h), EXP-014b (4.0 h: dynamic sampling over-generates 2x), EXP-014c (3.3 h), each with its four dev evals | 10.6 | 4,020 |
+| EXP-014a (3.3 h), EXP-014b (4.0 h: dynamic sampling over-generates 2x), EXP-015 (4.3 h at a projected 73 s/step; EXP-014c deferred, section 9), each with its four dev evals | 11.6 | 4,400 |
+| EXP-015's n = 32 trained-format sampling on the pinned subsets | 0.5 | 190 |
 | three five-set greedy evals | 0.4 | 150 |
 | `report` (ablation compares, card, uploads), hand-back, archive, Delete | 0.7 | 265 |
-| **session 2** | **11.85** | **4,490** |
+| **session 2 (with EXP-015 in EXP-014c's place, 21 Oct)** | **13.35** | **5,060** |
 
 Session 1's work itself (9 h 55 min of GPU time) came in under the plan; the overrun is the
 environment build's stall and the idle tail until the Stop. Session 2 is estimated at the measured
@@ -202,8 +204,27 @@ preflight).** Results in `outputs/reports/phase-4.md`.
 ## 8. Drop order if money or time runs short
 
 1. The 4-shot n = 64 curve of the main checkpoint (optional already).
-2. EXP-014c (Dr. GRPO), then EXP-014a (KL off): their questions are about the method; the
+2. (EXP-014c is already deferred, section 9.) Inside session 2: EXP-015's n = 32 sampling first (0.5 h), then EXP-014a (KL off): their questions are about the method; the
    seed repeat stays because without it no ablation is readable.
 3. EXP-013 last, and then the ablation table says its deltas have no measured noise floor (PLAN.md
    section 8's own rule).
 Never dropped: the main run's full evals, the pinned subsets, the CIs.
+
+## 9. Decisions after session 1 (21 Oct 2026)
+
+1. **EXP-015 replaces EXP-014c in session 2** (the user's decision after the termination
+   decomposition of `outputs/reports/phase-4.md` section 4.5). The whole paired GRPO gain over `rft`
+   sits on problems `rft` truncated; among problems both policies finished nothing moved on
+   MATH-500. Two readings compete: on-policy methods at this scale teach stopping and little else,
+   or the finished-only reward under a 1,536-token cap (the p90 length pinned at the cap, a quarter
+   of completions cut and scored 0) selected for brevity over solving. The second is testable for one
+   run (about 4.3 h plus 0.5 h of sampling) and bears on the project's central claim; the Dr. GRPO
+   question bears on the method's length behaviour, which the finished-only reward may hide anyway.
+   EXP-014c's pre-registration stands, deferred. The full reasoning chain is
+   `docs/research-narrative.md`.
+2. **Session 2 budget with EXP-015:** about 13.4 node-hours, INR 5,060, which lands the project within
+   about INR 200 of the INR 22,000 ceiling if the GPU is never idle. Inside session 2 the drop order
+   is EXP-015's n = 32 sampling, then EXP-014a (section 8).
+3. **Documentation rule (the user, 21 Oct):** no run goes into a session table without its link in
+   `docs/research-narrative.md` (what was known, the intuition, the question, the prediction and
+   falsifier, the id) and its entry in `experiments.md`.

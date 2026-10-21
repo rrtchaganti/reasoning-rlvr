@@ -301,3 +301,30 @@ the same shape against `sft`. With the Phase 3 cap experiment (the truncated gen
 greedy" as the data allow, with the caveat written in report section 4.5 that truncation is an
 outcome of the policy, so the split is descriptive, not a fixed-strata causal estimate. The report,
 the registry and the README now say the measured thing instead of "mostly".
+
+## 7. The cap run, and the chain of questions (21 Oct)
+
+Asked whether GRPO worked, the answer was: as a method yes (stable, verified, falsifier not fired),
+as a reasoning improvement mostly no (the gain is termination, no transfer outside the trained
+format, no gain at level 4, the reward plateaued by step 50, a third of the compute on
+zero-variance groups). Asked whether the original plan's shape (64 x 8, 2,048 cap, 400-600 steps)
+would have done better, the answer was: not the steps (the curves say they were idle) and not the
+prompt count, but the cap might, because the p90 length sat at the 1,536 cap throughout training
+and a quarter of completions were cut and scored 0, so the reward may have selected for brevity over
+solving. The targeted test is one run at 2,048 with everything else the same, about 4.3 h plus the
+n = 32 sampling, which either costs INR 1,700 more or A3's slot. The user chose A3's slot: EXP-015
+is pre-registered (both-finished paired difference and pass@16 as the headline reads, with the
+falsifier that the cap is not what limits the reasoning gain), the session script, preflight,
+sample config, tests, plan, handoff and report are updated, and A3 is deferred with its
+pre-registration standing.
+
+One correction made while writing this: the previous recap and the report's section 4.1 quoted the
+base model's zero-shot MATH-500 as 63.2; that is `sft`'s zero-shot number (Phase 2). The base's is
+53.8 (Phase 1), so the pipeline adds 11 points on MATH-500 under the best prompt, not 1, and the
+claim that it "mostly repaired a format it broke" holds for GSM8K's trained-format row, not for
+MATH-500. The report says so where the number appears.
+
+The user's rule, now in plan section 9: no run goes into a session table without its link in the
+new `docs/research-narrative.md`, one section per phase with what was known, the intuition, the
+question, the prediction and falsifier, the id, what the run said and what it raised. The file was
+written for Phases 0 to 4 from the reports and the registry, and its last table is session 2.

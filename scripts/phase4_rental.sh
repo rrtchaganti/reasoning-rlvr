@@ -11,7 +11,8 @@
 #   debug        PLAN.md step 2: 50 GRPO steps on GSM8K-heavy prompts; measures the step time; not a result
 #   main         EXP-012, then its dev evals on the saved checkpoints
 #   seed         EXP-013 (seed 1) + dev evals
-#   a1 a2 a3     EXP-014a-c + dev evals
+#   a1 a2 a3     EXP-014a-c + dev evals (a3 deferred on 21 Oct 2026)
+#   cap          EXP-015: the 2,048-token cap, everything else EXP-012's (+ dev evals); session 2 in a3's place
 #   evals        the main checkpoint's greedy templates, gap, probe, the n = 32 trained-format samples;
 #                greedy think-tag for every other checkpoint; all sets of a checkpoint in one process
 #   report       paired tables, figures, model card, uploads
@@ -129,6 +130,9 @@ step_seed() { grpo_run seed1 outputs/train/grpo_1p7b_seed1 --set seed=1 --set ou
 step_a1()   { grpo_run a1 outputs/train/grpo_1p7b_a1_nokl --set kl_beta=0 --set out=outputs/train/grpo_1p7b_a1_nokl --set run_name=grpo_1p7b_a1_nokl; }
 step_a2()   { grpo_run a2 outputs/train/grpo_1p7b_a2_dynamic --set dynamic_sampling=true --set epsilon_high=0.28 --set out=outputs/train/grpo_1p7b_a2_dynamic --set run_name=grpo_1p7b_a2_dynamic; }
 step_a3()   { grpo_run a3 outputs/train/grpo_1p7b_a3_drgrpo --set loss_type=dr_grpo --set scale_rewards=none --set out=outputs/train/grpo_1p7b_a3_drgrpo --set run_name=grpo_1p7b_a3_drgrpo; }
+# EXP-015 (21 Oct 2026): the 2,048-token cap of the original plan, everything else EXP-012's; the logits of
+# 16 x 2,048 completions are about 20 GB (15 at 1,536), so an OOM here falls back to micro-batch 8 once
+step_cap()  { grpo_run cap outputs/train/grpo_1p7b_cap2048 --set max_new_tokens=2048 --set out=outputs/train/grpo_1p7b_cap2048 --set run_name=grpo_1p7b_cap2048; }
 
 step_evals() {
   # the main checkpoint: three templates (each config holds all its sets), gap, probe, the n = 32 trained-format samples
@@ -141,11 +145,17 @@ step_evals() {
   python scripts/phase4_preflight.py --subsets | tee -a outputs/phase4_preflight.log
   run_if_missing outputs/samples/grpo_1.7b_n32_think_tag_t06/metrics.json rlvr-eval --config configs/sample/grpo_1.7b_n32_think_tag_t06.yaml
   # every other checkpoint: the five-set greedy think-tag eval in one process
-  for r in grpo_1p7b_seed1 grpo_1p7b_a1_nokl grpo_1p7b_a2_dynamic grpo_1p7b_a3_drgrpo; do
+  for r in grpo_1p7b_seed1 grpo_1p7b_a1_nokl grpo_1p7b_a2_dynamic grpo_1p7b_a3_drgrpo grpo_1p7b_cap2048; do
     [[ -e "outputs/train/$r/final/config.json" ]] || continue
     run_if_missing "outputs/eval/${r}_think_tag/metrics.json" rlvr-eval --config configs/eval/grpo_1.7b_think_tag.yaml \
       --model "outputs/train/$r/final" --out "outputs/eval/${r}_think_tag"
   done
+  # EXP-015's question is about the non-termination part of the gain, so its checkpoint also gets the
+  # n = 32 trained-format sampling on the pinned subsets (28 min), checked against the hashes first
+  if [[ -e outputs/train/grpo_1p7b_cap2048/final/config.json ]]; then
+    python scripts/phase4_preflight.py --subsets | tee -a outputs/phase4_preflight.log
+    run_if_missing outputs/samples/grpo_cap2048_1.7b_n32_think_tag_t06/metrics.json rlvr-eval --config configs/sample/grpo_cap2048_1.7b_n32_think_tag_t06.yaml
+  fi
 }
 
 step_report() {
@@ -160,13 +170,18 @@ step_report() {
     paired "outputs/reports/phase-4-compare-${t}.md" --ref "outputs/eval/rft_1.7b_${t}" --new "outputs/eval/grpo_1.7b_${t}" --label-ref rft --label-new grpo
   done
   paired outputs/reports/phase-4-compare-sft-think_tag.md --ref outputs/eval/sft_1.7b_think_tag --new outputs/eval/grpo_1.7b_think_tag --label-ref sft --label-new grpo
-  for pair in "grpo_1p7b_seed1 seed1" "grpo_1p7b_a1_nokl a1" "grpo_1p7b_a2_dynamic a2" "grpo_1p7b_a3_drgrpo a3"; do
+  for pair in "grpo_1p7b_seed1 seed1" "grpo_1p7b_a1_nokl a1" "grpo_1p7b_a2_dynamic a2" "grpo_1p7b_a3_drgrpo a3" "grpo_1p7b_cap2048 cap"; do
     set -- $pair
     [[ -e "outputs/eval/$1_think_tag/metrics.json" ]] || continue
     paired "outputs/reports/phase-4-compare-$2-vs-main.md" --ref outputs/eval/grpo_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref main --label-new "$2"
     paired "outputs/reports/phase-4-compare-think_tag-$2.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref rft --label-new "$2"
   done
   paired outputs/reports/phase-4-compare-think_tag_n32_t06.md --ref outputs/samples/rft_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_1.7b_n32_think_tag_t06 --all-samples --label-ref rft --label-new grpo
+  if [[ -e outputs/samples/grpo_cap2048_1.7b_n32_think_tag_t06/metrics.json ]]; then
+    paired outputs/reports/phase-4-compare-cap-think_tag_n32_t06.md --ref outputs/samples/rft_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_cap2048_1.7b_n32_think_tag_t06 --all-samples --label-ref rft --label-new cap
+    paired outputs/reports/phase-4-compare-cap-vs-main_n32_t06.md --ref outputs/samples/grpo_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_cap2048_1.7b_n32_think_tag_t06 --all-samples --label-ref main --label-new cap
+    run_if_missing outputs/reports/phase-4-gain-decomposition-cap-vs-main.md python scripts/decompose_gain.py --ref outputs/eval/grpo_1.7b_think_tag --new outputs/eval/grpo_1p7b_cap2048_think_tag --label-ref main --label-new cap --out outputs/reports/phase-4-gain-decomposition-cap-vs-main.md || true
+  fi
   for r in rft_1p7b_nofilter rft_1p7b_random2; do
     [[ -e "outputs/eval/${r/_1p7b/_1.7b}_think_tag/metrics.json" ]] || continue
     paired "outputs/reports/phase-3-compare-${r#rft_1p7b_}-vs-rft.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/${r/_1p7b/_1.7b}_think_tag" --label-ref rft --label-new "${r#rft_1p7b_}"
@@ -180,8 +195,8 @@ step_report() {
 }
 
 case "$STEP" in
-  setup|smoke|p3ablations|debug|main|seed|a1|a2|a3|evals|report) "step_$STEP" ;;
+  setup|smoke|p3ablations|debug|main|seed|a1|a2|a3|cap|evals|report) "step_$STEP" ;;
   session1) for s in setup smoke p3ablations debug main seed evals; do "step_$s"; echo "== step done ($(date -u +%H:%M:%S) UTC): $s"; done ;;
-  session2) for s in setup a1 a2 a3 evals report; do "step_$s"; echo "== step done ($(date -u +%H:%M:%S) UTC): $s"; done ;;
+  session2) for s in setup a1 a2 cap evals report; do "step_$s"; echo "== step done ($(date -u +%H:%M:%S) UTC): $s"; done ;;  # a3 deferred 21 Oct 2026 (EXP-015 in its place)
   *) echo "unknown step $STEP"; exit 2 ;;
 esac

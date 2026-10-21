@@ -2,7 +2,7 @@
 
 A small, fully reproducible study of the post-training recipe for mathematical reasoning (SFT, rejection sampling, GRPO with verifiable rewards, DPO, test-time compute, distillation) on one base model, Qwen3-1.7B-Base, with confidence intervals, paired comparisons, contamination probes and a compute ledger.
 
-Plan: [`PLAN.md`](PLAN.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering notes per phase (what was built, how it is tested, why): [`docs/`](docs/README.md). Background: [`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md), [`GLOSSARY.md`](GLOSSARY.md), [`PHASES_IO_AND_HYPERPARAMS.md`](PHASES_IO_AND_HYPERPARAMS.md).
+Plan: [`PLAN.md`](PLAN.md). The chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering notes per phase (what was built, how it is tested, why): [`docs/`](docs/README.md). Background: [`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md), [`GLOSSARY.md`](GLOSSARY.md), [`PHASES_IO_AND_HYPERPARAMS.md`](PHASES_IO_AND_HYPERPARAMS.md).
 
 ## Status
 

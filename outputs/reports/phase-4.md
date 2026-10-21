@@ -147,8 +147,9 @@ Against `sft` (`phase-4-compare-sft-think_tag.md`): +7.4 [5.2, 9.6] GSM8K, +7.8 
 perturbed, +12.8 [8.8, 16.8] MATH-500, +10.2 [7.0, 13.8] Countdown. The three-stage picture in the
 trained format on MATH-500: `sft` 50.6, `rft` 56.4, `grpo` 63.4; on GSM8K 74.8, 78.2, 82.3. The
 pipeline from the base model's think-tag 43.0 / 61.3 (Phase 1) adds 20 and 21 points in this
-format; against the base model's best prompt (zero-shot 63.2 MATH-500, 77.9 GSM8K) it adds 1 on
-MATH-500 and 6 on GSM8K under zero-shot (section 4.3).
+format; against the base model's best prompt (zero-shot 53.8 MATH-500, 77.9 GSM8K; Phase 1) the
+checkpoint's own zero-shot rows (64.4, 84.3) add 11 on MATH-500 and 6 on GSM8K (section 4.3). (An
+earlier draft of this sentence quoted `sft`'s zero-shot 63.2 as the base's; corrected 21 Oct.)
 
 MATH-500 by level, grpo - rft (paired; 43 / 90 / 105 / 128 / 134 problems): level 1 +11.6 [0.0,
 23.3], level 2 +6.7 [-2.2, 14.5], level 3 +13.3 [3.8, 22.9], level 4 0.0 [-8.6, 9.4], level 5 +7.5
@@ -408,10 +409,13 @@ minutes. Project to date about INR 16,500 of the INR 22,000 ceiling.
 ## 10. Session 2, and what this report still needs
 
 Session 2 runs EXP-014a (KL 0), EXP-014b (dynamic sampling; clip-higher 0.28 set and inert) and
-EXP-014c (Dr. GRPO loss, no std scaling), each 200 steps at the session 1 settings, then their
-five-set greedy evals, paired against the main run and read against the noise row of section 5.
-About 12 node-hours, INR 4,550, which fits the ceiling with about INR 700 to spare if the node is
-not left idle; the drop order (plan section 8: A3, then A1) applies if it does not. The pre-
+EXP-015 (the 2,048-token cap of the original plan, in EXP-014c's slot: the user's decision on
+21 Oct after section 4.5, since the termination-only result may be an artefact of the 1,536 cap's
+length pressure; EXP-014c is deferred), each 200 steps at the session 1 settings, then their
+five-set greedy evals and EXP-015's n = 32 sampling, paired against the main run and `rft` and read
+against the noise row of section 5. About 13.4 node-hours, INR 5,060, which lands within about
+INR 200 of the ceiling if the node is never idle; the drop order inside the session is EXP-015's
+sampling first, then EXP-014a. The chain of reasoning behind every run is `docs/research-narrative.md`. The pre-
 registered falsifier of EXP-012 did not fire, so session 2 goes ahead as planned; nothing in
 session 1 changes the ablation set. Sections to be written after it: the ablation table, the
 A2 zero-variance and sampling-time comparison, the A3 length comparison, the closing summary and

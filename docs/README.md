@@ -16,4 +16,6 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 | 1 Baselines and pass@k ceiling | [`phase-1-engineering-notes.md`](phase-1-engineering-notes.md) | [`phase-1-journal.md`](phase-1-journal.md) |
 | 2 SFT on distilled traces | [`phase-2-engineering-notes.md`](phase-2-engineering-notes.md) (results section after the rental) | [`phase-2-journal.md`](phase-2-journal.md) |
 
-Also here: [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on.
+Also here: [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
+known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled
+without its link there), and [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on.

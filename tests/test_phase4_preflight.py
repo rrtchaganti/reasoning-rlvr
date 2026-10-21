@@ -21,6 +21,7 @@ ABLATION_SETS = {
     "a1": ["kl_beta=0", "out=outputs/train/grpo_1p7b_a1_nokl"],
     "a2": ["dynamic_sampling=true", "epsilon_high=0.28", "out=outputs/train/grpo_1p7b_a2_dynamic"],
     "a3": ["loss_type=dr_grpo", "scale_rewards=none", "out=outputs/train/grpo_1p7b_a3_drgrpo"],
+    "cap": ["max_new_tokens=2048", "out=outputs/train/grpo_1p7b_cap2048"],
     "debug": ["max_steps=50", "gsm8k_fraction=1.0", "out=outputs/train/grpo_1p7b_debug"],
 }
 

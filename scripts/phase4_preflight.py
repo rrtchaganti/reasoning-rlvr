@@ -53,6 +53,8 @@ RUNS: dict[str, dict[str, Any]] = {
     "main": {**SHAPE_B, "out": "outputs/train/grpo_1p7b"},
     "seed1": {**SHAPE_B, "seed": 1, "out": "outputs/train/grpo_1p7b_seed1"},
     "a1": {**SHAPE_B, "kl_beta": 0.0, "out": "outputs/train/grpo_1p7b_a1_nokl"},
+    # EXP-015 (21 Oct 2026): the plan's original cap, everything else shape B; replaces a3 in session 2
+    "cap": {**SHAPE_B, "max_new_tokens": 2048, "out": "outputs/train/grpo_1p7b_cap2048"},
     "a2": {
         **SHAPE_B,
         "dynamic_sampling": True,
