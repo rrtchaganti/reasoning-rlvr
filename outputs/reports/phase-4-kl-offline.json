@@ -1,0 +1,118 @@
+{
+  "ref": "outputs/train/rft_1p7b/final",
+  "n_requested": 512,
+  "last_steps": 10,
+  "seed": 0,
+  "dtype": "bfloat16",
+  "estimators": {
+    "k1": "mean(logp_pi - logp_ref)",
+    "k3": "mean(exp(r) - r - 1), r = logp_ref - logp_pi"
+  },
+  "runs": {
+    "a1_nokl": {
+      "run_dir": "outputs/train/grpo_1p7b_a1_nokl",
+      "steps_used": [
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200
+      ],
+      "num_completions": 512,
+      "completion_tokens_mean": 598.244140625,
+      "completion_tokens_max": 1536,
+      "reward_mean_of_sample": 0.865234375,
+      "k1_token_mean": 0.094891930763125,
+      "k3_token_mean": 0.097654709269415,
+      "k1_seq_sum_mean": 47.76531600518693,
+      "k3_seq_sum_mean": 49.46768526177159,
+      "k1_pooled_token_mean": 0.07984251371904018,
+      "k3_pooled_token_mean": 0.08268812329710659,
+      "k3_token_mean_ci95": [
+        0.09045939531721796,
+        0.10737948734883578
+      ],
+      "k1_token_mean_ci95": [
+        0.09120208764226259,
+        0.0988667772147146
+      ],
+      "num_tokens_scored": 306301,
+      "seconds": 17.6
+    },
+    "main": {
+      "run_dir": "outputs/train/grpo_1p7b",
+      "steps_used": [
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200
+      ],
+      "num_completions": 512,
+      "completion_tokens_mean": 1184.984375,
+      "completion_tokens_max": 1536,
+      "reward_mean_of_sample": 0.638671875,
+      "k1_token_mean": 0.0051497216458690435,
+      "k3_token_mean": 0.006229269995904641,
+      "k1_seq_sum_mean": 5.7566857438620875,
+      "k3_seq_sum_mean": 7.418396444893843,
+      "k1_pooled_token_mean": 0.0048580267093075264,
+      "k3_pooled_token_mean": 0.006260332711048481,
+      "k3_token_mean_ci95": [
+        0.006096191757283017,
+        0.006375713603968116
+      ],
+      "k1_token_mean_ci95": [
+        0.00486019271834485,
+        0.005469381714928113
+      ],
+      "num_tokens_scored": 606712,
+      "seconds": 25.7
+    },
+    "cap2048": {
+      "run_dir": "outputs/train/grpo_1p7b_cap2048",
+      "steps_used": [
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200
+      ],
+      "num_completions": 512,
+      "completion_tokens_mean": 1468.07421875,
+      "completion_tokens_max": 2048,
+      "reward_mean_of_sample": 0.716796875,
+      "k1_token_mean": 0.0028008321633441924,
+      "k3_token_mean": 0.004340567795653919,
+      "k1_seq_sum_mean": 3.950669076282702,
+      "k3_seq_sum_mean": 6.284477389061843,
+      "k1_pooled_token_mean": 0.0026910554152000062,
+      "k3_pooled_token_mean": 0.004280762722209501,
+      "k3_token_mean_ci95": [
+        0.004168143642170519,
+        0.004624095424941783
+      ],
+      "k1_token_mean_ci95": [
+        0.0024009426719904877,
+        0.0031372253920500335
+      ],
+      "num_tokens_scored": 751654,
+      "seconds": 30.8
+    }
+  }
+}

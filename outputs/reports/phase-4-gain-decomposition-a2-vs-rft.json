@@ -1,0 +1,242 @@
+{
+  "aime24": {
+    "pairs": 30,
+    "net_gain": [
+      3.3333333333333335,
+      0.0,
+      10.0
+    ],
+    "gain_on_ref_truncated": [
+      3.3333333333333335,
+      0.0,
+      10.0
+    ],
+    "gain_on_ref_finished": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "both_finished_n": 1,
+    "both_finished_acc_ref": 0.0,
+    "both_finished_acc_new": 0.0,
+    "both_finished_paired_diff": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "cells": {
+      "trunc/trunc": {
+        "n": 21,
+        "only_ref": 0,
+        "only_new": 0
+      },
+      "trunc/fin": {
+        "n": 7,
+        "only_ref": 0,
+        "only_new": 1
+      },
+      "fin/fin": {
+        "n": 1,
+        "only_ref": 0,
+        "only_new": 0
+      },
+      "fin/trunc": {
+        "n": 1,
+        "only_ref": 0,
+        "only_new": 0
+      }
+    }
+  },
+  "countdown": {
+    "pairs": 500,
+    "net_gain": [
+      5.0,
+      1.6,
+      8.4
+    ],
+    "gain_on_ref_truncated": [
+      10.2,
+      7.6,
+      12.8
+    ],
+    "gain_on_ref_finished": [
+      -5.2,
+      -7.2,
+      -3.4
+    ],
+    "both_finished_n": 16,
+    "both_finished_acc_ref": 50.0,
+    "both_finished_acc_new": 56.25,
+    "both_finished_paired_diff": [
+      6.25,
+      0.0,
+      18.75
+    ],
+    "cells": {
+      "trunc/trunc": {
+        "n": 337,
+        "only_ref": 0,
+        "only_new": 0
+      },
+      "fin/trunc": {
+        "n": 45,
+        "only_ref": 27,
+        "only_new": 0
+      },
+      "trunc/fin": {
+        "n": 102,
+        "only_ref": 0,
+        "only_new": 51
+      },
+      "fin/fin": {
+        "n": 16,
+        "only_ref": 0,
+        "only_new": 1
+      }
+    }
+  },
+  "gsm8k": {
+    "pairs": 1319,
+    "net_gain": [
+      5.837755875663381,
+      3.7149355572403335,
+      7.884761182714177
+    ],
+    "gain_on_ref_truncated": [
+      5.307050796057619,
+      3.9423805913570886,
+      6.747536012130402
+    ],
+    "gain_on_ref_finished": [
+      0.530705079605762,
+      -0.9855951478392722,
+      2.047005307050796
+    ],
+    "both_finished_n": 1093,
+    "both_finished_acc_ref": 88.19762122598354,
+    "both_finished_acc_new": 89.75297346752058,
+    "both_finished_paired_diff": [
+      1.555352241537054,
+      -0.09149130832570906,
+      3.293687099725526
+    ],
+    "cells": {
+      "fin/fin": {
+        "n": 1093,
+        "only_ref": 35,
+        "only_new": 52
+      },
+      "trunc/fin": {
+        "n": 176,
+        "only_ref": 8,
+        "only_new": 80
+      },
+      "fin/trunc": {
+        "n": 26,
+        "only_ref": 11,
+        "only_new": 1
+      },
+      "trunc/trunc": {
+        "n": 24,
+        "only_ref": 4,
+        "only_new": 2
+      }
+    }
+  },
+  "gsm8k_perturbed": {
+    "pairs": 830,
+    "net_gain": [
+      5.783132530120482,
+      3.253012048192771,
+      8.433734939759036
+    ],
+    "gain_on_ref_truncated": [
+      5.301204819277109,
+      3.7349397590361444,
+      6.867469879518072
+    ],
+    "gain_on_ref_finished": [
+      0.4819277108433735,
+      -1.5662650602409638,
+      2.6506024096385543
+    ],
+    "both_finished_n": 674,
+    "both_finished_acc_ref": 78.93175074183976,
+    "both_finished_acc_new": 80.1186943620178,
+    "both_finished_paired_diff": [
+      1.1869436201780414,
+      -1.3353115727002967,
+      3.857566765578635
+    ],
+    "cells": {
+      "fin/fin": {
+        "n": 674,
+        "only_ref": 33,
+        "only_new": 41
+      },
+      "trunc/fin": {
+        "n": 112,
+        "only_ref": 2,
+        "only_new": 44
+      },
+      "fin/trunc": {
+        "n": 16,
+        "only_ref": 5,
+        "only_new": 1
+      },
+      "trunc/trunc": {
+        "n": 28,
+        "only_ref": 0,
+        "only_new": 2
+      }
+    }
+  },
+  "math500": {
+    "pairs": 500,
+    "net_gain": [
+      5.0,
+      0.6,
+      9.2
+    ],
+    "gain_on_ref_truncated": [
+      8.8,
+      5.8,
+      11.8
+    ],
+    "gain_on_ref_finished": [
+      -3.8,
+      -6.8,
+      -0.8
+    ],
+    "both_finished_n": 277,
+    "both_finished_acc_ref": 87.00361010830325,
+    "both_finished_acc_new": 86.28158844765343,
+    "both_finished_paired_diff": [
+      -0.7220216606498195,
+      -5.776173285198556,
+      3.9711191335740073
+    ],
+    "cells": {
+      "fin/fin": {
+        "n": 277,
+        "only_ref": 22,
+        "only_new": 20
+      },
+      "trunc/fin": {
+        "n": 111,
+        "only_ref": 7,
+        "only_new": 51
+      },
+      "trunc/trunc": {
+        "n": 87,
+        "only_ref": 3,
+        "only_new": 3
+      },
+      "fin/trunc": {
+        "n": 25,
+        "only_ref": 17,
+        "only_new": 0
+      }
+    }
+  }
+}

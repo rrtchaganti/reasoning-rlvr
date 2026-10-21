@@ -6,7 +6,8 @@
 # finished, has the format and is correct (rlvr.train.grpo.score_completion).
 # Ablations are --set overrides of this file (scripts/phase4_rental.sh):
 #   seed repeat   --set seed=1 --set out=outputs/train/grpo_1p7b_seed1 --set run_name=grpo_1p7b_seed1
-#   A1 KL off     --set kl_beta=0
+#   A1 KL off     --set kl_beta=0   (TRL 1.15 then skips the reference model: no KL is logged and the
+#                                   step is about 15 s faster; session 2, 21 Oct 2026)
 #   A2 dynamic    --set dynamic_sampling=true --set epsilon_high=0.28
 #   A3 Dr. GRPO   --set loss_type=dr_grpo --set scale_rewards=none
 model: outputs/train/rft_1p7b/final

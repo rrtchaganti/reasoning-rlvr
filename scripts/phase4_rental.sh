@@ -174,7 +174,7 @@ step_report() {
     set -- $pair
     [[ -e "outputs/eval/$1_think_tag/metrics.json" ]] || continue
     paired "outputs/reports/phase-4-compare-$2-vs-main.md" --ref outputs/eval/grpo_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref main --label-new "$2"
-    paired "outputs/reports/phase-4-compare-think_tag-$2.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref rft --label-new "$2"
+    paired "outputs/reports/phase-4-compare-$2-vs-rft.md" --ref outputs/eval/rft_1.7b_think_tag --new "outputs/eval/$1_think_tag" --label-ref rft --label-new "$2"
   done
   paired outputs/reports/phase-4-compare-think_tag_n32_t06.md --ref outputs/samples/rft_1.7b_n32_think_tag_t06 --new outputs/samples/grpo_1.7b_n32_think_tag_t06 --all-samples --label-ref rft --label-new grpo
   if [[ -e outputs/samples/grpo_cap2048_1.7b_n32_think_tag_t06/metrics.json ]]; then
@@ -191,6 +191,19 @@ step_report() {
     --compare outputs/reports/phase-4-compare-think_tag.md --card-out cards/grpo.md ${HF_DRY_RUN:+--dry-run}
   [[ -e outputs/samples/grpo_1.7b_n32_think_tag_t06/metrics.json ]] && python scripts/push_to_hub.py samples \
     --run outputs/samples/grpo_1.7b_n32_think_tag_t06 --repo "$HF_REPO_SAMPLES" --path-in-repo grpo_1.7b_n32_think_tag_t06 ${HF_DRY_RUN:+--dry-run}
+  # The ablation and seed finals (handoff section 5 item 1): session 2 (21 Oct 2026) ran these three
+  # `hf upload` calls by hand because the step did not have them. One upload at a time, same repo.
+  for pair in "grpo_1p7b_seed1 seeds/seed1" "grpo_1p7b_a1_nokl ablations/a1_nokl" "grpo_1p7b_a2_dynamic ablations/a2_dynamic" \
+              "grpo_1p7b_a3_drgrpo ablations/a3_drgrpo" "grpo_1p7b_cap2048 ablations/cap2048"; do
+    set -- $pair
+    [[ -e "outputs/train/$1/final/config.json" ]] || continue
+    for f in run_info.json train_log.jsonl reward_log.jsonl dynamic_sampling_log.jsonl; do
+      [[ -e "outputs/train/$1/$f" ]] && cp "outputs/train/$1/$f" "outputs/train/$1/final/$f"
+    done
+    if [[ -n "${HF_DRY_RUN:-}" ]]; then echo "dry run: would upload outputs/train/$1/final to $HF_REPO_GRPO/$2"; continue; fi
+    hf upload "$HF_REPO_GRPO" "outputs/train/$1/final" "$2" --commit-message "$1 final + logs" > "outputs/h100_p4_upload_$1.log" 2>&1 \
+      || echo "upload of $1 failed: see outputs/h100_p4_upload_$1.log"
+  done
   true
 }
 

@@ -8,6 +8,14 @@ node never edits tracked files, commits or pushes (`CLAUDE.md`).
 
 ## 0. State on 21 Oct 2026
 
+> **Session 2 ran on 21 Oct 2026 (03:25 to about 16:52 UTC) and the notebook was Deleted by the
+> user afterwards.** Nothing of this project exists on E2E any more. The archive, the two addenda and
+> the finals are on the Hub (`archives/` of `Raviteja546/reasoning-rlvr-samples`; `ablations/` of
+> `reasoning-rlvr-grpo`); the results are in `outputs/reports/phase-4.md` sections 10-18. A next
+> rental starts from path B of `docs/h100-next-session.md` (the Hub wheels, about 15 minutes to the
+> first GPU job) and from a new plan page (`docs/phase-5-plan.md`). The rest of this file is the
+> session 2 procedure as it was run, kept as the record and the template.
+
 - **The notebook exists and is Stopped** (the user's Stop at 01:30 UTC, 07:00 IST, on 21 Oct after
   downloading the session 1 archive). Its disk holds the venv (torch 2.13.0+cu129, vLLM 0.31.0,
   TRL 1.15.0, flash-attn 2.8.3.post2), the three wheels under `/home/jovyan/rlvr/wheels`, the HF
@@ -116,7 +124,10 @@ where the table says so, or where a rule of section 3 is about to be broken.
    (60-90 s; it costs the GPU nothing): the last line, anchored. `EXIT=` with anything but 0 means
    stop and ask. Never wait on a tmux session name. When a step ends, the notes get its actual time
    against the table above; idle minutes are counted.
-5. **The ten-minute rule on every GRPO run.** At step 10 the log's step time gives the projection;
+5. **The ten-minute rule on every GRPO run.** At step 10 the `step_time` fields of the step's
+   **stdout log** (`outputs/h100_p4_<step>.log`, the `{'loss': ...}` dicts) give the projection;
+   `train_log.jsonl` is written once, at the end of the run, so a watcher on it never fires
+   (session 2, log rows 54-55);
    above 1.5x the table's estimate the run is stopped (`tmux kill-session -t =<step>`) and the user
    asked. Inside it, the run continues without a question. An OOM at micro-batch 16: one relaunch
    at 8 without asking (the user's standing permission of 20 Oct), recorded; an OOM at 8 stops the

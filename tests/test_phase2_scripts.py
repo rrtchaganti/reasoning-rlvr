@@ -158,6 +158,76 @@ def test_model_card_renders_from_run_info(tmp_path):
     assert "base_model: a/b" in (run / "final" / "README.md").read_text(encoding="utf-8")
 
 
+def test_model_card_for_a_grpo_run_uses_its_own_fields(tmp_path):
+    # The card the H100 node generated for the GRPO final on 21 Oct 2026 printed the SFT fields
+    # (data hash None, epochs None, "cross-entropy"); a run_info of kind "grpo" gets its own section.
+    run = tmp_path / "grpo"
+    (run / "final").mkdir(parents=True)
+    (run / "final" / "config.json").write_text("{}")
+    info = {
+        "kind": "grpo",
+        "git_commit": "a8b9f69",
+        "git_branch": "phase-4-grpo",
+        "gpu": "H100",
+        "config": {
+            "model": "outputs/train/rft_1p7b/final",
+            "prompts": "outputs/data/rft/learnable_prompts.jsonl",
+            "manifest": "data/manifests/rft_iter1.json",
+            "num_prompts_per_step": 32,
+            "num_generations": 8,
+            "max_new_tokens": 1536,
+            "temperature": 1.0,
+            "learning_rate": 1e-6,
+            "lr_scheduler": "constant_with_warmup",
+            "warmup_steps": 10,
+            "weight_decay": 0.0,
+            "adam_beta1": 0.9,
+            "adam_beta2": 0.99,
+            "max_grad_norm": 1.0,
+            "kl_beta": 0.04,
+            "epsilon": 0.2,
+            "epsilon_high": None,
+            "loss_type": "grpo",
+            "scale_rewards": "group",
+            "dynamic_sampling": False,
+            "per_device_batch": 16,
+            "bf16": True,
+            "attn_implementation": "flash_attention_2",
+            "seed": 0,
+        },
+        "prompt_file_hash": "281bdfe31176411b",
+        "num_prompts_total": 4606,
+        "num_prompts_used": 2735,
+        "prompts_by_source": {"gsm8k_train": 468, "math_train": 2267},
+        "completions_per_step": 256,
+        "clip_active": False,
+        "train_runtime_s": 11253.0,
+        "train_loss": -0.0346,
+        "global_steps": 200,
+        "peak_memory_gb": 70.35,
+        "reward_first_step": 0.34375,
+        "reward_last_step": 0.68359375,
+        "finished_rate_first_step": 0.3515625,
+        "finished_rate_last_step": 0.75390625,
+        "mean_tokens_first_step": 1406.4,
+        "mean_tokens_last_step": 1200.7,
+        "zero_variance_group_rate_mean": 0.30046875,
+        "hacking_watch": {"evaluated": True, "any": True},
+    }
+    (run / "run_info.json").write_text(json.dumps(info))
+    ev = _metrics_dir(tmp_path, "ev2", {"gsm8k": 0.823, "math500": 0.634})
+    card = push_to_hub.model_card(
+        run, "Raviteja546/reasoning-rlvr-grpo", [ev], "| x |\n", "Raviteja546/reasoning-rlvr-rft"
+    )
+    assert "base_model: Raviteja546/reasoning-rlvr-rft" in card
+    assert "32 prompts x 8 samples per step (256 completions), 1536-token cap" in card
+    assert "reward 0.344 -> 0.684, finished rate 35 % -> 75 %, mean completion 1406 -> 1201" in card
+    assert "281bdfe31176411b" in card and "3.13 GPU-hours" in card
+    assert "rlvr-grpo --config configs/train/grpo_1p7b.yaml" in card
+    assert "Paired on the same problems against the checkpoint it was trained from" in card
+    assert "None" not in card and "cross-entropy" not in card and "rlvr-build-sft" not in card
+
+
 def _short_run_info(**over):
     info = {
         "gpu": "NVIDIA L40S",
