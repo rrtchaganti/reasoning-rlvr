@@ -124,6 +124,12 @@ Each phase's question came from the previous phase's numbers; the record is in
   `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
 - **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
   about 55 H100 node-hours and 11 L4-hours, about USD 260, against a stated ceiling of USD 262.
+- **An evidence index.** Every quoted claim (37 across the phases) is listed in
+  `configs/evidence/claims.yaml` with the runs it rests on; `scripts/evidence.py` re-derives its number
+  from the per-sample files, checks it against the quoted one, and writes the problems and completion
+  excerpts behind it to `outputs/reports/evidence/<id>.md`. The index
+  (`outputs/reports/evidence/README.md`) shows every quoted and re-derived number side by side; on
+  22 Oct 2026 all 37 agree. `docs/evidence-index.md` explains how to read a claim file.
 - **Reproducibility.** Every run is a config plus a commit hash; a preflight compares the resolved
   config with the plan's table, the prompt file with its committed manifest hash, the start checkpoint
   with the run it came from, and the eval subsets with their pinned hashes before a rented GPU starts;
@@ -248,7 +254,8 @@ sampling: 43.5 informative groups of 64 per step, one zero-advantage fill in 200
 | `scripts/` | per-phase session scripts (rental and laptop, resumable), preflight checks, paired compares, the gain decomposition, the accuracy-against-tokens and budget-forcing analyses, plots |
 | `tests/` | about 200 CPU tests plus GPU-marked ones; `scripts/check.sh` is the gate before every commit |
 | `experiments.md` | pre-registration: hypothesis, metric, falsifier, result, conclusion per run |
-| `outputs/reports/` | one report per phase with every table, plus the paired compare tables and figures |
+| `outputs/reports/` | one report per phase with every table, plus the paired compare tables and figures; `evidence/` holds the per-claim evidence files and their index |
+| `configs/evidence/claims.yaml` | the claims the reports make, each with its runs, rule and quoted number; `scripts/evidence.py` builds the index from it |
 | `docs/` | research narrative, per-phase engineering notes and journals, rental and handoff procedure |
 | `cards/` | model cards with config, data, compute and the eval table with CIs |
 | `COMPUTE.md`, `FAILURES_AND_LEARNINGS.md` | the ledger and the incident log |
