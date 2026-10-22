@@ -55,10 +55,14 @@ EOF
   download)
     for c in $CKPTS; do download "$c"; done ;;
   exp016)
-    for c in $CKPTS; do download "$c"; done
-    for B in $BUDGETS; do for c in $CKPTS; do
-      run_eval "outputs/eval/${c}_force${B}_think_tag" "${MODEL[$c]}" --force-stop-at "$B" --force-stop-continue 128
-    done; done ;;
+    # checkpoint-outer: on a slow link (0.4-0.6 MB/s to the Hub on the night of 21 Oct 2026) the
+    # first checkpoint's runs finish while the second downloads, instead of waiting for both
+    for c in $CKPTS; do
+      download "$c"
+      for B in $BUDGETS; do
+        run_eval "outputs/eval/${c}_force${B}_think_tag" "${MODEL[$c]}" --force-stop-at "$B" --force-stop-continue 128
+      done
+    done ;;
   exp016-ctrl)
     for c in $CKPTS; do download "$c"; run_eval "outputs/eval/${c}_laptop_think_tag" "${MODEL[$c]}"; done ;;
   *) echo "unknown step $STEP"; exit 2 ;;
