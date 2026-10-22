@@ -21,7 +21,11 @@ Session 2 tested whether that was an artefact of the 1,536-token training cap: a
 reference model off, and dynamic sampling each bought more or less of the same stopping and nothing
 on the problems both policies finish (EXP-015's falsifier fired; section 4), so the result is a
 property of the method at this scale, data and budget. No on-policy stage after SFT moved the
-best-prompt accuracy beyond noise.
+best-prompt accuracy beyond noise. Phase 5, with no rental, then asked what the termination gain is
+worth: **a decoding rule that forces the stop on the SFT checkpoint recovers all of RFT's gain and
+70-91 % of GRPO's at fewer tokens than either, on the RFT checkpoint it matches GRPO within the CI,
+and voting over two to four samples of the earlier checkpoints matches or beats the GRPO policy's
+greedy number** (sections 4 and 6). To within the CIs, the training taught what a stop rule provides.
 
 Chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Plan
 and rigour standards: [`PLAN.md`](PLAN.md). Pre-registration: [`experiments.md`](experiments.md).
@@ -126,7 +130,7 @@ Each phase's question came from the previous phase's numbers; the record is in
   the harness refuses to run on a dirty tree; CI runs ruff and the CPU tests (193 in the gate) on every
   push.
 
-## 4. What session 2 found, and what comes next
+## 4. What session 2 and Phase 5 found, and what comes next
 
 **Session 2 (21 Oct 2026; `outputs/reports/phase-4.md` sections 10-18).** Three one-knob runs from the
 same checkpoint, read against the noise row. The pre-registered prediction for the cap run was that the
@@ -138,15 +142,26 @@ the gain again on problems the main run truncated and nothing under zero-shot. D
 for the third of groups with zero variance, changed nothing: the prompt filter had already left 32
 informative groups in 199 steps of 200. Every claim and every failed prediction is in the registry.
 
+**Phase 5, option A (21-22 Oct 2026, no rental; `outputs/reports/phase-5.md`).** Two free tests of
+what the termination gain is worth. EXP-017, from the existing sample sets: voting over two RFT
+samples matches the GRPO policy's greedy number at 2.6x the tokens and four samples beat it at 5x
+(+3.9 [1.1, 6.7] GSM8K, +7.6 [3.8, 11.4] MATH-500); from four samples on, the majority-vote curves of
+SFT, RFT, GRPO and the cap run coincide; the untrained base under a 4-shot prompt with 16 votes
+matches GRPO's greedy GSM8K number and never its MATH-500 number. EXP-016, on the laptop: forcing
+the stop (append the closing tags at a token budget, no training) on the SFT checkpoint gains +5.8
+[3.9, 8.0] GSM8K and +9.0 [4.8, 13.0] MATH-500 at 1,536 tokens, more than RFT's whole gain and 70-77 %
+of GRPO's cumulative gain; on the RFT checkpoint at 2,048 it stands at -1.4 [-3.4, 0.6] and +0.6
+[-3.2, 4.4] against GRPO at fewer tokens. The forced answers are right about half the time, so the
+loops hold a usable derivation, not a finished one. Both pre-registered hypotheses held and neither
+falsifier fired. Figures: `outputs/reports/figures/phase-5-*.png`.
+
 **What comes next, each in the narrative and the registry before it runs** (`docs/phase-5-plan.md`,
-awaiting a decision). The free tests first, because they decide whether more rental is worth it:
-budget forcing on the SFT and RFT checkpoints (inject a stop at the token budget, no training; if a
-decoding rule recovers most of the RFT and GRPO gains, the training taught what a rule provides;
-EXP-016), and accuracy against generated tokens for majority vote over the existing sample sets
-(is the RL policy the cheapest way to its own number; EXP-017). Then, priced and waiting on a budget:
-GRPO on MATH levels 3-5, the test of whether the prompts rather than the method were the limit
-(EXP-018); DPO on finished-versus-looping pairs as the cheapest teacher of termination (EXP-019); the
-matched-incorrect rejection-sampling set (EXP-010i); Dr. GRPO's normalisation (EXP-014c, deferred).
+options B to D, awaiting a budget). The one training question left is whether harder prompts would
+make GRPO teach what a rule cannot: GRPO on MATH levels 3-5 (EXP-018). Also priced: the
+matched-incorrect rejection-sampling set (EXP-010i), DPO on finished-versus-looping pairs (EXP-019,
+now of less interest since a free rule buys the termination gain), Dr. GRPO's normalisation
+(EXP-014c). Two free cells remain on the laptop: the GRPO checkpoint under the stop rule, and the
+laptop control run for the cross-machine caveat.
 
 ## 5. Status
 
@@ -157,7 +172,7 @@ matched-incorrect rejection-sampling set (EXP-010i); Dr. GRPO's normalisation (E
 | 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
 | 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
 | 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/`; PR pending | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 Test-time compute and the cost of termination: budget forcing, accuracy against tokens (laptop, free), then the priced runs (harder prompts, DPO pairs, matched-incorrect RFT, Dr. GRPO) | proposed 21 Oct 2026 in `docs/phase-5-plan.md`, pre-registered as EXP-016 to 019 and EXP-010i; awaiting the user's signal and a budget | |
+| 5 The cost of termination: budget forcing (EXP-016) and accuracy against tokens (EXP-017) | branch `phase-5-ttc`; option A run 21-22 Oct 2026 on the laptop and from existing samples, INR 0; both hypotheses held; PR pending; options B-D (EXP-018, 019, 010i, 014c) priced in `docs/phase-5-plan.md`, awaiting a budget | [`phase-5.md`](outputs/reports/phase-5.md) |
 | 6 Distillation, quantisation, serving | an engineering deliverable, last or cut | |
 | 8 Write-up | | |
 
@@ -203,6 +218,13 @@ solved in 32 tries) and +1.9 [0.4, 3.5] on MATH-500 (10 problems newly solved, 2
 over RFT +0.8 [-0.6, 2.3] at k = 16 on MATH-500 (6 newly solved, 3 lost). Figures:
 `outputs/reports/figures/`.
 
+**Budget forcing (Phase 5, EXP-016; greedy think-tag, full sets, laptop).** SFT with the stop forced at
+768 / 1,024 / 1,536 / 2,048 / 3,072 tokens: GSM8K 77.8 / 79.8 / 80.7 / 80.6 / 80.8 (752 to 1,581 mean
+tokens), MATH-500 50.6 / 56.2 / 59.6 / 61.0 / 62.2 (776 to 2,419); RFT forced: GSM8K 78.2 / 79.8 /
+80.8 / 80.9 / 80.9, MATH-500 51.6 / 58.0 / 61.8 / 64.0 / 64.6. Paired against GRPO's greedy 82.3 /
+63.4: RFT forced at 2,048 -1.4 [-3.4, 0.6] / +0.6 [-3.2, 4.4]. Full table: `outputs/reports/figures/
+phase-5-force-stop.md`.
+
 **Controls.** Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for
 the base, 11.6 after RFT, 11.1 [8.2, 14.1] after GRPO; a names-only control moves nothing (-0.4 [-3.3,
 2.5]). Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs), unchanged by
@@ -223,8 +245,8 @@ sampling: 43.5 informative groups of 64 per step, one zero-advantage fill in 200
 | `src/rlvr/ref/` | from-scratch references: GRPO loss, advantages, KL estimators, pass@k, SFT loss, sampler |
 | `src/rlvr/train/` | `rlvr-sft` (TRL SFT, packed, flash attention) and `rlvr-grpo` (TRL GRPOTrainer + vLLM colocate, dynamic-sampling subclass, hacking watch) |
 | `src/rlvr/data/` | SFT and RFT data builders, contamination, perturbed GSM8K, partial-prompt probe |
-| `scripts/` | per-phase rental session scripts (resumable), preflight checks, paired compares, the gain decomposition, plots |
-| `tests/` | 193 CPU tests plus GPU-marked ones; `scripts/check.sh` is the gate before every commit |
+| `scripts/` | per-phase session scripts (rental and laptop, resumable), preflight checks, paired compares, the gain decomposition, the accuracy-against-tokens and budget-forcing analyses, plots |
+| `tests/` | about 200 CPU tests plus GPU-marked ones; `scripts/check.sh` is the gate before every commit |
 | `experiments.md` | pre-registration: hypothesis, metric, falsifier, result, conclusion per run |
 | `outputs/reports/` | one report per phase with every table, plus the paired compare tables and figures |
 | `docs/` | research narrative, per-phase engineering notes and journals, rental and handoff procedure |

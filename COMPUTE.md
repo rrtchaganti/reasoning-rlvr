@@ -93,7 +93,12 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 
 | 2026-10-21 | 4 | TIR H100 notebook, session 2 whole life (the user's Start about 03:25 UTC to the Delete about 16:52 UTC, 21 Oct) | TIR H100 SXM 80 GB | 13.45 | INR 5,100 (USD 61) | about 270 M | about 165 M | the rows above are inside this one; plan 13.4 h / INR 5,060; GPU work 12 h 29 min with under 5 min idle between steps; nothing dropped, no run repeated; the disk billed about INR 107 a day from 20 Oct to the Delete (about INR 160) |
 
-Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 160 of disk. The plan's
+Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 160 of disk.
+
+| 2026-10-21 | 5 | EXP-017 accuracy against tokens from the existing sample sets (379b67a) | laptop CPU | 0 | 0 | 0 | 0 | about 2 CPU-minutes; five sample sets fetched from the Hub (about 1.5 GB) |
+| 2026-10-21 | 5 | EXP-016 smoke: 0.6B base, 8 problems, budget 64 | RTX 4060 Laptop 8 GB | 0.05 | 0 | <0.01 M | 0 | the forced-stop path end to end |
+| 2026-10-21/22 | 5 | EXP-016 sweep: sft and rft at five budgets, GSM8K + MATH-500, greedy think-tag (1cf82a5) | RTX 4060 Laptop 8 GB | 8.55 | 0 | about 5.5 M | 0 | ten runs of 30-66 min, 03:01-11:34 UTC on the log's clock; the laptop slept most of the night with the job suspended (lid closed), nothing lost; two fp32 checkpoints (6.9 GB each) downloaded at 0.4-3 MB/s, about 2 h of network |
+ The plan's
 Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost
 30 % of that.
 
@@ -107,7 +112,8 @@ notebook 28.1 h (INR 10,640) and its disk (INR 132 to the Stop), the second H100
 (USD 259)**. Local: 6.70 h plus the fold-in. Budget used: about 99 % of the INR 22,000 (USD 262)
 ceiling the user set on 20 Oct; nothing on E2E is billing after the Delete (the invoice is the record;
 the notebook rows are the node clock's). Any further rental needs a new ceiling
-(`docs/phase-5-plan.md`). The exact Delete minute was not recorded; the whole-life row carries the
+(`docs/phase-5-plan.md`). Phase 5 option A (21-22 Oct) cost INR 0: about 8.6 laptop GPU-hours and
+2 CPU-minutes (local total about 15.3 h). The exact Delete minute was not recorded; the whole-life row carries the
 chat's time and will be replaced by the invoice's.
 
 **Running totals (after Phase 4 session 1, 21 Oct 2026).** Rented: L4 10.55 node-hours (INR 524.30),
