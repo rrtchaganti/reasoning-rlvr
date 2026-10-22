@@ -1,0 +1,184 @@
+[
+  {
+    "run": "sft think-tag",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 370,
+    "acc_truncated": 0.3108108108108108,
+    "acc_finished": 0.9188619599578504,
+    "sources_truncated_right": {
+      "final_phrase": 96,
+      "last_number": 17,
+      "boxed": 2
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "sft think-tag",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 260,
+    "acc_truncated": 0.1346153846153846,
+    "acc_finished": 0.9083333333333333,
+    "sources_truncated_right": {
+      "final_phrase": 29,
+      "boxed": 6
+    },
+    "extraction_failure_rate_truncated": 0.6807692307692308
+  },
+  {
+    "run": "rft think-tag",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 200,
+    "acc_truncated": 0.25,
+    "acc_finished": 0.8766756032171582,
+    "sources_truncated_right": {
+      "last_number": 7,
+      "final_phrase": 40,
+      "boxed": 3
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "rft think-tag",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 198,
+    "acc_truncated": 0.11616161616161616,
+    "acc_finished": 0.8576158940397351,
+    "sources_truncated_right": {
+      "final_phrase": 19,
+      "boxed": 4
+    },
+    "extraction_failure_rate_truncated": 0.6767676767676768
+  },
+  {
+    "run": "grpo think-tag",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 61,
+    "acc_truncated": 0.09836065573770492,
+    "acc_finished": 0.8577106518282989,
+    "sources_truncated_right": {
+      "final_phrase": 5,
+      "last_number": 1
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "grpo think-tag",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 104,
+    "acc_truncated": 0.04807692307692308,
+    "acc_finished": 0.7878787878787878,
+    "sources_truncated_right": {
+      "final_phrase": 4,
+      "boxed": 1
+    },
+    "extraction_failure_rate_truncated": 0.7596153846153846
+  },
+  {
+    "run": "sft zero-shot",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 228,
+    "acc_truncated": 0.6710526315789473,
+    "acc_finished": 0.8533455545371219,
+    "sources_truncated_right": {
+      "boxed": 134,
+      "last_number": 8,
+      "final_phrase": 11
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "sft zero-shot",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 296,
+    "acc_truncated": 0.5878378378378378,
+    "acc_finished": 0.696078431372549,
+    "sources_truncated_right": {
+      "boxed": 174
+    },
+    "extraction_failure_rate_truncated": 0.16891891891891891
+  },
+  {
+    "run": "rft zero-shot",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 261,
+    "acc_truncated": 0.6896551724137931,
+    "acc_finished": 0.8412098298676749,
+    "sources_truncated_right": {
+      "boxed": 165,
+      "last_number": 7,
+      "final_phrase": 8
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "rft zero-shot",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 309,
+    "acc_truncated": 0.6116504854368932,
+    "acc_finished": 0.7068062827225131,
+    "sources_truncated_right": {
+      "boxed": 187,
+      "final_phrase": 2
+    },
+    "extraction_failure_rate_truncated": 0.16828478964401294
+  },
+  {
+    "run": "grpo zero-shot",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 211,
+    "acc_truncated": 0.7298578199052133,
+    "acc_finished": 0.8646209386281588,
+    "sources_truncated_right": {
+      "boxed": 140,
+      "final_phrase": 10,
+      "last_number": 4
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "grpo zero-shot",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 325,
+    "acc_truncated": 0.6276923076923077,
+    "acc_finished": 0.6742857142857143,
+    "sources_truncated_right": {
+      "boxed": 201,
+      "final_phrase": 3
+    },
+    "extraction_failure_rate_truncated": 0.11384615384615385
+  },
+  {
+    "run": "base think-tag",
+    "eval": "gsm8k",
+    "n": 1319,
+    "truncated": 472,
+    "acc_truncated": 0.4555084745762712,
+    "acc_finished": 0.7083825265643447,
+    "sources_truncated_right": {
+      "last_number": 215
+    },
+    "extraction_failure_rate_truncated": 0.0
+  },
+  {
+    "run": "base think-tag",
+    "eval": "math500",
+    "n": 500,
+    "truncated": 100,
+    "acc_truncated": 0.0,
+    "acc_finished": 0.56,
+    "sources_truncated_right": {},
+    "extraction_failure_rate_truncated": 0.97
+  }
+]

@@ -210,8 +210,12 @@ def model_card(
         *([extra_failure] if extra_failure else []),
         "- Trained on olympiad-style traces capped at 4096 tokens; longer reasoning is cut at the cap "
         "(truncation rate in the table).",
-        "- Answers are graded with math-verify on the `<answer>` block; prose answers without a box "
-        "count as extraction failures, reported separately, never as wrong.",
+        "- Answers are graded with math-verify on the `<answer>` block, falling back to the last "
+        "`\\boxed{}`, a final phrase or (numeric sets) the last number; what no rule extracts is scored "
+        "wrong in the accuracy and the extraction-failure rate is reported beside it. A completion cut at "
+        "the window is scored the same way, so truncated completions are often still right (the SFT "
+        "checkpoint's truncated GSM8K completions: 31 %; the repo's "
+        "`outputs/reports/phase-4-truncated-accuracy.md`).",
         "- Three MATH-500 problems and no GSM8K problem were found in the SFT source and removed before "
         "training (`outputs/reports/phase-2-data.md`); the base model's own pretraining contamination is "
         "measured in the repo's Phase 1 report and is not addressed by this checkpoint.",

@@ -27,6 +27,7 @@ from typing import Any
 import yaml
 
 from rlvr.eval.datasets import load_eval_set, write_manifest
+from rlvr.eval.force_stop import force_stop
 from rlvr.eval.prompts import TEMPLATES, build_prompt
 from rlvr.eval.report import (
     MARKDOWN_HEADER,
@@ -72,6 +73,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--top-p", type=float, default=1.0)
     p.add_argument("--top-k", type=int, default=-1)
     p.add_argument("--max-tokens", type=int, default=4096)
+    p.add_argument(
+        "--force-stop-at",
+        type=int,
+        default=None,
+        help="budget forcing (EXP-016): generate at most this many tokens, then give every "
+        "completion that did not close its think block the template's closing tags and "
+        "--force-stop-continue more tokens to answer; think_tag only",
+    )
+    p.add_argument("--force-stop-continue", type=int, default=128)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
         "--limit",
@@ -215,12 +225,18 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
         template = "think_tag" if name == "countdown" else args.template
         prompts = [build_prompt(p, template, name) for p in es.problems]
         stop = prompts[0].stop if prompts else ()
+        force_at = getattr(args, "force_stop_at", None)
+        if force_at and prompts and not prompts[0].force_suffix:
+            raise ValueError(
+                f"--force-stop-at is defined for the think_tag template only; {template} has no "
+                "closing tags to force"
+            )
         cfg = SamplingConfig(
             n=cfg_base.n,
             temperature=cfg_base.temperature,
             top_p=cfg_base.top_p,
             top_k=cfg_base.top_k,
-            max_tokens=cfg_base.max_tokens,
+            max_tokens=int(force_at) if force_at else cfg_base.max_tokens,
             seed=cfg_base.seed,
             stop=tuple(stop),
         )
@@ -235,6 +251,22 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
             )
         t_eval = time.time()
         completions = sampler.generate([p.text for p in prompts], cfg)
+        force_stats = None
+        if force_at and prompts:
+            completions, force_stats = force_stop(
+                sampler,
+                [p.text for p in prompts],
+                completions,
+                cfg,
+                suffix=prompts[0].force_suffix,
+                continue_tokens=int(getattr(args, "force_stop_continue", 128)),
+            )
+            print(
+                f"[rlvr-eval] {name}: budget {force_at}, forced {force_stats['num_forced']} of "
+                f"{force_stats['num_completions']} completions, {force_stats['num_forced_finished']} "
+                f"of them finished within {force_stats['continue_tokens']} more tokens",
+                flush=True,
+            )
         results = grade_completions(
             es, completions, completion_prefix=prompts[0].completion_prefix if prompts else ""
         )
@@ -250,6 +282,7 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
                 "wall_clock_s": time.time() - t_eval,
                 "backend": sampler.describe(),
                 "context_budget": budget,
+                "force_stop": force_stats,
             }
         )
         eval_dir = out / name

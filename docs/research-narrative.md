@@ -250,6 +250,48 @@ brevity reward; with 2,048 tokens the both-finished difference rises by at least
 Not changed by session 2: the Countdown gain (every run +5 to +8 over `rft`, all on `rft`-truncated
 problems), the perturbation gap and the probe (no memorisation signal), the seed row.
 
+## Phase 5, option A (21-22 Oct 2026): the cost of termination, with no rental
+
+**Known before.** Everything in Phase 4 section 18; the sample sets of every checkpoint (n = 32
+think-tag on pinned subsets, n = 64 4-shot CoT) and the greedy runs; a laptop 4060 that ran the 1.7B
+greedy evals in Phase 1.
+
+**Intuitions, written in the plan before the runs.** (a) If the gain is "stop and answer", a
+decoding rule that forces the stop on `sft` recovers at least half of RFT's gain and a third of
+GRPO's cumulative gain, and the forced answers are right about as often as the policies' own
+finished answers (EXP-016). (b) At matched tokens, voting over an earlier checkpoint reaches the RL
+policy's greedy number: maj@4 of `rft` at or above `grpo` greedy on MATH-500, maj@4 of `sft` matching
+it on GSM8K (EXP-017).
+
+**Runs and what they said.**
+- EXP-017 (no GPU): intuition (b) held. `rft` maj@2 matches `grpo` greedy within the CI at 2.6x the
+  tokens on both sets; `rft` maj@4 beats it (+3.9 [1.1, 6.7] GSM8K, +7.6 [3.8, 11.4] MATH-500) at 5x.
+  From k = 4 the maj@k curves of `sft`, `rft`, `grpo` and the cap run coincide within their CIs:
+  under sampling at T = 0.6 the four checkpoints are the same model, and the RFT and GRPO gains are
+  gains at the greedy point of the accuracy-against-tokens curve, not shifts of the curve. The base
+  model under 4-shot CoT with 16 votes matches `grpo`'s greedy GSM8K number at 2.4x the tokens and
+  never reaches its MATH-500 number (maj@64 59.0 against 64.3): on MATH-500 the thing votes over the
+  base cannot buy is SFT's.
+- EXP-016 (laptop GPU, ten runs): intuition (a) held on three of four clauses. Forcing the stop on
+  `sft` at 1,536 tokens recovers +5.8 / +9.0 (176 % / 155 % of RFT's gain, 77 % / 70 % of GRPO's
+  cumulative gain) at 1,152 / 1,459 tokens; at 3,072, 80 % / 91 % of GRPO's. On `rft` at 2,048 the
+  rule matches `grpo` within the CI (-1.4 [-3.4, 0.6] GSM8K, +0.6 [-3.2, 4.4] MATH-500) at fewer
+  tokens on MATH-500. The forced answers are right about half the time, not nine in ten (the
+  fourth clause failed): the loops hold a usable derivation, not a finished one. The rule loses on
+  problems that would have finished after the budget, so GSM8K saturates by 1,536 and MATH-500
+  keeps rising to 3,072; at 768 it buys nothing on MATH-500.
+
+**What option A raised.** The on-policy stages moved the greedy point along a curve the checkpoints
+share: under sampling the four trained checkpoints are one model, under forced stopping `sft` and
+`rft` trace one curve, and `grpo`'s greedy point lies on it (MATH-500) or a point and a half above
+it (GSM8K, inside the CI). What no rule or vote recovers is SFT's MATH-500 capability over the base
+and the half of forced answers that are wrong. Three things follow. (1) The cost-per-point table is
+now: a stop rule INR 0, RFT 0.2 H100-hours, GRPO 3.1 H100-hours, for the same trained-format
+number. (2) The one training question left is whether harder prompts would make GRPO teach what a
+rule cannot (EXP-018); DPO on pairs (EXP-019) has lost most of its point, since a free rule already
+buys the termination gain. (3) Two laptop cells would close the picture: the GRPO checkpoint under
+the rule, and the laptop control run for the cross-machine caveat.
+
 ## Open now (21 Oct 2026, after session 2): the next phases
 
 Each row is a candidate for the next plan page (`docs/phase-5-plan.md`); the entries exist in

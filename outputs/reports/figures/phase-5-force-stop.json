@@ -1,0 +1,304 @@
+{
+  "evals": {
+    "gsm8k": {
+      "forced": {
+        "sft": [
+          {
+            "budget": 768,
+            "acc": 0.7778620166793025,
+            "lo": 0.7543593631539045,
+            "hi": 0.7998483699772555,
+            "tokens": 751.7930250189537,
+            "truncation_rate": 0.009097801364670205,
+            "forced_stop_rate": 0.8089461713419257,
+            "forced_stop_accuracy": 0.7338331771321462,
+            "forced_stop_finished_rate": 0.9990627928772259
+          },
+          {
+            "budget": 1024,
+            "acc": 0.7975739196360879,
+            "lo": 0.775587566338135,
+            "hi": 0.8188021228203184,
+            "tokens": 930.385140257771,
+            "truncation_rate": 0.009097801364670205,
+            "forced_stop_rate": 0.576194086429113,
+            "forced_stop_accuracy": 0.6815789473684211,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 1536,
+            "acc": 0.8066717210007581,
+            "lo": 0.7846853677028052,
+            "hi": 0.8278999241849886,
+            "tokens": 1152.2266868840031,
+            "truncation_rate": 0.004548900682335102,
+            "forced_stop_rate": 0.33131159969673996,
+            "forced_stop_accuracy": 0.5446224256292906,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 2048,
+            "acc": 0.8059135708870356,
+            "lo": 0.7831690674753601,
+            "hi": 0.8271417740712661,
+            "tokens": 1308.180439727066,
+            "truncation_rate": 0.0,
+            "forced_stop_rate": 0.28278999241849884,
+            "forced_stop_accuracy": 0.4906166219839142,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 3072,
+            "acc": 0.8081880212282032,
+            "lo": 0.7862016679302501,
+            "hi": 0.8294162244124337,
+            "tokens": 1580.855193328279,
+            "truncation_rate": 0.0,
+            "forced_stop_rate": 0.2577710386656558,
+            "forced_stop_accuracy": 0.47941176470588237,
+            "forced_stop_finished_rate": 1.0
+          }
+        ],
+        "rft": [
+          {
+            "budget": 768,
+            "acc": 0.7816527672479151,
+            "lo": 0.7589082638362395,
+            "hi": 0.8043972706595905,
+            "tokens": 734.7642153146323,
+            "truncation_rate": 0.009855951478392721,
+            "forced_stop_rate": 0.7088703563305534,
+            "forced_stop_accuracy": 0.7144385026737968,
+            "forced_stop_finished_rate": 0.9989304812834224
+          },
+          {
+            "budget": 1024,
+            "acc": 0.7983320697498104,
+            "lo": 0.7763457164518575,
+            "hi": 0.819560272934041,
+            "tokens": 878.3540561031084,
+            "truncation_rate": 0.009097801364670205,
+            "forced_stop_rate": 0.4313874147081122,
+            "forced_stop_accuracy": 0.6098418277680141,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 1536,
+            "acc": 0.8081880212282032,
+            "lo": 0.7862016679302501,
+            "hi": 0.8294162244124337,
+            "tokens": 1033.395754359363,
+            "truncation_rate": 0.002274450341167551,
+            "forced_stop_rate": 0.20545868081880211,
+            "forced_stop_accuracy": 0.43911439114391143,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 2048,
+            "acc": 0.8089461713419257,
+            "lo": 0.7877179681576952,
+            "hi": 0.8301743745261562,
+            "tokens": 1125.021986353298,
+            "truncation_rate": 0.000758150113722517,
+            "forced_stop_rate": 0.1645185746777862,
+            "forced_stop_accuracy": 0.39631336405529954,
+            "forced_stop_finished_rate": 1.0
+          },
+          {
+            "budget": 3072,
+            "acc": 0.8089461713419257,
+            "lo": 0.7869598180439727,
+            "hi": 0.8301743745261562,
+            "tokens": 1281.5807429871115,
+            "truncation_rate": 0.0,
+            "forced_stop_rate": 0.14783927217589082,
+            "forced_stop_accuracy": 0.37435897435897436,
+            "forced_stop_finished_rate": 1.0
+          }
+        ]
+      },
+      "greedy": {
+        "sft": {
+          "acc": 0.7482941622441244,
+          "lo": 0.7255496588324488,
+          "hi": 0.7717968157695224,
+          "tokens": 1886.7467778620166,
+          "truncation_rate": 0.2805155420773313,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        },
+        "rft": {
+          "acc": 0.7816527672479151,
+          "lo": 0.7589082638362395,
+          "hi": 0.8044162244124335,
+          "tokens": 1425.819560272934,
+          "truncation_rate": 0.1516300227445034,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        },
+        "grpo": {
+          "acc": 0.8225928733889311,
+          "lo": 0.8021228203184231,
+          "hi": 0.8423047763457164,
+          "tokens": 999.076573161486,
+          "truncation_rate": 0.04624715693707354,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        }
+      }
+    },
+    "math500": {
+      "forced": {
+        "sft": [
+          {
+            "budget": 768,
+            "acc": 0.506,
+            "lo": 0.464,
+            "hi": 0.548,
+            "tokens": 775.944,
+            "truncation_rate": 0.01,
+            "forced_stop_rate": 0.988,
+            "forced_stop_accuracy": 0.5,
+            "forced_stop_finished_rate": 0.9898785425101214
+          },
+          {
+            "budget": 1024,
+            "acc": 0.562,
+            "lo": 0.52,
+            "hi": 0.608,
+            "tokens": 1022.872,
+            "truncation_rate": 0.012,
+            "forced_stop_rate": 0.934,
+            "forced_stop_accuracy": 0.5331905781584583,
+            "forced_stop_finished_rate": 0.9914346895074947
+          },
+          {
+            "budget": 1536,
+            "acc": 0.596,
+            "lo": 0.55595,
+            "hi": 0.638,
+            "tokens": 1458.56,
+            "truncation_rate": 0.008,
+            "forced_stop_rate": 0.78,
+            "forced_stop_accuracy": 0.49743589743589745,
+            "forced_stop_finished_rate": 0.9923076923076923
+          },
+          {
+            "budget": 2048,
+            "acc": 0.61,
+            "lo": 0.568,
+            "hi": 0.652,
+            "tokens": 1824.432,
+            "truncation_rate": 0.01,
+            "forced_stop_rate": 0.638,
+            "forced_stop_accuracy": 0.42946708463949845,
+            "forced_stop_finished_rate": 0.9905956112852664
+          },
+          {
+            "budget": 3072,
+            "acc": 0.622,
+            "lo": 0.58,
+            "hi": 0.664,
+            "tokens": 2419.398,
+            "truncation_rate": 0.002,
+            "forced_stop_rate": 0.536,
+            "forced_stop_accuracy": 0.3656716417910448,
+            "forced_stop_finished_rate": 0.996268656716418
+          }
+        ],
+        "rft": [
+          {
+            "budget": 768,
+            "acc": 0.516,
+            "lo": 0.474,
+            "hi": 0.56,
+            "tokens": 776.394,
+            "truncation_rate": 0.016,
+            "forced_stop_rate": 0.98,
+            "forced_stop_accuracy": 0.5081632653061224,
+            "forced_stop_finished_rate": 0.9836734693877551
+          },
+          {
+            "budget": 1024,
+            "acc": 0.58,
+            "lo": 0.538,
+            "hi": 0.624,
+            "tokens": 1012.58,
+            "truncation_rate": 0.012,
+            "forced_stop_rate": 0.87,
+            "forced_stop_accuracy": 0.5218390804597701,
+            "forced_stop_finished_rate": 0.9954022988505747
+          },
+          {
+            "budget": 1536,
+            "acc": 0.618,
+            "lo": 0.576,
+            "hi": 0.6600499999999998,
+            "tokens": 1408.244,
+            "truncation_rate": 0.01,
+            "forced_stop_rate": 0.672,
+            "forced_stop_accuracy": 0.4523809523809524,
+            "forced_stop_finished_rate": 0.9910714285714286
+          },
+          {
+            "budget": 2048,
+            "acc": 0.64,
+            "lo": 0.598,
+            "hi": 0.682,
+            "tokens": 1710.002,
+            "truncation_rate": 0.006,
+            "forced_stop_rate": 0.532,
+            "forced_stop_accuracy": 0.37969924812030076,
+            "forced_stop_finished_rate": 0.9887218045112782
+          },
+          {
+            "budget": 3072,
+            "acc": 0.646,
+            "lo": 0.604,
+            "hi": 0.688,
+            "tokens": 2188.22,
+            "truncation_rate": 0.004,
+            "forced_stop_rate": 0.432,
+            "forced_stop_accuracy": 0.30092592592592593,
+            "forced_stop_finished_rate": 0.9907407407407407
+          }
+        ]
+      },
+      "greedy": {
+        "sft": {
+          "acc": 0.506,
+          "lo": 0.464,
+          "hi": 0.548,
+          "tokens": 2910.03,
+          "truncation_rate": 0.52,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        },
+        "rft": {
+          "acc": 0.564,
+          "lo": 0.522,
+          "hi": 0.606,
+          "tokens": 2601.21,
+          "truncation_rate": 0.396,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        },
+        "grpo": {
+          "acc": 0.634,
+          "lo": 0.594,
+          "hi": 0.676,
+          "tokens": 1943.89,
+          "truncation_rate": 0.208,
+          "forced_stop_rate": null,
+          "forced_stop_accuracy": null,
+          "forced_stop_finished_rate": null
+        }
+      }
+    }
+  }
+}

@@ -17,6 +17,7 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 | 2 SFT on distilled traces | [`phase-2-engineering-notes.md`](phase-2-engineering-notes.md) (results section after the rental) | [`phase-2-journal.md`](phase-2-journal.md) |
 | 3 Rejection-sampling fine-tuning | [`phase-3-engineering-notes.md`](phase-3-engineering-notes.md) | [`phase-3-journal.md`](phase-3-journal.md) |
 | 4 GRPO and ablations | [`phase-4-engineering-notes.md`](phase-4-engineering-notes.md) | [`phase-4-journal.md`](phase-4-journal.md) |
+| 5 The cost of termination (budget forcing, accuracy against tokens) | [`phase-5-engineering-notes.md`](phase-5-engineering-notes.md) | [`phase-5-journal.md`](phase-5-journal.md) |
 
 Also here: [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
 known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled

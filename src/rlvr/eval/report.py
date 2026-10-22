@@ -35,6 +35,7 @@ class SampleRecord:
     extraction_source: str
     correct: bool
     format_ok: bool
+    forced_stop: bool = False  # budget forcing (EXP-016); absent in files written before it
 
 
 @dataclass
@@ -74,6 +75,7 @@ def grade_completions(
                     extraction_source=ext.source,
                     correct=ok,
                     format_ok=tag_format_ok(full_text),
+                    forced_stop=bool(getattr(comp, "forced", False)),
                 )
             )
         results.append(pr)
@@ -113,6 +115,13 @@ def summarize(results: list[ProblemResult], *, ks=DEFAULT_KS) -> dict[str, Any]:
         "tokens_correct": length_stats([s.num_tokens for s in all_samples if s.correct]),
         "tokens_incorrect": length_stats([s.num_tokens for s in all_samples if not s.correct]),
     }
+    forced = [s for s in all_samples if getattr(s, "forced_stop", False)]
+    out["forced_stop_rate"] = len(forced) / len(all_samples)
+    if forced:
+        out["forced_stop_accuracy"] = sum(s.correct for s in forced) / len(forced)
+        out["forced_stop_finished_rate"] = sum(s.finish_reason != "length" for s in forced) / len(
+            forced
+        )
     if n > 1:
         curve = pass_at_k_curve([pr.c for pr in results], n, ks)
         out["pass@k"] = {str(k): v.as_dict() for k, v in curve.items()}

@@ -271,6 +271,28 @@ a point. So the problems GRPO now gets right are ones `rft` was looping on, and 
 change is to stop looping and answer; among problems both policies answer, GRPO is no more
 accurate than `rft` on MATH-500 and about a point more accurate on GSM8K, inside the CI.
 
+**What a truncated completion is worth** (`phase-4-truncated-accuracy.md`, computed 22 Oct 2026
+after a wording error was found in the learning session). A completion cut at the window is not
+scored as wrong: the extractor falls back to a final phrase, the last number or a `\boxed{}`
+inside the loop, and only an extraction failure is scored wrong. First samples, greedy, 4,096
+window:
+
+| run | GSM8K truncated | right when truncated / finished | MATH-500 truncated | right when truncated / finished |
+|---|---|---|---|---|
+| `sft` think-tag | 28.1 % | 31.1 % / 91.9 % | 52.0 % | 13.5 % / 90.8 % |
+| `rft` think-tag | 15.2 % | 25.0 % / 87.7 % | 39.6 % | 11.6 % / 85.8 % |
+| `grpo` think-tag | 4.6 % | 9.8 % / 85.8 % | 20.8 % | 4.8 % / 78.8 % |
+| `sft` zero-shot | 17.3 % | 67.1 % / 85.3 % | 59.2 % | 58.8 % / 69.6 % |
+| `grpo` zero-shot | 16.0 % | 73.0 % / 86.5 % | 65.0 % | 62.8 % / 67.4 % |
+
+So in the trained format a truncated completion is right one time in three on GSM8K and one in
+eight on MATH-500 (the GSM8K ones mostly through a final phrase inside the loop; 68 % of the
+MATH-500 ones yield nothing), against nine in ten when finished; under zero-shot the box usually
+precedes the loop and a truncated completion is right six times in ten. This is why the
+termination gain is worth what the decomposition says and not the whole truncation rate: the
+problems `rft` truncated were not all lost, only two thirds to seven eighths of them. Only the GRPO
+training reward scores a cut completion 0.
+
 The same split applied to Phase 3's RFT step (`phase-3-gain-decomposition.md`, rft - sft): GSM8K
 +6.9 [5.2, 8.6] on `sft`-truncated problems and -3.6 on `sft`-finished, MATH-500 +12.2 [8.8, 15.6]
 and -6.4, both-finished paired diff -0.8 and -2.5 (CIs covering 0). Both post-SFT stages at this
