@@ -1,0 +1,410 @@
+# The claims the reports and README make, each with the runs it rests on and the number as quoted.
+# scripts/evidence.py re-derives every number from the per-sample files, lists the problems behind it
+# and writes outputs/reports/evidence/<id>.md; outputs/reports/evidence/README.md is the index.
+# Paths are relative to a root; the roots' laptop paths are given on the command line.
+roots:
+  P1:
+    desc: "Phase 1 greedy runs of the base models on the laptop (EXP-001, 003b; 1,024-token window except the 4,096 rerun)"
+    hub: "laptop only: outputs/eval/base_1.7b_* and outputs/probe; to be archived to the Hub dataset"
+  P23:
+    desc: "Phase 2 and 3 H100 session archive (SFT, RFT, their controls, seeds, 8,192-cap runs, probes)"
+    hub: "archives/h100_session_archive.tar.gz in Raviteja546/reasoning-rlvr-samples"
+  P4:
+    desc: "Phase 4 H100 session 2 archive (every GRPO run's evals, dev evals, reward and completion logs; the two Phase 3 ablations)"
+    hub: "archives/h100_p4_session2_archive.tar.gz in Raviteja546/reasoning-rlvr-samples"
+  A2:
+    desc: "Phase 4 session 2 second addendum (the KL-off checkpoint's zero-shot eval, the offline KL)"
+    hub: "archives/h100_p4_session2_addendum2.tar.gz in Raviteja546/reasoning-rlvr-samples"
+  HUB:
+    desc: "the sample sets (n = 32 think-tag, n = 64 4-shot CoT) with every sample's text"
+    hub: "the top-level folders of Raviteja546/reasoning-rlvr-samples"
+  LAP:
+    desc: "Phase 5 forced-stop runs on the laptop (EXP-016)"
+    hub: "laptop only: outputs/eval/{sft,rft}_force*_think_tag; to be archived to the Hub dataset"
+
+claims:
+  # ----------------------------------------------------------------------------- Phase 1
+  - id: P1-01
+    title: "zero-shot beats 4-shot CoT on the base model"
+    experiment: EXP-001
+    where: "outputs/reports/phase-1.md; docs/research-narrative.md Phase 1; README section 2"
+    statement: "The base model does better with a bare instruction than with four Minerva shots: zero-shot 77.6 / 53.6 against 4-shot-CoT 74.5 / 41.4 on GSM8K / MATH-500 (1,024-token window, greedy)."
+    rule: paired_flips
+    ref: {root: P1, run: eval/base_1.7b_few_shot_cot, label: 4-shot-CoT}
+    new: {root: P1, run: eval/base_1.7b_zero_shot, label: zero-shot}
+    evals: {gsm8k: 3.1, math500: 12.2}
+  - id: P1-02
+    title: "the think-tag format makes the base model loop"
+    experiment: EXP-001
+    where: "outputs/reports/phase-1.md; README section 2 ('36 % of generations loop')"
+    statement: "Under the think-tag template 36 % of the base model's GSM8K completions never terminate at 4,096 tokens."
+    rule: truncation_rate
+    run: {root: P1, run: eval/base_1.7b_think_tag_4096, label: base think-tag}
+    evals: {gsm8k: 35.8, math500: 20.0}
+  - id: P1-03
+    title: "the perturbation gap of the base model"
+    experiment: EXP-003
+    where: "outputs/reports/phase-1.md section 3; README section 6 ('10.1 [7.0, 13.3]')"
+    statement: "Accuracy on the original GSM8K items minus accuracy on their number-resampled rewrites, paired on 830 problems: 10.1 [7.0, 13.3] for the 1.7B base under 4-shot CoT."
+    rule: perturbation_gap
+    run: {root: P1, run: eval/base_1.7b_few_shot_cot, label: base 4-shot-CoT}
+    original_eval: gsm8k
+    evals: {gsm8k_perturbed: 10.1}
+  - id: P1-04
+    title: "the names-only control moves nothing"
+    experiment: EXP-003b
+    where: "outputs/reports/phase-1.md section 3b; README section 6 ('-0.4 [-3.3, 2.5]')"
+    statement: "Renaming the people in the problem without touching the numbers changes accuracy by -0.4 [-3.3, 2.5] (original minus renamed), so the gap is arithmetic brittleness, not recall."
+    rule: perturbation_gap
+    run: {root: P1, run: eval/base_1.7b_few_shot_cot, label: base 4-shot-CoT}
+    perturbed_run: {root: P1, run: eval/base_1.7b_few_shot_cot_names_only}
+    original_eval: gsm8k
+    evals: {gsm8k_names_only: -0.4}
+    tolerance: 0.5
+
+  # ----------------------------------------------------------------------------- Phase 2
+  - id: P2-01
+    title: "SFT teaches the format: +13.0 over the base in think-tag"
+    experiment: EXP-006
+    where: "outputs/reports/phase-2.md; README sections 1 and 6"
+    statement: "SFT on 23k distilled traces lifts think-tag greedy GSM8K from 61.8 to 74.8 (+13.0 [10.0, 15.8]) and MATH-500 from 44.8 to 50.6 (+5.8 [0.6, 11.0]), paired, 4,096 window."
+    rule: paired_flips
+    ref: {root: P23, run: eval/base_1.7b_think_tag_4096, label: base}
+    new: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    evals: {gsm8k: 13.0, math500: 5.8}
+  - id: P2-02
+    title: "the trained format loses to the model's own best prompt"
+    experiment: EXP-006
+    where: "outputs/reports/phase-2.md; docs/research-narrative.md Phase 2"
+    statement: "The SFT checkpoint scores 82.2 / 63.2 under zero-shot against 74.8 / 50.6 in the think-tag format it was trained in."
+    rule: paired_flips
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft think-tag}
+    new: {root: P23, run: eval/sft_1.7b_zero_shot, label: sft zero-shot}
+    evals: {gsm8k: 7.4, math500: 12.6}
+  - id: P2-03
+    title: "a quarter to a half of SFT's think-tag generations never terminate"
+    experiment: EXP-006
+    where: "outputs/reports/phase-2.md; README section 1 (28 / 52 %)"
+    statement: "28 % of GSM8K and 52 % of MATH-500 think-tag completions of the SFT checkpoint are cut at the 4,096 window."
+    rule: truncation_rate
+    run: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    evals: {gsm8k: 28.1, math500: 52.0}
+  - id: P2-04
+    title: "the loops do not finish with more room (SFT at 8,192)"
+    experiment: EXP-010c
+    where: "outputs/reports/phase-2.md; docs/research-narrative.md Phase 2 ('at any cap')"
+    statement: "At an 8,192-token cap the SFT checkpoint's truncated completions still do not finish: the truncation rate on the 300-problem subsets stays high and accuracy moves by under a point."
+    rule: truncation_rate
+    run: {root: P23, run: eval/sft_1.7b_think_tag_8k, label: sft at 8,192}
+    evals: {gsm8k: null, math500: null}
+  - id: P2-05
+    title: "data scaling: 25 % to 100 % of the SFT data buys +4.0 on GSM8K"
+    experiment: EXP-008
+    where: "outputs/reports/phase-2.md; docs/research-narrative.md Phase 2"
+    statement: "SFT on all the data beats SFT on a quarter of it by +4.0 [1.4, 6.7] on GSM8K and +2.8 [-1.4, 7.0] on MATH-500, paired."
+    rule: paired_flips
+    ref: {root: P23, run: eval/sft_1.7b_data25_think_tag, label: sft 25 %}
+    new: {root: P23, run: eval/sft_1.7b_think_tag, label: sft 100 %}
+    evals: {gsm8k: 4.0, math500: 2.8}
+
+  # ----------------------------------------------------------------------------- Phase 3
+  - id: P3-01
+    title: "RFT beats SFT in the trained format"
+    experiment: EXP-010
+    where: "outputs/reports/phase-3.md section 1; README section 1"
+    statement: "One round of rejection-sampling fine-tuning beats SFT by +3.3 [1.0, 5.8] on GSM8K and +5.8 [1.6, 10.2] on MATH-500, think-tag greedy, paired."
+    rule: paired_flips
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    new: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    evals: {gsm8k: 3.3, math500: 5.8}
+  - id: P3-02
+    title: "RFT halves the looping"
+    experiment: EXP-010
+    where: "outputs/reports/phase-3.md; README section 1 (15 / 40 %)"
+    statement: "RFT's truncation at 4,096 is 15 % on GSM8K and 40 % on MATH-500, against SFT's 28 and 52."
+    rule: truncation_rate
+    run: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    evals: {gsm8k: 15.2, math500: 39.6}
+  - id: P3-03
+    title: "the token-matched control gains nothing"
+    experiment: EXP-010e
+    where: "outputs/reports/phase-3.md section 1; docs/research-narrative.md Phase 3"
+    statement: "Training the same number of tokens on the distilled data instead of the selected traces gains nothing: GSM8K 74.8 to 74.1, MATH-500 50.6 to 49.2."
+    rule: paired_flips
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    new: {root: P23, run: eval/sft_1.7b_control_tok_think_tag, label: token-matched control}
+    evals: {gsm8k: -0.7, math500: -1.4}
+  - id: P3-04
+    title: "RFT's gain decomposes as termination too"
+    experiment: EXP-010
+    where: "outputs/reports/phase-4.md section 4.5 (the same split applied to Phase 3); phase-3-gain-decomposition.md"
+    statement: "Split by whether the SFT completion finished, RFT's gain is +6.9 [5.2, 8.6] on sft-truncated GSM8K problems and +12.2 [8.8, 15.6] on MATH-500; among problems both finished the paired difference is -0.8 and -2.5 (CIs covering 0)."
+    rule: decomposition
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    new: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    evals:
+      gsm8k: {value: 6.9, both_finished: -0.8}
+      math500: {value: 12.2, both_finished: -2.5}
+  - id: P3-05
+    title: "the loops do not finish at 8,192 (RFT)"
+    experiment: EXP-010c
+    where: "outputs/reports/phase-3.md section 6; phase-4.md section 4.5 (the counterfactual)"
+    statement: "At an 8,192-token cap RFT's truncated generations still loop; its accuracy on the 300-problem subsets moves by under a point."
+    rule: truncation_rate
+    run: {root: P23, run: eval/rft_1.7b_think_tag_8k, label: rft at 8,192}
+    evals: {gsm8k: null, math500: null}
+  - id: P3-06
+    title: "random instead of shortest traces costs GSM8K accuracy (half of RFT's stopping effect is length selection)"
+    experiment: EXP-010h
+    where: "outputs/reports/phase-4.md section 3; README section 1"
+    statement: "Keeping two random correct traces per problem instead of the two shortest costs 2.4 [0.1, 4.7] points on GSM8K with truncation 7 points higher; MATH-500 unchanged."
+    rule: paired_flips
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft (shortest two)}
+    new: {root: P4, run: eval/rft_1.7b_random2_think_tag, label: random two}
+    evals: {gsm8k: -2.4, math500: null}
+  - id: P3-07
+    title: "the unfiltered set lands on RFT (no power)"
+    experiment: EXP-010g
+    where: "outputs/reports/phase-4.md section 3"
+    statement: "Training on the model's own finished traces without the correctness filter lands on rft (+0.2 [-2.0, 2.4] GSM8K, -1.4 [-5.8, 3.0] MATH-500), but the set was 93 % correct by construction."
+    rule: paired_flips
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    new: {root: P4, run: eval/rft_1.7b_nofilter_think_tag, label: no correctness filter}
+    evals: {gsm8k: 0.2, math500: -1.4}
+  - id: P3-08
+    title: "RFT seeds: seed 1 against seed 0"
+    experiment: EXP-010d
+    where: "outputs/reports/phase-3.md (three seeds +4.6 / +4.3 over SFT)"
+    statement: "Seed 1 of RFT against seed 0, paired, is the Phase 3 noise row."
+    rule: paired_flips
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft seed 0}
+    new: {root: P23, run: eval/rft_1.7b_seed1_think_tag, label: rft seed 1}
+    evals: {gsm8k: null, math500: null}
+
+  # ----------------------------------------------------------------------------- Phase 4
+  - id: P4-01
+    title: "GRPO beats RFT paired on every set with 500 or more problems"
+    experiment: EXP-012
+    where: "outputs/reports/phase-4.md section 1; README sections 1 and 6"
+    statement: "Two hundred steps of GRPO from rft beat rft in the think-tag format: GSM8K +4.1 [2.0, 6.1], perturbed GSM8K +4.8 [1.9, 7.6], MATH-500 +7.0 [2.8, 11.0], Countdown +7.0 [3.6, 10.4]."
+    rule: paired_flips
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    new: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    evals: {gsm8k: 4.1, gsm8k_perturbed: 4.8, math500: 7.0, countdown: 7.0}
+  - id: P4-02
+    title: "the whole GRPO gain sits on problems RFT truncated"
+    experiment: EXP-012
+    where: "outputs/reports/phase-4.md section 4.5; README section 1 (the table)"
+    statement: "Decomposed per problem, +4.2 [3.0, 5.5] of the +4.1 on GSM8K and +10.2 [7.4, 13.2] of the +7.0 on MATH-500 sit on problems rft truncated; on problems both policies finished the paired difference is +1.1 [-0.6, 2.8] and 0.0 [-4.3, 3.9]."
+    rule: decomposition
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    new: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    evals:
+      gsm8k: {value: 4.2, both_finished: 1.1}
+      math500: {value: 10.2, both_finished: 0.0}
+  - id: P4-03
+    title: "the seed row: seed 1 lands 4.8 lower on MATH-500"
+    experiment: EXP-013
+    where: "outputs/reports/phase-4.md section 5; README section 1"
+    statement: "Seed 1 minus seed 0 of the main GRPO run, paired: -0.3 GSM8K, -0.2 perturbed, -4.8 [-9.0, -0.8] MATH-500, +0.6 Countdown."
+    rule: paired_flips
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: seed 0}
+    new: {root: P4, run: eval/grpo_1p7b_seed1_think_tag, label: seed 1}
+    evals: {gsm8k: -0.3, gsm8k_perturbed: -0.2, math500: -4.8, countdown: 0.6}
+  - id: P4-04
+    title: "Countdown doubled when the plan said it would not move"
+    experiment: EXP-012
+    where: "outputs/reports/phase-4.md section 4.2; README section 3 (the failed prediction)"
+    statement: "Countdown went from 7.0 to 14.0 under GRPO (+7.0 [3.6, 10.4]) with no Countdown in the training prompts; the gain sits on problems rft truncated (+11.2 of +7.0)."
+    rule: decomposition
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    new: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    evals:
+      countdown: {value: 11.2}
+  - id: P4-05
+    title: "KL off beats the main run in the trained format, by termination"
+    experiment: EXP-014a
+    where: "outputs/reports/phase-4.md sections 11-12; README section 4"
+    statement: "The KL-off run is +2.2 [0.4, 4.0] GSM8K and +5.6 [1.6, 9.4] MATH-500 over the main run; decomposed, +5.4 of the +5.6 sits on problems the main run truncated and the both-finished difference is +2.7 [-1.3, 6.5]."
+    rule: decomposition
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: main}
+    new: {root: P4, run: eval/grpo_1p7b_a1_nokl_think_tag, label: KL off}
+    evals:
+      gsm8k: {value: 2.0, both_finished: 1.0}
+      math500: {value: 5.4, both_finished: 2.7}
+  - id: P4-06
+    title: "KL off gains nothing under zero-shot"
+    experiment: EXP-014a
+    where: "outputs/reports/phase-4.md section 12 (addendum 2)"
+    statement: "Under the zero-shot template the KL-off checkpoint against the main run is -1.5 [-3.3, 0.3] on GSM8K and +1.8 [-2.0, 5.4] on MATH-500: every CI covers zero."
+    rule: paired_flips
+    ref: {root: P4, run: eval/grpo_1.7b_zero_shot, label: main zero-shot}
+    new: {root: A2, run: eval/grpo_1p7b_a1_nokl_zero_shot, label: KL off zero-shot}
+    evals: {gsm8k: -1.5, math500: 1.8}
+  - id: P4-07
+    title: "the 2,048 cap does not move the both-finished difference (falsifier fired)"
+    experiment: EXP-015
+    where: "outputs/reports/phase-4.md section 14; README section 4"
+    statement: "Against rft, the cap run's both-finished paired difference on MATH-500 is 0.0 [-4.1, 4.1] (main: 0.0 [-4.3, 3.9]); against the main run it is +1.2 [-3.0, 5.2]."
+    rule: decomposition
+    ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
+    new: {root: P4, run: eval/grpo_1p7b_cap2048_think_tag, label: cap 2,048}
+    evals:
+      math500: {value: 9.0, both_finished: 0.0}
+      gsm8k: {value: 5.9, both_finished: 0.6}
+  - id: P4-08
+    title: "pass@16: a small widening on MATH-500, 10 problems newly solved against 2 lost"
+    experiment: EXP-012
+    where: "outputs/reports/phase-4.md section 6; README section 1"
+    statement: "At T = 0.6, n = 32 on the pinned subset, GRPO's pass@16 on MATH-500 is +1.9 [0.4, 3.5] over rft; 10 problems were solved by GRPO in 32 tries that rft never solved, against 2 the other way. On GSM8K no problem was newly solved."
+    rule: pass_k_newly_solved
+    ref: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
+    new: {root: P4, run: samples/grpo_1.7b_n32_think_tag_t06, label: grpo}
+    k: 16
+    evals: {math500: 1.9, gsm8k: -0.3}
+  - id: P4-09
+    title: "truncated completions are often still right (the extractor's fallback)"
+    experiment: "phase-4-truncated-accuracy"
+    where: "outputs/reports/phase-4.md section 4.5; cards; FAILURES_AND_LEARNINGS.md 22 Oct"
+    statement: "SFT's truncated think-tag completions are right 31.1 % of the time on GSM8K and 13.5 % on MATH-500 (91.9 / 90.8 % when finished), mostly through a final phrase inside the loop."
+    rule: truncated_right
+    run: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    evals: {gsm8k: 31.1, math500: 13.5}
+  - id: P4-10
+    title: "under zero-shot the box precedes the loop"
+    experiment: "phase-4-truncated-accuracy"
+    where: "outputs/reports/phase-4.md section 4.5"
+    statement: "Under zero-shot a truncated MATH-500 completion of the SFT checkpoint is right 58.8 % of the time: the boxed answer usually precedes the loop."
+    rule: truncated_right
+    run: {root: P23, run: eval/sft_1.7b_zero_shot, label: sft zero-shot}
+    evals: {math500: 58.8, gsm8k: 67.1}
+  - id: P4-11
+    title: "the main run's training signal: reward 0.34 to 0.68, zero-variance groups 30 %"
+    experiment: EXP-012
+    where: "outputs/reports/phase-4.md section 7"
+    statement: "Reward rose from 0.34 to 0.68 and the finished rate from 0.35 to 0.75 over 200 steps; 30 % of groups had zero variance throughout; the format-only rate stayed under 0.07."
+    rule: reward_log
+    run: {root: P4, run: train/grpo_1p7b, label: main}
+    expect_key: reward
+    expect: 62.5
+    tolerance: 2.0
+    window: 9
+  - id: P4-12
+    title: "KL off: finished rate 0.96, 611 tokens, format-only rate up to 0.16"
+    experiment: EXP-014a
+    where: "outputs/reports/phase-4.md sections 12 and 15"
+    statement: "In the KL-off run the finished rate reached 0.96, the mean completion fell to 611 tokens and the format-only rate ran 0.09-0.16 from step 50."
+    rule: reward_log
+    run: {root: P4, run: train/grpo_1p7b_a1_nokl, label: KL off}
+    expect_key: finished_rate
+    expect: 96.5
+    tolerance: 2.0
+    window: 9
+
+  # ----------------------------------------------------------------------------- Phase 5
+  - id: P5-01
+    title: "voting over two RFT samples matches GRPO greedy"
+    experiment: EXP-017
+    where: "outputs/reports/phase-5.md section 1; README section 4"
+    statement: "maj@2 of rft (T = 0.6, pinned 300-problem subsets) against grpo greedy: -2.3 [-5.2, 0.7] on GSM8K at 2.6x the tokens and +0.4 [-3.4, 4.2] on MATH-500."
+    rule: maj_k
+    run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    k: 2
+    evals: {gsm8k: -2.3, math500: 0.4}
+  - id: P5-02
+    title: "voting over four RFT samples beats GRPO greedy"
+    experiment: EXP-017
+    where: "outputs/reports/phase-5.md section 1; README section 4"
+    statement: "maj@4 of rft against grpo greedy: +3.9 [1.1, 6.7] on GSM8K and +7.6 [3.8, 11.4] on MATH-500, at 5x the tokens."
+    rule: maj_k
+    run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    k: 4
+    evals: {gsm8k: 3.9, math500: 7.6}
+  - id: P5-03
+    title: "the untrained base under 4-shot CoT with 16 votes matches GRPO's greedy GSM8K number"
+    experiment: EXP-017
+    where: "outputs/reports/phase-5.md section 1; README section 4"
+    statement: "maj@16 of the base model under 4-shot CoT (n = 64) against grpo greedy on the 300 shared problems: +0.5 [-3.0, 4.1] on GSM8K; on MATH-500 the base never reaches it (maj@64 59.0, -5.3 [-10.7, 0.0])."
+    rule: maj_k
+    run: {root: HUB, run: base_1.7b_n64_few_shot_cot, label: base 4-shot}
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    restrict_to: {root: HUB, run: rft_1.7b_n64_few_shot_cot}
+    k: 16
+    evals: {gsm8k: 0.5}
+  - id: P5-04
+    title: "forcing the stop on SFT at 1,536: forced answers right half the time"
+    experiment: EXP-016
+    where: "outputs/reports/phase-5.md section 2; README section 4"
+    statement: "At budget 1,536, 33 % of SFT's GSM8K completions and 78 % of its MATH-500 completions are forced; the forced answers are right 55 % and 50 % of the time."
+    rule: forced
+    run: {root: LAP, run: eval/sft_force1536_think_tag, label: sft + force 1,536}
+    evals: {gsm8k: 54.5, math500: 49.7}
+  - id: P5-05
+    title: "a decoding rule recovers RFT's whole gain and most of GRPO's"
+    experiment: EXP-016
+    where: "outputs/reports/phase-5.md section 2; README sections 1 and 4"
+    statement: "SFT with the stop forced at 1,536 gains +5.8 [3.9, 8.0] on GSM8K and +9.0 [4.8, 13.0] on MATH-500 over unforced SFT; decomposed, +7.3 / +13.2 sits on the problems SFT truncated and the rule loses on problems that would have finished later (both-finished -2.1 / -8.4)."
+    rule: decomposition
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    new: {root: LAP, run: eval/sft_force1536_think_tag, label: sft + force 1,536}
+    evals:
+      gsm8k: {value: 7.3, both_finished: -2.1}
+      math500: {value: 13.2, both_finished: -8.4}
+  - id: P5-06
+    title: "RFT with the stop forced at 2,048 matches GRPO within the CI"
+    experiment: EXP-016
+    where: "outputs/reports/phase-5.md section 2; README section 4"
+    statement: "rft + force 2,048 against grpo greedy: -1.4 [-3.4, 0.6] on GSM8K and +0.6 [-3.2, 4.4] on MATH-500, at 1,125 / 1,710 tokens against grpo's 999 / 1,944."
+    rule: paired_flips
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    new: {root: LAP, run: eval/rft_force2048_think_tag, label: rft + force 2,048}
+    evals: {gsm8k: -1.4, math500: 0.6}
+  - id: P5-07
+    title: "at 768 the rule buys nothing on MATH-500"
+    experiment: EXP-016
+    where: "outputs/reports/phase-5.md section 2"
+    statement: "sft + force 768 against sft: 0.0 [-4.4, 4.4] on MATH-500 and +3.0 [0.9, 5.2] on GSM8K."
+    rule: paired_flips
+    ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
+    new: {root: LAP, run: eval/sft_force768_think_tag, label: sft + force 768}
+    evals: {math500: 0.0, gsm8k: 3.0}
+
+  # ----------------------------------------------------------------------------- pointers for claims that are not per-problem
+  - id: X-01
+    title: "the offline KL of KL-off against rft is 15x the main run's"
+    experiment: EXP-014a
+    where: "outputs/reports/phase-4.md section 12"
+    statement: "k3 per token 0.0977 [0.0905, 0.1074] for KL off against 0.0062 for the main run, on 512 completions drawn with seed 0 from steps 191-200 of each run's completion log."
+    rule: file_pointer
+    note: "The 512 completions per run are drawn deterministically (numpy default_rng(0)) from the parquet completion logs; the script and both runs' outputs are in the addendum."
+    files:
+      - {root: A2, path: kl_offline.py, what: "the script, with the draw and the estimators"}
+      - {root: A2, path: kl_offline.json, what: "the result with CIs"}
+      - {root: P4, path: train/grpo_1p7b_a1_nokl/checkpoints/completions, what: "the KL-off run's completions, one parquet per step"}
+      - {root: P4, path: train/grpo_1p7b/checkpoints/completions, what: "the main run's completions"}
+  - id: X-02
+    title: "the partial-prompt probe finds no verbatim completion"
+    experiment: EXP-003
+    where: "outputs/reports/phase-1.md; README section 3"
+    statement: "Given the first 60 % of a problem, the base model continues it verbatim 1.1 % of the time on GSM8K and 11.6 % on MATH-500 (long held-outs); the rate is unchanged after every stage."
+    rule: file_pointer
+    note: "Per-item continuations and their similarity scores are in each probe folder; the report JSON holds the rates."
+    files:
+      - {root: P1, path: probe/partial_prompt_1.7b, what: "the base model's probe (per-item files and probe_report.json)"}
+      - {root: P23, path: probe/partial_prompt_sft_1.7b, what: "after SFT"}
+      - {root: P23, path: probe/partial_prompt_rft_1.7b, what: "after RFT"}
+      - {root: P4, path: probe/partial_prompt_grpo_1.7b, what: "after GRPO"}
+  - id: X-03
+    title: "no hacking flag fired with the corrected watch"
+    experiment: EXP-014a/b, EXP-015
+    where: "outputs/reports/phase-4.md section 15"
+    statement: "The five flags (length growth without accuracy, format-only outputs, repeated incorrect answers, Wait spam, truncation rising) are false on every session 2 run; the per-step statistics they read are in the reward logs and the completions in the parquet logs."
+    rule: file_pointer
+    note: "run_info.json holds the flags; reward_log.jsonl the per-step statistics; the completion logs let any flagged step be read."
+    files:
+      - {root: P4, path: train/grpo_1p7b_a1_nokl/run_info.json, what: "hacking_watch of KL off"}
+      - {root: P4, path: train/grpo_1p7b_a2_dynamic/run_info.json, what: "hacking_watch of dynamic sampling"}
+      - {root: P4, path: train/grpo_1p7b_cap2048/run_info.json, what: "hacking_watch of the cap run"}
+      - {root: P4, path: train/grpo_1p7b_a1_nokl/reward_log.jsonl, what: "per-step statistics of KL off (format_only_rate 0.09-0.16)"}
