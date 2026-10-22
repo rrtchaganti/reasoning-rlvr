@@ -172,7 +172,7 @@ laptop control run for the cross-machine caveat.
 | 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
 | 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
 | 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/`; PR pending | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 The cost of termination: budget forcing (EXP-016) and accuracy against tokens (EXP-017) | branch `phase-5-ttc`; option A run 21-22 Oct 2026 on the laptop and from existing samples, INR 0; both hypotheses held; PR pending; options B-D (EXP-018, 019, 010i, 014c) priced in `docs/phase-5-plan.md`, awaiting a budget | [`phase-5.md`](outputs/reports/phase-5.md) |
+| 5 The cost of termination: budget forcing (EXP-016) and accuracy against tokens (EXP-017) | branch `phase-5-test-time-compute`; option A run 21-22 Oct 2026 on the laptop and from existing samples, INR 0; both hypotheses held; PR pending; options B-D (EXP-018, 019, 010i, 014c) priced in `docs/phase-5-plan.md`, awaiting a budget | [`phase-5.md`](outputs/reports/phase-5.md) |
 | 6 Distillation, quantisation, serving | an engineering deliverable, last or cut | |
 | 8 Write-up | | |
 

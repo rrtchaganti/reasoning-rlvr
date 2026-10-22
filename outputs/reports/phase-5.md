@@ -1,6 +1,6 @@
 # Phase 5 report: the cost of termination
 
-Branch `phase-5-ttc` (from `main` 648df74, the Phase 4 merge). Option A of `docs/phase-5-plan.md`
+Branch `phase-5-test-time-compute` (from `main` 648df74, the Phase 4 merge). Option A of `docs/phase-5-plan.md`
 (the user's choice, 21 Oct 2026): no rental; EXP-017 from the existing sample sets (laptop, no GPU)
 and EXP-016 budget forcing on the laptop's RTX 4060. Numbers are 95 % bootstrap CIs over problems,
 paired on shared problem ids unless stated. Pre-registration: `experiments.md` EXP-016, EXP-017.

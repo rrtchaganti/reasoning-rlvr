@@ -1,6 +1,6 @@
 # Phase 5 engineering notes: the cost of termination (option A: no rental)
 
-Branch `phase-5-ttc` (from `main` 648df74, the Phase 4 merge). Built 21 Oct 2026, run 21-22 Oct on
+Branch `phase-5-test-time-compute` (from `main` 648df74, the Phase 4 merge). Built 21 Oct 2026, run 21-22 Oct on
 the laptop (RTX 4060 8 GB, WSL2) and from existing sample sets; written up 22 Oct 2026. Results:
 `outputs/reports/phase-5.md`. Chronology: `docs/phase-5-journal.md`. Chain of questions:
 `docs/research-narrative.md` (Phase 5 section). Pre-registration: `experiments.md` EXP-016, EXP-017

@@ -12,7 +12,7 @@ stopping be bought, and were the prompts the limit. The budget was spent to with
 the ceiling, so the plan page (`docs/phase-5-plan.md`) put the free runs first and priced the rest
 as options A to D. The user chose **A** ("go on with A. Start now!"): EXP-016 budget forcing on the
 laptop's 4060 and EXP-017 accuracy against tokens from the existing sample sets. Branch
-`phase-5-ttc` from `main` 648df74.
+`phase-5-test-time-compute` from `main` 648df74.
 
 ## 2. What was built first (21 Oct, laptop, no GPU)
 
