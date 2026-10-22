@@ -117,9 +117,10 @@ tokens at every budget, and truncation at the 4,096 window is 0-1.6 % in every r
   tokens (GRPO 1,944) and -1.4 [-3.4, 0.6] on GSM8K at 1,125 (GRPO 999); `sft`+force at 3,072 is
   -1.2 [-5.4, 2.8] and -1.4 [-3.3, 0.5]. Every CI covers zero from 1,536 up on GSM8K and from 2,048
   up on MATH-500. GRPO keeps a point and a half on GSM8K at 10-30 % fewer tokens, inside the noise.
-- *The forced answers* are right about half the time at 1,536 (55 % / 50 % for `sft`), far above
-  chance for a numeric or LaTeX answer but well below the policies' own finished answers (about
-  90 %): the fourth clause failed. The loops hold a usable derivation, not a finished one, and the
+- *The forced answers* are right about half the time at 1,536 (55 % / 50 % for `sft`), against 31 %
+  / 13.5 % for the same checkpoint's truncated completions scored through the extractor's fallback
+  at 4,096 (`phase-4-truncated-accuracy.md`) and about 90 % for its finished answers: the fourth
+  clause failed. The loops hold a usable derivation, not a finished one, and the
   rate falls with the budget (what is still looping at 3,072 is right 37-48 % of the time on GSM8K
   and 30-37 % on MATH-500).
 - *The cost of the rule.* Decomposed against the unforced run (`phase-5-gain-decomposition-*`),

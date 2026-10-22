@@ -51,8 +51,10 @@ MATH-500 by level (1.7B, 4-shot-CoT): 67.4 / 64.4 / 51.4 / 35.2 / 15.7 for level
 "capability added" claim would have to show up (Q10).
 
 Extraction health is in `phase-1-baselines.md`: 0 % extraction failures on GSM8K for every
-chain-of-thought prompt; 10-21 % on MATH-500 (answers stated in prose without `\boxed{}`, counted
-as failures, never as wrong); the last-number fallback produced 17 % of GSM8K answers under
+chain-of-thought prompt; 10-21 % on MATH-500 (answers stated in prose without `\boxed{}`; an
+extraction failure is scored wrong in the accuracy and additionally reported as this rate; the
+sentence "never as wrong" that stood here until 22 Oct 2026 was false, `grade(None, ...)` returns
+False); the last-number fallback produced 17 % of GSM8K answers under
 4-shot-CoT, and an attempted "better" rule was rejected after it broke more than it fixed
 (`FAILURES_AND_LEARNINGS.md`, 14 Oct).
 

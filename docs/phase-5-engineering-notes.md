@@ -98,9 +98,12 @@ number. The training taught, to within the CIs, what a stop rule provides.
 1. *How do you know the loops hold a usable derivation?* Forced answers at budget 1,536 are right
    about half the time on both sets (chance for a numeric answer is near zero), and the forced run
    gains 7-13 points on the problems the unforced run truncated.
-2. *Why not just lower max_tokens?* A lower cap scores the cut completion as it stands (no answer
-   block, extraction failure); forcing writes the answer block from the derivation so far. The
-   difference is the whole result.
+2. *Why not just lower max_tokens?* A lower cap scores the cut completion through the extractor's
+   fallback (a final phrase or the last number inside the loop): `sft`'s truncated completions are
+   right 31 % of the time on GSM8K and 13.5 % on MATH-500 at 4,096 (`outputs/reports/
+   phase-4-truncated-accuracy.md`). Forcing writes the answer block from the derivation so far and
+   those same completions are right 55 % and 50 % of the time at budget 1,536. The difference
+   between the two is the result.
 3. *Does forcing cost anything?* Yes: on problems the unforced run would have finished after the
    budget, the forced answer is worse (the both-finished paired difference is negative at every
    budget); the net is positive because the truncated set is larger. The budget trades the two.
