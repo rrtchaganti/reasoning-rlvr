@@ -172,8 +172,10 @@ laptop control run for the cross-machine caveat.
 | 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
 | 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
 | 4 GRPO and ablations | branch `phase-4-grpo`; session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/`; PR pending | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 The cost of termination: budget forcing (EXP-016) and accuracy against tokens (EXP-017) | branch `phase-5-test-time-compute`; option A run 21-22 Oct 2026 on the laptop and from existing samples, INR 0; both hypotheses held; PR pending; options B-D (EXP-018, 019, 010i, 014c) priced in `docs/phase-5-plan.md`, awaiting a budget | [`phase-5.md`](outputs/reports/phase-5.md) |
-| 6 Distillation, quantisation, serving | an engineering deliverable, last or cut | |
+| 5 Test-time compute, the cost of termination | 5A merged 22 Oct 2026 (PR #6, tag `phase-5`): budget forcing (EXP-016) and accuracy against tokens (EXP-017), laptop and existing samples, INR 0, both hypotheses held. 5B proposed (`docs/plan-after-phase-4.md`): the GRPO checkpoint under the stop rule and the laptop control run (EXP-020), "Wait" before the stop (EXP-021), an outcome reward model against voting (EXP-022); laptop only | [`phase-5.md`](outputs/reports/phase-5.md) |
+| 6 The traces: what a loop is and what GRPO removed | proposed (EXP-023), no GPU | |
+| 7 Write-up and the interview packet | after Phase 6 | |
+| dropped | DPO (EXP-019), distillation, quantisation and serving; EXP-018 (harder prompts) pre-registered and unrun by the budget decision; reasons in `docs/plan-after-phase-4.md` section 4 | |
 | 8 Write-up | | |
 
 ## 6. Full results

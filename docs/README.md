@@ -23,4 +23,5 @@ Also here: [`research-narrative.md`](research-narrative.md), the chain of questi
 known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled
 without its link there), and [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on; the plan
 pages [`phase-3-plan.md`](phase-3-plan.md), [`phase-4-plan.md`](phase-4-plan.md) and
-[`phase-5-plan.md`](phase-5-plan.md) (the next phases, awaiting the user's signal).
+[`phase-5-plan.md`](phase-5-plan.md) (Phase 5 option A, done) and [`plan-after-phase-4.md`](plan-after-phase-4.md)
+(Phases 5B to 7, one numbering, no further rental; proposed 22 Oct 2026).

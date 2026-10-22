@@ -2,7 +2,8 @@
 
 Written 21 Oct 2026 after Phase 4 session 2, from `docs/research-narrative.md` "Open now (after
 session 2)". **Status: option A chosen by the user on 21 Oct 2026 and run 21-22 Oct (EXP-016, EXP-017 done,
-`outputs/reports/phase-5.md`); options B to D still await a budget.** Nothing here runs before (a) the user
+`outputs/reports/phase-5.md`, merged as PR #6, tag `phase-5`). Options B to D were not taken (the
+user's budget decision, 22 Oct 2026); the plan from here is `docs/plan-after-phase-4.md`.** Nothing here runs before (a) the user
 picks a budget option in section 4 and (b) the Phase 4 PR is merged. Every run has its narrative link
 and its `experiments.md` entry (EXP-016 to EXP-019, EXP-010i, EXP-014c); the rules of
 `docs/phase-4-plan.md` section 7 and section 9 item 3 carry over.

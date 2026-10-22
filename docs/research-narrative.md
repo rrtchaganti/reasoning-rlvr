@@ -308,6 +308,23 @@ worth it.
 | Dr. GRPO normalisation (deferred) | lengths fell under the standard loss in every run; a1 shows the KL term, not the normalisation, held length up | the normalisation's length bias is invisible under a finished-only reward | does the normalisation grow length here? | the pre-registration stands | about 3.5 H100-h, INR 1,400 | EXP-014c |
 | matched-incorrect RFT set | EXP-010g had no power (93 % correct by construction) | a set with as many wrong as right finished traces separates selection from self-distillation | is the correctness filter the mechanism of RFT? | below `rft` by 2 / 3 points with truncation unchanged / within noise: self-distillation plus stopping | about 0.5 H100-h, INR 300 | EXP-010i |
 
-Distillation and serving (PLAN.md Phase 7) have no question pulling on them from the data and stay an
-engineering deliverable, last or cut. Phase 6's reward-model best-of-N is dropped unless EXP-017 shows
-voting matches the policy, in which case a verifier is the natural next ask.
+**Decided 22 Oct 2026 (`docs/plan-after-phase-4.md`).** No further rental: EXP-018, EXP-010i and
+EXP-014c stay pre-registered and unrun, EXP-018 named in the write-up as the next experiment. **DPO
+(EXP-019) is dropped**: its question (on-policy against off-policy at equal compute) lost its object
+once EXP-016 showed a free decoding rule buys the termination gain; RFT is already the off-policy
+comparator on the chart and is decomposed; and the pairs available (finished-correct against looping)
+share long prefixes, the regime where DPO's likelihood displacement degrades both responses, so a
+negative result would say little. **Distillation and serving are dropped**: a generic measurement with
+no thread from the data and a rental, and a systems table whose laptop numbers would mean nothing; the
+one non-generic version (does the termination behaviour distil) is recorded as open. **The reward model
+(EXP-022) is kept** because EXP-017 showed voting reaches the policy's number, so whether a learned
+verifier beats voting is the next cell of the D6 chart.
+
+## Open now (22 Oct 2026, after Phase 5A): Phases 5B and 6, all on the laptop
+
+| run | what we know | the intuition | the question | prediction / falsifier | id |
+|---|---|---|---|---|---|
+| `grpo` under the stop rule; the laptop control run | `grpo` truncates 4.6 / 20.8 % and its truncated completions are right 9.8 / 4.8 %; EXP-016 paired laptop runs against H100 runs | what GRPO left looping may be emptier than what it removed; the machine effect should be under a point | do GRPO's loops hold anything; is the cross-machine caveat material? | +1 to +3 on MATH-500, within noise on GSM8K; laptop within 0.5 of the H100 / no MATH-500 gain; a difference over 1 point | EXP-020 |
+| "Wait" before the stop | the loops do not finish at 8,192; the stop rule recovers the gain | a nudge gives a loop nothing it lacks | does sequential extension help a looping model? | within noise of the immediate stop and below the stop at the same total tokens / beats it by over 2 | EXP-021 |
+| an outcome reward model | 59,000 labelled traces exist; voting reaches the policy's number; weak ORMs plateau in the literature | a verifier trained on the policy's own samples ranks finished derivations better than a vote at small N and worse at large N | when does a learned verifier beat voting here? | best-of-4 beats maj@4 by 1-3 on MATH-500, at or below maj@32 at N = 32, weighted vote at or above both / never above voting | EXP-022 |
+| the traces | every result is about termination; nothing describes the text | a loop is a repeated unit starting late; GRPO changed how often, not what | what did the training change in the text? | same unit-length and onset distributions for `sft` and `grpo` loops (KS under 0.15); answer-before-loop under 15 % in the trained format / KS over 0.3; answer-before-loop common | EXP-023 |

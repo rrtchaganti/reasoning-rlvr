@@ -411,6 +411,15 @@ For each: one paragraph of contribution, one of method, one of what the evidence
 
 ---
 
+## 11b. Amendment of 22 Oct 2026: the phases after Phase 4
+
+The plan from the Phase 4 result on is `docs/plan-after-phase-4.md`: Phase 5 is test-time compute
+(5A merged, tag `phase-5`; 5B the reward model, the "Wait" variant and two debts, laptop only),
+Phase 6 the trace analysis, Phase 7 the write-up. This file's Phase 5 (DPO), Phase 7 (distillation,
+quantisation, serving), D4's fourth checkpoint and D7 are dropped with the reasons in that page's
+section 4; EXP-018 (harder prompts) stays pre-registered and unrun. No further rental; the project's
+spend closes at about INR 21,750 of the INR 22,000 ceiling.
+
 ## 12. Sources for section 2 (third-party; verify with recruiters)
 
 - Anthropic RE loop descriptions and the "controlled experiments" posting language: https://www.sundeepteki.org/advice/anthropic-research-engineer-interview-2026 ; https://www.getorava.com/interview-guides/anthropic ; https://www.glassdoor.com/Interview/Anthropic-Research-Engineer-Interview-Questions-EI_IE8109027.0,9_KO10,27.htm ; https://www.indexventures.com/startup-jobs/anthropic/research-engineer-rl-engineering/ ; https://mljobs.io/jobs/anthropic-research-engineer-production-model-post-training-5112018008
