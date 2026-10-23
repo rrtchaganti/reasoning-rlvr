@@ -348,9 +348,12 @@ the policy's own labelled samples beats voting at small N and plateaus at large 
   +4.6; and the rule's "cost on problems that would have finished later" was mostly the machine term,
   because on one machine a forced run equals the unforced run on every completion shorter than the
   budget (same-machine both-finished -0.1 / -2.7, not -2.1 / -8.4).
-- EXP-020a (GRPO forced): intuition (a) failed as stated: no MATH-500 gain at either budget, the
-  same accuracy at 10-25 % fewer tokens; GRPO's forced answers are right 17-22 % of the time against
-  SFT's 50-55 %. Provisional: the GRPO reference is the H100 run; the same-machine control is queued.
+- EXP-020a (GRPO forced): intuition (a) held in size once paired on one machine: +2.0 [0.6, 3.6] on
+  MATH-500 at 2,048 (+1.0 at 1,536) at 27 % fewer tokens, the gain on GRPO's own truncated problems.
+  Its mechanism failed: GRPO's forced answers are right 17-22 % of the time against SFT's 50-55 %.
+  The first pairing, against the H100 run, read "no gain"; GRPO's machine term (-1.8 on MATH-500)
+  was the size of the effect. With RFT and GRPO both stopped at 2,048 on one machine, GRPO's
+  MATH-500 gain over RFT is gone (-0.4 [-4.4, 3.4]; unforced +4.6 [0.6, 8.4]).
 - EXP-021 (Wait): intuition (c) held. The nudge equals the plain stop at the same total tokens on
   all four cells; 14-19 % of nudged loops closed on their own.
 - EXP-022 (verifier): intuition (d) held in shape. A 0.6B verifier trained for 5.8 laptop hours on
@@ -363,8 +366,9 @@ the policy's own labelled samples beats voting at small N and plateaus at large 
 
 **What Phase 5B raised.** That every paired claim needs its two sides on one machine, which the
 project had assumed and not checked since EXP-000; and that the stop rule is cheaper than first
-measured (its cost was the machine term). GRPO and the rule are substitutes: what the rule buys on
-SFT and RFT, GRPO had already bought.
+measured (its cost was the machine term). GRPO and the rule are mostly substitutes: under the same
+stop rule GRPO is level with RFT on MATH-500 and +1.6 [-0.4, 3.6] on GSM8K, and the rule still adds
++2.0 on GRPO's own remaining loops.
 
 ## Phase 6 (23 Oct 2026): the traces
 

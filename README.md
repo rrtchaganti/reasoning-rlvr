@@ -127,7 +127,7 @@ Each phase's question came from the previous phase's numbers; the record is in
   `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
 - **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
   about 55 H100 node-hours and 11 L4-hours, about USD 260, against a stated ceiling of USD 262.
-- **An evidence index.** The quoted claims (47 across Phases 1 to 6, 43 of them with a number to
+- **An evidence index.** The quoted claims (51 across Phases 1 to 6, 47 of them with a number to
   re-derive and 4 pointing at files) are listed in `configs/evidence/claims.yaml` with the runs they
   rest on; `scripts/evidence.py` re-derives each number from the per-sample files, checks it against
   the quoted one, and writes the problems and completion excerpts behind it to
@@ -166,12 +166,13 @@ answers are right about half the time, so the loops hold a usable derivation, no
 Both pre-registered hypotheses held and neither falsifier fired. The first-quoted EXP-016 numbers
 (+5.8 / +9.0) paired laptop runs with H100 runs; EXP-020 showed why that matters (below).
 
-**Phase 5B (22-23 Oct 2026, laptop, no rental).** EXP-020: the same checkpoint decoded greedily on the
+**Phase 5B (22-24 Oct 2026, laptop, no rental).** EXP-020: the same checkpoint decoded greedily on the
 H100 and on the laptop differs on 15-23 % of problems (net +0.6 to +1.8 points), so batch-invariant
 decoding is reproducible per machine, not across GPUs; every EXP-016 comparison was re-paired on one
 machine, and the "cost of the rule" first reported was mostly that machine term. Forcing the stop on
-the GRPO checkpoint buys the same accuracy at 10-25 % fewer tokens and nothing more (provisional until
-its same-machine control, queued). EXP-021: appending "Wait" before the stop equals the plain stop at
+the GRPO checkpoint at 2,048 gains +2.0 [0.6, 3.6] on MATH-500 at 27 % fewer tokens against its own
+same-machine run (the first, cross-machine pairing read this as nothing), and with RFT and GRPO both
+stopped at 2,048, GRPO's MATH-500 gain over RFT is gone (-0.4 [-4.4, 3.4]; +1.6 [-0.4, 3.6] on GSM8K). EXP-021: appending "Wait" before the stop equals the plain stop at
 the same total tokens on all four cells; a looping model given "Wait" mostly loops on. EXP-022, an
 outcome reward model trained on the laptop (a LoRA head on Qwen3-0.6B-Base, 20,000 of SFT's labelled
 samples), reached 89.4 % held-out accuracy (AUROC 0.944): with it, two RFT samples beat the GRPO
@@ -188,7 +189,7 @@ rewrite their whole solution after boxing the answer, which is why truncated zer
 are usually right. Half to two thirds of the forced answers that are right had already been stated
 before the stop.
 
-**What is left.** The GRPO same-machine control (running), and the write-up (Phase 7). GRPO on harder prompts (EXP-018), the matched-incorrect rejection-sampling set (EXP-010i) and Dr.
+**What is left.** The write-up (Phase 7). GRPO on harder prompts (EXP-018), the matched-incorrect rejection-sampling set (EXP-010i) and Dr.
 GRPO (EXP-014c) stay pre-registered and unrun by the budget decision; DPO, distillation and serving
 were dropped with the reasons in `docs/plan-after-phase-4.md` section 4.
 
@@ -253,7 +254,8 @@ over RFT +0.8 [-0.6, 2.3] at k = 16 on MATH-500 (6 newly solved, 3 lost). Figure
 tokens), MATH-500 50.6 / 56.2 / 59.6 / 61.0 / 62.2 (776 to 2,419); RFT forced: GSM8K 78.2 / 79.8 /
 80.8 / 80.9 / 80.9, MATH-500 51.6 / 58.0 / 61.8 / 64.0 / 64.6. The same checkpoints unforced on the
 laptop: SFT 76.0 / 52.4, RFT 78.9 / 57.0 (on the H100 74.8 / 50.6 and 78.2 / 56.4; EXP-020). Paired
-against GRPO's greedy 82.3 / 63.4 (H100): RFT forced at 2,048 -1.4 [-3.4, 0.6] / +0.6 [-3.2, 4.4].
+against GRPO's greedy 82.3 / 63.4 (H100): RFT forced at 2,048 -1.4 [-3.4, 0.6] / +0.6 [-3.2, 4.4]; against
+GRPO decoded on the laptop (82.1 / 61.6), -1.2 [-3.2, 0.8] / +2.4 [-1.6, 6.6].
 Full table: `outputs/reports/figures/phase-5-force-stop.md`; same-machine pairings in
 `outputs/reports/phase-5.md` section 2b.
 

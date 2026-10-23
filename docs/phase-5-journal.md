@@ -121,12 +121,18 @@ dict, tested) went in as 3bd2898 and the reward model was rerun from 11:30.
 - While it ran, EXP-022 was folded in: best-of-k, the reward-weighted vote and majority vote on
   the same seeded draws; a `best_of_k` rule in the evidence index with two new claims, both
   re-derived.
+- 22:09-23:16 the GRPO control: 82.1 / 61.6 against the H100's 82.3 / 63.4 (9.9 / 18.6 % of problems
+  flipping). Its first comparison step found an empty folder left by the failed launch and skipped
+  the copy; the script was fixed to check for the sample files. Re-paired on one machine, the GRPO
+  forced run at 2,048 is +2.0 [0.6, 3.6] on MATH-500, not +0.2: EXP-020(a)'s falsifier, recorded as
+  fired on the cross-machine pairing, did not fire.
 
 **What the results changed.** The laptop control runs showed a machine term of 15-23 % flipped
 problems, so EXP-016 was re-paired on one machine: the stop rule's gain on SFT is +4.6 / +7.2 (first
 quoted +5.8 / +9.0), still above RFT's, and the "cost of the rule" first reported was mostly that
 machine term, because on one machine a forced decode is identical to the unforced one below the
-budget. EXP-020's GRPO comparison is cross-machine for the same reason; its same-machine control was
-queued after the reward model. The trace analysis needed one measure added after its first run (the
+budget. EXP-020's GRPO comparison was cross-machine for the same reason; its same-machine control
+turned "no gain" into +2.0 [0.6, 3.6] on MATH-500 at 2,048, and put GRPO level with RFT on MATH-500
+when both are stopped at the same budget. The trace analysis needed one measure added after its first run (the
 answer by the end of the first cycle), because under zero-shot the whole solution is the repeating
 unit; both measures are reported.

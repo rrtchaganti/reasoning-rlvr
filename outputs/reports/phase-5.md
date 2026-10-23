@@ -177,7 +177,10 @@ RFT's own gain over SFT on the same machine is +2.9 [0.8, 5.0] / +4.6 [0.6, 9.0]
 - *Recovery.* `sft`+force at 1,536 gains +4.6 / +7.2 over `sft` (first quoted +5.8 / +9.0), 159 % /
   157 % of RFT's same-machine gain, and against the laptop's `rft` run it is +1.7 [-0.2, 3.7] /
   +2.6 [-1.6, 6.6]: at least RFT's level, above it by an amount inside the CI. Clause 1 holds.
-  Against GRPO only the cross-machine cells exist; the GRPO laptop control is queued (section 4).
+  Against GRPO on the same machine (section 4): GRPO's gain over `sft` there is +6.1 [3.9, 8.3] /
+  +9.2 [5.0, 13.6] (`phase-5-compare-grpo-vs-sft-laptop.md`), so `sft`+force at 1,536 recovers
+  75 % / 78 % of it (at 3,072, 79 % / 107 %) and stands at -1.4 [-3.3, 0.3] / -2.0 [-6.0, 2.0]
+  against it (`phase-5-compare-sft-force1536-vs-grpo-laptop.md`).
 - *The cost of the rule was mostly the machine term.* On one machine a forced run is identical to
   the unforced run on every completion shorter than the budget (the same greedy decode), so the rule
   can only change completions that would have run past B. Same-machine decompositions
@@ -207,7 +210,7 @@ RFT's own gain over SFT on the same machine is +2.9 [0.8, 5.0] / +4.6 [0.6, 9.0]
 What option A cannot answer is whether harder prompts would have made GRPO teach something a rule
 cannot (EXP-018), which is the one training question left in `docs/phase-5-plan.md`.
 
-## 4. EXP-020: the GRPO checkpoint under the stop rule, and the laptop control run (22-23 Oct 2026)
+## 4. EXP-020: the GRPO checkpoint under the stop rule, and the laptop control run (22-24 Oct 2026)
 
 Phase 5B, `docs/plan-after-phase-4.md` section 1; laptop RTX 4060; `outputs/phase5b_exp020.log`.
 
@@ -219,6 +222,7 @@ the laptop at the 4,096 window, against the H100 runs of the same checkpoints
 |---|---|---|---|---|---|---|
 | `sft` | 76.0 / 74.8 | +1.2 [-0.9, 3.5] | 232 (17.6 %) | 52.4 / 50.6 | +1.8 [-2.6, 5.8] | 117 (23.4 %) |
 | `rft` | 78.9 / 78.2 | +0.8 [-1.3, 2.8] | 196 (14.9 %) | 57.0 / 56.4 | +0.6 [-3.2, 4.8] | 103 (20.6 %) |
+| `grpo` (run 23-24 Oct) | 82.1 / 82.3 | -0.2 [-1.8, 1.5] | 130 (9.9 %) | 61.6 / 63.4 | -1.8 [-5.6, 1.8] | 93 (18.6 %) |
 
 The pre-registered hypothesis (within 0.5 points, under 2 % flipping) failed and the falsifier
 (over 1 point or over 5 % flipping) fired. Batch-invariant greedy decoding is bit-identical across
@@ -227,22 +231,41 @@ sends the two decodes apart. The net difference is inside its CI, the flip rate 
 laptop loops a little less (truncation 25.7 / 48.2 % for `sft` against 28.1 / 52.0 %). EXP-016 is
 re-paired on the same machine in section 2b; `FAILURES_AND_LEARNINGS.md` records the incident.
 
-**(a) GRPO under the stop rule** (`phase-5-compare-grpo-force{1536,2048}-vs-grpo.md`):
+**(a) GRPO under the stop rule, paired on one machine.** The reference is the unforced GRPO run
+made on the laptop on 23-24 Oct (82.1 / 61.6 at 993 / 2,049 mean tokens; truncation 4.5 / 22.4 %;
+`phase-5-compare-grpo-force{1536,2048}-vs-grpo-laptop.md`,
+`phase-5-gain-decomposition-grpo-force{1536,2048}-vs-grpo-laptop.md`):
 
-| B | GSM8K | tokens | forced | vs `grpo` greedy | MATH-500 | tokens | forced | vs `grpo` greedy |
+| B | GSM8K | tokens | forced | vs `grpo` (laptop) | MATH-500 | tokens | forced | vs `grpo` (laptop) |
 |---|---|---|---|---|---|---|---|---|
-| 1,536 | 82.5 [80.5, 84.5] | 867 | 7.4 % | +0.2 [-1.4, 1.9] | 62.6 [58.4, 66.6] | 1,285 | 47 % | -0.8 [-4.4, 2.8] |
-| 2,048 | 82.5 [80.5, 84.5] | 897 | 5.0 % | +0.2 [-1.4, 1.9] | 63.6 [59.4, 67.6] | 1,493 | 36 % | +0.2 [-3.4, 3.6] |
+| 1,536 | 82.5 [80.5, 84.5] | 867 | 7.4 % | +0.4 [0.0, 0.8] | 62.6 [58.4, 66.6] | 1,285 | 47 % | +1.0 [-1.2, 3.4] |
+| 2,048 | 82.5 [80.5, 84.5] | 897 | 5.0 % | +0.4 [0.0, 0.8] | 63.6 [59.4, 67.6] | 1,493 | 36 % | **+2.0 [0.6, 3.6]** |
 
-GRPO's unforced greedy run spends 999 / 1,944 tokens. The pre-registered prediction (+1 to +3 on
-MATH-500) did not appear and the falsifier fired as stated: forcing the stop on GRPO buys the same
-accuracy at 10-25 % fewer tokens and nothing more. The forced answers are right 17 / 22 % of the time
-(GSM8K / MATH-500), far below `sft`'s 55 / 50 % (Phase 6, section 4): what GRPO leaves looping is
-harder material. **Provisional:** the `grpo` greedy reference is the H100 run, so these cells carry
-the machine term of (b), and the first decomposition (+4.2 on GRPO-truncated MATH-500 problems,
--5.0 on finished ones) cannot be read as the rule's cost (section 2b shows that on one machine the
-rule leaves every completion shorter than the budget unchanged). The unforced GRPO run on the
-laptop is queued after EXP-022 and will replace these cells.
+Decomposed on MATH-500: at 2,048 the gain is +2.2 [1.0, 3.6] on the problems the unforced run
+truncated and -0.2 [-1.0, 0.4] on those it finished (both-finished -0.3 [-1.0, 0.5]); at 1,536 it is
++2.6 [1.2, 4.0] and -1.6 [-3.4, 0.0], the completions that would have finished between 1,536 and
+4,096 tokens. On GSM8K it is +0.5 and -0.1 at both budgets. Against the pre-registration: +1 to +3
+on MATH-500 held (at 2,048 with a CI clear of 0; at 1,536 the point estimate is +1.0 and the CI
+covers 0); GSM8K within the noise row held; the mechanism clause failed, because the forced answers
+are right 17 / 22 % of the time (GSM8K / MATH-500), not 30-40 % (`sft`'s are 55 / 50 %; Phase 6,
+section 4). The falsifier (a CI covering 0 with a point estimate under +1) did not fire at either
+budget. GRPO's remaining loops hold readable answers too, fewer than SFT's: the rule adds 2 points on
+MATH-500 at 27 % fewer tokens (1,493 against 2,049).
+
+**GRPO against RFT, both under the rule** (`phase-5-compare-grpo-vs-rft-laptop.md`,
+`phase-5-compare-grpo-force{1536,2048}-vs-rft-force{1536,2048}.md`). Unforced on one machine, GRPO is
++3.2 [1.2, 5.2] / +4.6 [0.6, 8.4] over RFT (on the H100, +4.1 / +7.0). With both stopped at 2,048 the
+difference is +1.6 [-0.4, 3.6] / -0.4 [-4.4, 3.4]; at 1,536, +1.7 [-0.3, 3.6] / +0.8 [-3.0, 4.8].
+Under the same stop rule GRPO's MATH-500 gain over RFT is gone and half its GSM8K gain remains,
+inside its CI. `rft`+force at 2,048 against the unforced GRPO run on one machine is -1.2 [-3.2, 0.8]
+/ +2.4 [-1.6, 6.6], at 1,125 / 1,710 tokens against 993 / 2,049
+(`phase-5-compare-rft-force2048-vs-grpo-laptop.md`).
+
+**The first, cross-machine pairing** (`phase-5-compare-grpo-force{1536,2048}-vs-grpo.md`, against
+the H100 run: +0.2 / -0.8 at 1,536 and +0.2 / +0.2 at 2,048, with -4.0 to -5.0 on problems that
+would have finished) read as "no gain", and the first version of this section said the falsifier
+fired. GRPO's own machine term in (b), -1.8 on MATH-500 with 18.6 % of problems flipping, is the size
+of the effect it hid. The files stay as the record.
 
 ## 5. EXP-021: "Wait" before the stop (23 Oct 2026)
 

@@ -144,8 +144,9 @@ number. The training taught, to within the CIs, what a stop rule provides.
 **The machine term.** The laptop control run (EXP-020b) found that the same checkpoint decoded
 greedily on two GPUs flips 15-23 % of problems; EXP-016 was re-paired on one machine. On one machine
 a forced run is identical to the unforced run on every completion shorter than the budget, so a
-same-machine decomposition isolates exactly what the rule changes. Debt: the GRPO forced runs are
-paired with the H100 run until the queued laptop control lands.
+same-machine decomposition isolates exactly what the rule changes. The GRPO control (23-24 Oct)
+closed the last cross-machine pair: GRPO forced at 2,048 is +2.0 [0.6, 3.6] on MATH-500 against its
+own laptop run, where the H100 pairing had read +0.2.
 
 **Interview questions this adds.** *Your harness is deterministic; why did two runs of the same
 checkpoint disagree on 18 % of problems?* Batch invariance fixes the reduction order on one machine;
