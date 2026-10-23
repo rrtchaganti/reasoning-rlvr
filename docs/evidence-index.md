@@ -7,7 +7,8 @@ claim sits next to it (`outputs/reports/evidence/<id>.md`).
 
 ## What it is
 
-`configs/evidence/claims.yaml` lists the claims (37 on 22 Oct 2026, Phases 1 to 5), each with its
+`configs/evidence/claims.yaml` lists the claims (45 on 23 Oct 2026, Phases 1 to 6; the first version
+of this page said 37 for the 39 of 22 Oct, a miscount), each with its
 experiment id, the sentence as quoted and where, the runs it rests on (a named root plus a path), the
 eval set, a selection rule and the number as quoted. `scripts/evidence.py` re-derives the number from
 the per-sample files, compares it with the quoted one (tolerance 0.2 points unless the claim says
