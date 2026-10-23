@@ -34,6 +34,11 @@ def test_analyse_completion_fields():
     assert c["answer_before_loop"] is True and 0 < c["loop_onset_frac"] < 0.2
     assert c["repeat_unit_words"] == 60
     fin = "2 + 2 = 4\n</think>\n<answer> 4 </answer>"
+    assert c["answer_by_first_cycle"] is True
+    # the zero-shot shape: the whole solution, answer at its end, repeats from the start
+    sol = " ".join(f"s{i}" for i in range(80)) + " so \\boxed{9} ."
+    z = mod.analyse_completion(sol + " " + sol + " " + sol, truncated=True, ngram=50)
+    assert z["answer_before_loop"] is False and z["answer_by_first_cycle"] is True
     f = mod.analyse_completion(fin, truncated=False, ngram=50)
     assert not f["has_loop"] and f["loop_onset_frac"] is None and 0 < f["think_share"] < 1
     assert f["answer_before_loop"] is None
@@ -92,3 +97,22 @@ def test_analyse_markdown_plot_and_ks(tmp_path):
     assert out.exists() and out.with_suffix(".json").exists() and out.with_suffix(".png").exists()
     j = json.loads(out.with_suffix(".json").read_text())
     assert "_units_truncated" not in j["evals"]["gsm8k"]["runs"]["a"]
+
+
+def test_forced_block_splits_by_an_answer_before_the_tags():
+    suffix = mod.FORCE_SUFFIX
+    recs = [
+        {
+            "text": "so the answer is 4" + suffix + " 4 </answer>",
+            "forced_stop": True,
+            "correct": True,
+        },
+        {"text": "loop loop" + suffix + " 7 </answer>", "forced_stop": True, "correct": False},
+        {"text": "x \\boxed{2} y" + suffix + " 3 </answer>", "forced_stop": True, "correct": False},
+        {"text": "done </think> <answer> 1 </answer>", "forced_stop": False, "correct": True},
+    ]
+    fb = mod.forced_block(recs)
+    assert fb["n_forced"] == 3 and abs(fb["answer_before_force_rate"] - 2 / 3) < 1e-9
+    assert fb["accuracy_with_answer_before"] == 0.5 and fb["accuracy_without_answer_before"] == 0.0
+    assert fb["right_with_answer_before_share"] == 1.0
+    assert mod.forced_block(recs[3:]) is None

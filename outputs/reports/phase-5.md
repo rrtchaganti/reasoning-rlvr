@@ -137,8 +137,9 @@ tokens at every budget, and truncation at the 4,096 window is 0-1.6 % in every r
 
 **Conclusion, against the pre-registration.** The hypothesis held on three of four clauses and the
 falsifier did not fire. A stop rule on the SFT checkpoint recovers all of RFT's trained-format gain
-and 70-91 % of GRPO's at fewer tokens than either; on the RFT checkpoint it matches GRPO within the
-CI at fewer tokens on MATH-500 and within a point and a half on GSM8K. Read with the Phase 4
+(on the same machine +4.6 / +7.2 against RFT's +2.9 / +4.6; section 2b) and most of GRPO's at fewer
+tokens than either; on the RFT checkpoint it matches GRPO within the CI at fewer tokens on MATH-500
+and within a point and a half on GSM8K (cross-machine cells; section 2b). Read with the Phase 4
 decomposition and EXP-017: the training taught, to within the CIs, what a decoding rule provides,
 and what it did not teach (the forced answers are right half the time, the policies' own finished
 answers nine times in ten) is the part a rule cannot supply, which is also the part no run of
@@ -148,6 +149,47 @@ Phase 4 moved.
 checkpoint, harness and batch-invariant vLLM; a cross-machine greedy difference of a few tenths of
 a point is possible and `exp016-ctrl` would measure it, not run); one decode per cell, no seed row;
 the rule was not applied to the GRPO checkpoint (5 / 21 % truncation), the natural next cell.
+
+### 2b. Correction (23 Oct 2026): the same-machine re-pairing
+
+The laptop control run (EXP-020b, section 4) measured the caveat above and it is not a few tenths:
+the same checkpoint decoded greedily on the laptop and on the H100 differs on 15-23 % of problems
+(net +0.6 to +1.8 points). Every "vs own" and "vs `rft`" cell of the table above therefore pairs two
+machines. Re-paired against the laptop's own unforced runs (`phase-5-compare-{sft,rft}-force*-vs-{sft,rft}-laptop.md`,
+`phase-5-compare-sft-force*-vs-rft-laptop.md`):
+
+| run | B | GSM8K vs own | MATH-500 vs own | GSM8K vs `rft` | MATH-500 vs `rft` |
+|---|---|---|---|---|---|
+| `sft`+force | 768 | +1.7 [0.2, 3.3] | -1.8 [-5.6, 2.0] | -1.1 [-3.3, 1.0] | -6.4 [-10.8, -2.4] |
+| `sft`+force | 1,024 | +3.7 [2.4, 5.2] | +3.8 [0.4, 7.4] | +0.8 [-1.1, 2.9] | -0.8 [-4.8, 3.4] |
+| `sft`+force | 1,536 | **+4.6 [3.4, 6.0]** | **+7.2 [4.0, 10.4]** | +1.7 [-0.2, 3.7] | +2.6 [-1.6, 6.6] |
+| `sft`+force | 2,048 | +4.5 [3.4, 5.8] | +8.6 [6.0, 11.4] | +1.7 [-0.3, 3.6] | +4.0 [0.0, 7.8] |
+| `sft`+force | 3,072 | +4.8 [3.6, 6.1] | +9.8 [7.2, 12.4] | +1.9 [-0.1, 3.9] | +5.2 [0.8, 9.4] |
+| `rft`+force | 768 | -0.8 [-1.8, 0.4] | -5.4 [-9.0, -2.0] | (own) | (own) |
+| `rft`+force | 1,024 | +0.9 [-0.1, 1.8] | +1.0 [-2.0, 3.8] | (own) | (own) |
+| `rft`+force | 1,536 | +1.9 [1.1, 2.7] | +4.8 [2.4, 7.4] | (own) | (own) |
+| `rft`+force | 2,048 | +2.0 [1.2, 2.7] | **+7.0 [4.6, 9.6]** | (own) | (own) |
+| `rft`+force | 3,072 | +2.0 [1.2, 2.7] | +7.6 [5.4, 10.0] | (own) | (own) |
+
+RFT's own gain over SFT on the same machine is +2.9 [0.8, 5.0] / +4.6 [0.6, 9.0]
+(`phase-5-compare-rft-vs-sft-laptop.md`). What changes:
+
+- *Recovery.* `sft`+force at 1,536 gains +4.6 / +7.2 over `sft` (first quoted +5.8 / +9.0), 159 % /
+  157 % of RFT's same-machine gain, and against the laptop's `rft` run it is +1.7 [-0.2, 3.7] /
+  +2.6 [-1.6, 6.6]: at least RFT's level, above it by an amount inside the CI. Clause 1 holds.
+  Against GRPO only the cross-machine cells exist; the GRPO laptop control is queued (section 4).
+- *The cost of the rule was mostly the machine term.* On one machine a forced run is identical to
+  the unforced run on every completion shorter than the budget (the same greedy decode), so the rule
+  can only change completions that would have run past B. Same-machine decompositions
+  (`phase-5-gain-decomposition-{sft,rft}-force*-vs-{sft,rft}-laptop.md`): `sft`+force at 1,536 gains
+  +4.7 / +8.8 on the problems `sft` truncated and loses -0.1 / -1.6 on the problems it finished,
+  both-finished -0.1 [-0.3, 0.0] / -2.7 [-5.4, -0.4]; at 3,072 the loss is 0.0 / +0.2; `rft`+force at
+  2,048 loses 0.0 / -0.6. The first decomposition's -1.4 / -4.2 on finished problems and -2.1 / -8.4
+  both-finished were the 15-23 % cross-machine flips, not the rule. The real cost is the MATH-500
+  completions that would have finished between B and the window, about 1.6 points at 1,536.
+- Unchanged: the forced answers' accuracy (computed within each run), the shape of the curve, and
+  the conclusion. The figure's stars for `sft` and `rft` are the H100 runs; the laptop's own
+  unforced points are 76.0 / 52.4 (`sft`) and 78.9 / 57.0 (`rft`).
 
 ## 3. What option A says together
 
@@ -164,3 +206,72 @@ the rule was not applied to the GRPO checkpoint (5 / 21 % truncation), the natur
 
 What option A cannot answer is whether harder prompts would have made GRPO teach something a rule
 cannot (EXP-018), which is the one training question left in `docs/phase-5-plan.md`.
+
+## 4. EXP-020: the GRPO checkpoint under the stop rule, and the laptop control run (22-23 Oct 2026)
+
+Phase 5B, `docs/plan-after-phase-4.md` section 1; laptop RTX 4060; `outputs/phase5b_exp020.log`.
+
+**(b) The laptop control run.** The unforced `sft` and `rft` think-tag greedy runs, made again on
+the laptop at the 4,096 window, against the H100 runs of the same checkpoints
+(`phase-5-compare-{sft,rft}-laptop-vs-h100.md`):
+
+| checkpoint | GSM8K laptop / H100 | paired | problems flipping | MATH-500 laptop / H100 | paired | problems flipping |
+|---|---|---|---|---|---|---|
+| `sft` | 76.0 / 74.8 | +1.2 [-0.9, 3.5] | 232 (17.6 %) | 52.4 / 50.6 | +1.8 [-2.6, 5.8] | 117 (23.4 %) |
+| `rft` | 78.9 / 78.2 | +0.8 [-1.3, 2.8] | 196 (14.9 %) | 57.0 / 56.4 | +0.6 [-3.2, 4.8] | 103 (20.6 %) |
+
+The pre-registered hypothesis (within 0.5 points, under 2 % flipping) failed and the falsifier
+(over 1 point or over 5 % flipping) fired. Batch-invariant greedy decoding is bit-identical across
+runs on one machine (EXP-000), not across GPUs: a near-tie in the argmax early in a long completion
+sends the two decodes apart. The net difference is inside its CI, the flip rate is not small, and the
+laptop loops a little less (truncation 25.7 / 48.2 % for `sft` against 28.1 / 52.0 %). EXP-016 is
+re-paired on the same machine in section 2b; `FAILURES_AND_LEARNINGS.md` records the incident.
+
+**(a) GRPO under the stop rule** (`phase-5-compare-grpo-force{1536,2048}-vs-grpo.md`):
+
+| B | GSM8K | tokens | forced | vs `grpo` greedy | MATH-500 | tokens | forced | vs `grpo` greedy |
+|---|---|---|---|---|---|---|---|---|
+| 1,536 | 82.5 [80.5, 84.5] | 867 | 7.4 % | +0.2 [-1.4, 1.9] | 62.6 [58.4, 66.6] | 1,285 | 47 % | -0.8 [-4.4, 2.8] |
+| 2,048 | 82.5 [80.5, 84.5] | 897 | 5.0 % | +0.2 [-1.4, 1.9] | 63.6 [59.4, 67.6] | 1,493 | 36 % | +0.2 [-3.4, 3.6] |
+
+GRPO's unforced greedy run spends 999 / 1,944 tokens. The pre-registered prediction (+1 to +3 on
+MATH-500) did not appear and the falsifier fired as stated: forcing the stop on GRPO buys the same
+accuracy at 10-25 % fewer tokens and nothing more. The forced answers are right 17 / 22 % of the time
+(GSM8K / MATH-500), far below `sft`'s 55 / 50 % (Phase 6, section 4): what GRPO leaves looping is
+harder material. **Provisional:** the `grpo` greedy reference is the H100 run, so these cells carry
+the machine term of (b), and the first decomposition (+4.2 on GRPO-truncated MATH-500 problems,
+-5.0 on finished ones) cannot be read as the rule's cost (section 2b shows that on one machine the
+rule leaves every completion shorter than the budget unchanged). The unforced GRPO run on the
+laptop is queued after EXP-022 and will replace these cells.
+
+## 5. EXP-021: "Wait" before the stop (23 Oct 2026)
+
+At budget 1,536, every completion still inside its think block got "\nWait" appended and up to 512
+more tokens; those that closed the think block and finished stayed finished, the rest got the forced
+stop (`--force-continue`, tested). Same-machine pairings throughout
+(`phase-5-compare-{sft,rft}-wait-vs-force{1536,2048}.md`).
+
+| run | closed the think block on their own | GSM8K | tokens | vs stop at 1,536 | vs stop at 2,048 | MATH-500 | tokens | vs stop at 1,536 | vs stop at 2,048 |
+|---|---|---|---|---|---|---|---|---|---|
+| `sft` + Wait | 60 of 437 / 59 of 390 (14 / 15 %) | 80.8 [78.7, 82.9] | 1,311 | +0.2 [-0.2, 0.6] | +0.2 [-0.2, 0.7] | 61.2 [57.2, 65.4] | 1,833 | +1.6 [-0.4, 3.8] | +0.2 [-1.4, 1.8] |
+| `rft` + Wait | 47 of 271 / 63 of 336 (17 / 19 %) | 80.9 [78.7, 83.0] | 1,128 | +0.1 [-0.5, 0.6] | 0.0 [-0.5, 0.5] | 63.4 [59.2, 67.6] | 1,724 | +1.6 [-0.2, 3.4] | -0.6 [-2.2, 1.4] |
+
+The stop at 2,048 spends almost exactly the tokens the Wait condition spends (1,308 against 1,311 for
+`sft` on GSM8K; 1,824 against 1,833 on MATH-500), so it is the matched comparison: the nudge lands
+within a fraction of a point of it on all four cells. Against the immediate stop at 1,536 it gains on
+MATH-500 what the extra tokens buy (+1.6, CIs touching 0). Of the completions nudged, 14-19 % closed
+their think block on their own; the rest kept looping until the forced stop. Against the
+pre-registration: within the noise of the immediate stop (held), under 20 % closing unaided (held),
+below the stop at B + 512 (failed: level, not below); the falsifier (beats the same-budget stop by
+over 2 with a CI clear of 0) did not fire. A looping model given "Wait" mostly loops on;
+sequential extension buys nothing a larger budget does not. Phase 6 shows why: the loop is a
+re-derivation of the same step from a fixed point, and "Wait" is already what the model writes
+inside it, 16-28 times per truncated completion.
+
+## 6. EXP-022: an outcome reward model against voting (running)
+
+The first run (23 Oct 2026, 03:01-09:31 UTC) trained a LoRA head on Qwen3-0.6B-Base on 20,000
+labelled `sft` samples (58 % correct) and reached a held-out accuracy of 87.9 % and AUROC 0.938 on
+2,207 examples from problems it never saw, then hung while saving (`FAILURES_AND_LEARNINGS.md`, 23
+Oct). The rerun with the fix started at 11:30 UTC; its held-out numbers, best-of-k and the
+reward-weighted vote against majority vote follow here when the scoring lands.

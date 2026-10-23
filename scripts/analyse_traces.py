@@ -35,6 +35,7 @@ VERIFY_RE = re.compile(
 )
 ANSWER_RE = re.compile(r"\\boxed\{|<answer>|the (?:final )?answer is", re.IGNORECASE)
 THINK_CLOSE = "</think>"
+FORCE_SUFFIX = "\n</think>\n<answer>"
 
 
 def first_repeat(words: list[str], n: int = 50) -> tuple[int | None, int | None]:
@@ -63,10 +64,14 @@ def analyse_completion(text: str, *, truncated: bool, ngram: int) -> dict[str, A
     onset_i, unit = first_repeat(words, ngram)
     onset_frac = (onset_i / n_words) if (onset_i is not None and n_words) else None
     answer_before_loop = None
+    answer_by_first_cycle = None
     if onset_i is not None:
         onset_char = len(" ".join(words[:onset_i]))
-        m = list(ANSWER_RE.finditer(text[:onset_char]))
-        answer_before_loop = bool(m)
+        answer_before_loop = bool(ANSWER_RE.search(text[:onset_char]))
+        # the first repetition ends one unit after the onset: when the whole solution is the
+        # repeating unit (zero-shot), its answer sits inside the first cycle, after the onset
+        cycle_char = len(" ".join(words[: onset_i + (unit or 0) + ngram]))
+        answer_by_first_cycle = bool(ANSWER_RE.search(text[:cycle_char]))
     return {
         "words": n_words,
         "truncated": truncated,
@@ -75,6 +80,7 @@ def analyse_completion(text: str, *, truncated: bool, ngram: int) -> dict[str, A
         "loop_onset_frac": onset_frac,
         "repeat_unit_words": unit,
         "answer_before_loop": answer_before_loop,
+        "answer_by_first_cycle": answer_by_first_cycle,
         "wait": len(WAIT_RE.findall(text)),
         "verify": len(VERIFY_RE.findall(text)),
     }
@@ -117,6 +123,11 @@ def summarise(per: list[dict[str, Any]]) -> dict[str, Any]:
             )
             if loops
             else None,
+            "answer_by_first_cycle_rate": (
+                sum(bool(c["answer_by_first_cycle"]) for c in loops) / len(loops)
+            )
+            if loops
+            else None,
             "wait_mean": float(np.mean([c["wait"] for c in cs])) if cs else None,
             "verify_mean": float(np.mean([c["verify"] for c in cs])) if cs else None,
         }
@@ -129,6 +140,30 @@ def summarise(per: list[dict[str, Any]]) -> dict[str, Any]:
         "_units_truncated": [c["repeat_unit_words"] for c in loops_tr],
         "_onsets_truncated": [c["loop_onset_frac"] for c in loops_tr],
         "_units_finished": [c["repeat_unit_words"] for c in loops_fi],
+    }
+
+
+def forced_block(recs: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """For a forced-stop run (EXP-016): did the model's own text, before the appended tags, already
+    state an answer? Accuracy of the forced answers split by that (prediction 5 of EXP-023)."""
+    forced = [r for r in recs if r.get("forced_stop")]
+    if not forced:
+        return None
+    rows = []
+    for r in forced:
+        text = r.get("text", "")
+        own = text[: text.rfind(FORCE_SUFFIX)] if FORCE_SUFFIX in text else text
+        rows.append((bool(ANSWER_RE.search(own)), bool(r.get("correct"))))
+    with_ans = [c for a, c in rows if a]
+    without = [c for a, c in rows if not a]
+    right = [a for a, c in rows if c]
+    return {
+        "n_forced": len(rows),
+        "accuracy": sum(c for _, c in rows) / len(rows),
+        "answer_before_force_rate": len(with_ans) / len(rows),
+        "accuracy_with_answer_before": (sum(with_ans) / len(with_ans)) if with_ans else None,
+        "accuracy_without_answer_before": (sum(without) / len(without)) if without else None,
+        "right_with_answer_before_share": (sum(right) / len(right)) if right else None,
     }
 
 
@@ -157,6 +192,9 @@ def analyse(
                 for r in recs
             ]
             block["runs"][label] = summarise(per)
+            fb = forced_block(recs)
+            if fb:
+                block["runs"][label]["forced"] = fb
         for a, b in pairs:
             if a in block["runs"] and b in block["runs"]:
                 ra, rb = block["runs"][a], block["runs"][b]
@@ -192,16 +230,28 @@ def markdown(result: dict[str, Any]) -> str:
         lines += [
             f"**{ev}**",
             "",
-            "| run | n | truncated % | truncated: words (median) | with a loop % | loop onset (median) | repeat unit words (median) | answer before loop % | Wait / completion (trunc. / fin.) | verify phrases (trunc. / fin.) | finished with a loop % |",
-            "|---|---|---|---|---|---|---|---|---|---|---|",
+            "| run | n | truncated % | truncated: words (median) | with a loop % | loop onset (median) | repeat unit words (median) | answer before loop % | answer by end of first cycle % | Wait / completion (trunc. / fin.) | verify phrases (trunc. / fin.) | finished with a loop % |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for label, r in block["runs"].items():
             t, f = r["truncated"], r["finished"]
             lines.append(
                 f"| {label} | {r['n']} | {_f(r['truncated_rate'], True)} | {_f(t['words_median'], nd=0)} | {_f(t['has_loop_rate'], True)} | "
-                f"{_f(t['loop_onset_median'], nd=2)} | {_f(t['repeat_unit_median'], nd=0)} | {_f(t['answer_before_loop_rate'], True)} | "
+                f"{_f(t['loop_onset_median'], nd=2)} | {_f(t['repeat_unit_median'], nd=0)} | {_f(t['answer_before_loop_rate'], True)} | {_f(t['answer_by_first_cycle_rate'], True)} | "
                 f"{_f(t['wait_mean'])} / {_f(f['wait_mean'])} | {_f(t['verify_mean'])} / {_f(f['verify_mean'])} | {_f(f['has_loop_rate'], True)} |"
             )
+        forced = {k: r["forced"] for k, r in block["runs"].items() if r.get("forced")}
+        if forced:
+            lines += [
+                "",
+                "| forced run | forced | forced answers right % | own text already states an answer % | right when it did % | right when it did not % | share of forced-right with an answer before the tags % |",
+                "|---|---|---|---|---|---|---|",
+            ]
+            for k, fb in forced.items():
+                lines.append(
+                    f"| {k} | {fb['n_forced']} | {_f(fb['accuracy'], True)} | {_f(fb['answer_before_force_rate'], True)} | "
+                    f"{_f(fb['accuracy_with_answer_before'], True)} | {_f(fb['accuracy_without_answer_before'], True)} | {_f(fb['right_with_answer_before_share'], True)} |"
+                )
         if block["pairs"]:
             lines += [
                 "",
