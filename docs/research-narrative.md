@@ -328,3 +328,56 @@ verifier beats voting is the next cell of the D6 chart.
 | "Wait" before the stop | the loops do not finish at 8,192; the stop rule recovers the gain | a nudge gives a loop nothing it lacks | does sequential extension help a looping model? | within noise of the immediate stop and below the stop at the same total tokens / beats it by over 2 | EXP-021 |
 | an outcome reward model | 59,000 labelled traces exist; voting reaches the policy's number; weak ORMs plateau in the literature | a verifier trained on the policy's own samples ranks finished derivations better than a vote at small N and worse at large N | when does a learned verifier beat voting here? | best-of-4 beats maj@4 by 1-3 on MATH-500, at or below maj@32 at N = 32, weighted vote at or above both / never above voting | EXP-022 |
 | the traces | every result is about termination; nothing describes the text | a loop is a repeated unit starting late; GRPO changed how often, not what | what did the training change in the text? | same unit-length and onset distributions for `sft` and `grpo` loops (KS under 0.15); answer-before-loop under 15 % in the trained format / KS over 0.3; answer-before-loop common | EXP-023 |
+
+## Phase 5B (22-23 Oct 2026): the debts, the Wait pass, a verifier
+
+**Known before.** EXP-016 and EXP-017 (the stop rule and the votes reach the trained policies'
+numbers); two debts recorded in the Phase 5 notes (the GRPO checkpoint was never forced; the forced
+runs were paired with unforced runs from another machine).
+
+**Intuitions, written before the runs.** (a) GRPO's remaining loops hold readable answers too, so
+forcing it gains 1-3 points on MATH-500. (b) The cross-machine difference is a few tenths of a point.
+(c) "Wait" gives a loop nothing it lacks, so it lands with the plain stop. (d) A verifier trained on
+the policy's own labelled samples beats voting at small N and plateaus at large N.
+
+**Runs and what they said.**
+- EXP-020b (laptop control): intuition (b) failed. The same checkpoint decoded greedily on the H100
+  and on the laptop differs on 15-23 % of problems, net +0.6 to +1.8 points. Batch invariance makes
+  decoding reproducible per machine, not across GPUs. EXP-016 re-paired on one machine: the stop rule
+  on SFT is +4.6 / +7.2 at 1,536 (first quoted +5.8 / +9.0), still above RFT's same-machine +2.9 /
+  +4.6; and the rule's "cost on problems that would have finished later" was mostly the machine term,
+  because on one machine a forced run equals the unforced run on every completion shorter than the
+  budget (same-machine both-finished -0.1 / -2.7, not -2.1 / -8.4).
+- EXP-020a (GRPO forced): intuition (a) failed as stated: no MATH-500 gain at either budget, the
+  same accuracy at 10-25 % fewer tokens; GRPO's forced answers are right 17-22 % of the time against
+  SFT's 50-55 %. Provisional: the GRPO reference is the H100 run; the same-machine control is queued.
+- EXP-021 (Wait): intuition (c) held. The nudge equals the plain stop at the same total tokens on
+  all four cells; 14-19 % of nudged loops closed on their own.
+- EXP-022 (verifier): the first run reached 87.9 % held-out accuracy and AUROC 0.938 on unseen
+  problems before a WSL kernel hang lost its weights; the rerun is in progress.
+
+**What Phase 5B raised.** That every paired claim needs its two sides on one machine, which the
+project had assumed and not checked since EXP-000; and that the stop rule is cheaper than first
+measured (its cost was the machine term). GRPO and the rule are substitutes: what the rule buys on
+SFT and RFT, GRPO had already bought.
+
+## Phase 6 (23 Oct 2026): the traces
+
+**Known before.** Every result of Phases 3 to 5 is about termination; nothing described the text.
+
+**Intuition, written before the run.** A loop is a repeated unit starting late in the budget; GRPO
+changed how often loops happen, not what they are; an answer rarely precedes a trained-format loop.
+
+**What it said** (EXP-023, `outputs/reports/phase-6.md`). The second clause held (Kolmogorov-Smirnov
+0.11-0.16 between SFT's and GRPO's loops). The first half-held: the unit is a 100-190-word step, but
+the loop starts early, at a fixed word position (about 500 on GSM8K, 800 on MATH-500) whatever the
+window, so more room adds cycles, which is the mechanism behind EXP-010c. The third failed on GSM8K:
+a third of trained-format loops follow a stated answer, exactly the third of truncated completions the
+extractor already scores right; the termination gain comes from the other two thirds. Under zero-shot
+the trained checkpoints rewrite their whole solution after boxing the answer. Half to two thirds of
+the forced answers that are right had been stated before the stop.
+
+**What it raised.** The project's central result now has a text-level mechanism: a trained
+checkpoint that fails to stop re-derives one step from a fixed point, the on-policy stages made that
+rarer, and a stop rule cuts it. The remaining open question is the one the budget left unrun: whether
+harder prompts (EXP-018) would make GRPO change something other than how often the loop happens.

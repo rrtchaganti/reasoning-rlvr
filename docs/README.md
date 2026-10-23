@@ -18,6 +18,7 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 | 3 Rejection-sampling fine-tuning | [`phase-3-engineering-notes.md`](phase-3-engineering-notes.md) | [`phase-3-journal.md`](phase-3-journal.md) |
 | 4 GRPO and ablations | [`phase-4-engineering-notes.md`](phase-4-engineering-notes.md) | [`phase-4-journal.md`](phase-4-journal.md) |
 | 5 The cost of termination (budget forcing, accuracy against tokens) | [`phase-5-engineering-notes.md`](phase-5-engineering-notes.md) | [`phase-5-journal.md`](phase-5-journal.md) |
+| 6 The traces | [`phase-6-engineering-notes.md`](phase-6-engineering-notes.md) | [`phase-5-journal.md`](phase-5-journal.md) section 5 |
 
 Also here: [`evidence-index.md`](evidence-index.md) (how every quoted claim maps to the problems and completions behind it; the index itself is `outputs/reports/evidence/README.md`), [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
 known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled
