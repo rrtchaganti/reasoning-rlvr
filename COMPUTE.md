@@ -101,7 +101,7 @@ Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 16
 | 2026-10-22/23 | 5B | EXP-020: grpo forced at 1,536 and 2,048; unforced sft and rft on the laptop (3fc00b3 era, phase5_laptop.sh) | RTX 4060 Laptop 8 GB | 5.6 | 0 | about 4 M | 0 | 18:55-00:57 UTC; the unforced runs loop to the window (about 2 h each) |
 | 2026-10-23 | 5B | EXP-021: sft and rft with Wait before the stop at 1,536 (3fc00b3) | RTX 4060 Laptop 8 GB | 2.05 | 0 | about 1.5 M | 0 | 00:57-03:00 UTC |
 | 2026-10-23 | 5B | EXP-022 first reward-model run: LoRA head on Qwen3-0.6B-Base, 20,000 examples, held-out eval | RTX 4060 Laptop 8 GB | 6.5 | 0 | 0 | about 30 M | 03:01-09:31 UTC; held-out 87.9 %, AUROC 0.938; weights lost in a WSL kernel hang during the save (FAILURES_AND_LEARNINGS.md, 23 Oct); 0.95 h idle until the restart |
-| 2026-10-23 | 5B | EXP-022 rerun with the save fix (3bd2898) | RTX 4060 Laptop 8 GB | running | 0 | | | from 11:30 UTC; training, held-out eval, scoring of six sample sets, the chart |
+| 2026-10-23 | 5B | EXP-022 rerun with the save fix (3bd2898): training, held-out eval, scoring of six n = 32 sample sets (57,600 samples), the chart | RTX 4060 Laptop 8 GB | 10.6 | 0 | 0 | about 30 M | 11:30-22:06 UTC; training 5.8 h (1,250 steps), held-out 89.4 %, AUROC 0.944; scoring 4.65 h (38-55 min a set); chart 1 min |
 | 2026-10-23 | 6 | EXP-023 trace analysis, twice (the second with the first-cycle measure and the forced split) | laptop CPU | 0 | 0 | 0 | 0 | about 15 CPU-minutes |
  The plan's
 Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost

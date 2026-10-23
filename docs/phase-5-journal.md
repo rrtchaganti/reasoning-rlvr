@@ -109,6 +109,19 @@ and Hyper-V compute services from an elevated shell. WSL rebooted at 11:29 UTC. 
 disk before evaluation and before any Hub call; offline steps; a fallback load from the plain state
 dict, tested) went in as 3bd2898 and the reward model was rerun from 11:30.
 
+**The second day (UTC).**
+- 11:30-17:26 EXP-022 rerun: training 5.8 h (faster than the first run's 6.4 h on the same
+  batches), held-out 89.4 %, AUROC 0.944; the weights were on disk before the held-out pass.
+- 17:26-22:05 scoring of the six n = 32 sample sets (`sft`, `rft`, `grpo` on GSM8K and MATH-500),
+  38-55 minutes each; the chart at 22:06.
+- 22:07 the GRPO same-machine control failed at once: the main checkout was dirty (the user's
+  one-line edit to `METHODS_AND_METRICS.md`, left untouched) and the harness refuses a dirty tree.
+  A worktree did not help either (WSL's git cannot follow the worktree's Windows path), so the run
+  went to a fresh WSL clone at the same commit and started at 22:09.
+- While it ran, EXP-022 was folded in: best-of-k, the reward-weighted vote and majority vote on
+  the same seeded draws; a `best_of_k` rule in the evidence index with two new claims, both
+  re-derived.
+
 **What the results changed.** The laptop control runs showed a machine term of 15-23 % flipped
 problems, so EXP-016 was re-paired on one machine: the stop rule's gain on SFT is +4.6 / +7.2 (first
 quoted +5.8 / +9.0), still above RFT's, and the "cost of the rule" first reported was mostly that

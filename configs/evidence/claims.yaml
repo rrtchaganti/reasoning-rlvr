@@ -397,6 +397,26 @@ claims:
     ref: {root: LAP, run: eval/sft_force2048_think_tag, label: sft + force 2,048}
     new: {root: LAP, run: eval/sft_force1536_wait512_think_tag, label: sft + Wait}
     evals: {gsm8k: 0.2, math500: 0.2}
+  - id: P5-13
+    title: "with the verifier, two RFT samples beat GRPO's greedy number"
+    experiment: EXP-022
+    where: "outputs/reports/phase-5.md section 6; README section 4"
+    statement: "Best-of-2 of rft by the 0.6B verifier against grpo greedy (H100) on the pinned 300-problem subsets: +3.0 [0.1, 6.0] on GSM8K and +4.0 [0.2, 7.7] on MATH-500, at 2.6x the tokens."
+    rule: best_of_k
+    run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    k: 2
+    evals: {gsm8k: 3.0, math500: 4.0}
+  - id: P5-14
+    title: "best-of-32 by the verifier falls far below majority vote on MATH-500"
+    experiment: EXP-022
+    where: "outputs/reports/phase-5.md section 6"
+    statement: "Best-of-32 of rft by the verifier against grpo greedy on MATH-500: 67.7 against 64.3, while maj@32 is 80.7; the verifier's arg-max is over-optimised as k grows (best-of-32 minus maj@32 -13.0 [-17.7, -9.0])."
+    rule: best_of_k
+    run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
+    ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
+    k: 32
+    evals: {math500: 3.3}
   - id: P6-01
     title: "what a loop is: the trace analysis"
     experiment: EXP-023

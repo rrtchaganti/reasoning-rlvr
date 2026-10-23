@@ -127,7 +127,7 @@ Each phase's question came from the previous phase's numbers; the record is in
   `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
 - **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
   about 55 H100 node-hours and 11 L4-hours, about USD 260, against a stated ceiling of USD 262.
-- **An evidence index.** The quoted claims (45 across Phases 1 to 6, 41 of them with a number to
+- **An evidence index.** The quoted claims (47 across Phases 1 to 6, 43 of them with a number to
   re-derive and 4 pointing at files) are listed in `configs/evidence/claims.yaml` with the runs they
   rest on; `scripts/evidence.py` re-derives each number from the per-sample files, checks it against
   the quoted one, and writes the problems and completion excerpts behind it to
@@ -173,8 +173,11 @@ machine, and the "cost of the rule" first reported was mostly that machine term.
 the GRPO checkpoint buys the same accuracy at 10-25 % fewer tokens and nothing more (provisional until
 its same-machine control, queued). EXP-021: appending "Wait" before the stop equals the plain stop at
 the same total tokens on all four cells; a looping model given "Wait" mostly loops on. EXP-022, an
-outcome reward model trained on the laptop, reached 87.9 % held-out accuracy (AUROC 0.938) before a
-WSL hang lost its weights; the rerun is in progress.
+outcome reward model trained on the laptop (a LoRA head on Qwen3-0.6B-Base, 20,000 of SFT's labelled
+samples), reached 89.4 % held-out accuracy (AUROC 0.944): with it, two RFT samples beat the GRPO
+policy's greedy number (+3.0 [0.1, 6.0] / +4.0 [0.2, 7.7]), but its arg-max is over-optimised as k
+grows (best-of-32 is 12-13 points below majority-of-32 on MATH-500), while the reward-weighted vote
+stays at or above majority vote at every k.
 
 **Phase 6 (23 Oct 2026, no GPU; `outputs/reports/phase-6.md`).** In the trained format 96-99 % of
 truncated GSM8K completions (76-90 % on MATH-500) contain a recurring 50-word window; the repeated
@@ -185,8 +188,7 @@ rewrite their whole solution after boxing the answer, which is why truncated zer
 are usually right. Half to two thirds of the forced answers that are right had already been stated
 before the stop.
 
-**What is left.** The reward model's scoring, the GRPO same-machine control, and the write-up (Phase
-7). GRPO on harder prompts (EXP-018), the matched-incorrect rejection-sampling set (EXP-010i) and Dr.
+**What is left.** The GRPO same-machine control (running), and the write-up (Phase 7). GRPO on harder prompts (EXP-018), the matched-incorrect rejection-sampling set (EXP-010i) and Dr.
 GRPO (EXP-014c) stay pre-registered and unrun by the budget decision; DPO, distillation and serving
 were dropped with the reasons in `docs/plan-after-phase-4.md` section 4.
 
@@ -199,7 +201,7 @@ were dropped with the reasons in `docs/plan-after-phase-4.md` section 4.
 | 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
 | 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
 | 4 GRPO and ablations | session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; merged 21 Oct (PR #5), tag `phase-4`; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/` | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 Test-time compute, the cost of termination | 5A merged 22 Oct 2026 (PR #6, tag `phase-5`): budget forcing (EXP-016) and accuracy against tokens (EXP-017), INR 0, both hypotheses held. 5B run 22-23 Oct on the laptop (`docs/plan-after-phase-4.md`): EXP-020 (the machine term; GRPO under the stop rule), EXP-021 ("Wait" before the stop) done; EXP-022 (an outcome reward model against voting) running | [`phase-5.md`](outputs/reports/phase-5.md) |
+| 5 Test-time compute, the cost of termination | 5A merged 22 Oct 2026 (PR #6, tag `phase-5`): budget forcing (EXP-016) and accuracy against tokens (EXP-017), INR 0, both hypotheses held. 5B run 22-24 Oct on the laptop (`docs/plan-after-phase-4.md`): EXP-020 (the machine term; GRPO under the stop rule), EXP-021 ("Wait" before the stop), EXP-022 (an outcome reward model against voting) done | [`phase-5.md`](outputs/reports/phase-5.md) |
 | 6 The traces: what a loop is and what GRPO removed | EXP-023 done 23 Oct 2026, no GPU | [`phase-6.md`](outputs/reports/phase-6.md) |
 | 7 Write-up and the interview packet | after Phase 5B | |
 | dropped | DPO (EXP-019), distillation, quantisation and serving; EXP-018 (harder prompts) pre-registered and unrun by the budget decision; reasons in `docs/plan-after-phase-4.md` section 4 | |

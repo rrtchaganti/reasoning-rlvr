@@ -268,10 +268,72 @@ sequential extension buys nothing a larger budget does not. Phase 6 shows why: t
 re-derivation of the same step from a fixed point, and "Wait" is already what the model writes
 inside it, 16-28 times per truncated completion.
 
-## 6. EXP-022: an outcome reward model against voting (running)
+## 6. EXP-022: an outcome reward model against voting (23-24 Oct 2026)
 
-The first run (23 Oct 2026, 03:01-09:31 UTC) trained a LoRA head on Qwen3-0.6B-Base on 20,000
-labelled `sft` samples (58 % correct) and reached a held-out accuracy of 87.9 % and AUROC 0.938 on
-2,207 examples from problems it never saw, then hung while saving (`FAILURES_AND_LEARNINGS.md`, 23
-Oct). The rerun with the fix started at 11:30 UTC; its held-out numbers, best-of-k and the
-reward-weighted vote against majority vote follow here when the scoring lands.
+**The verifier.** A LoRA adapter (rank 16, every linear layer) and a scalar head on the last token's
+hidden state of Qwen3-0.6B-Base, trained with binary cross-entropy on 20,000 labelled samples of the
+`sft` checkpoint from the Phase 3 solve-rate pass (T = 1.0, 8 per problem; 58 % correct; up to two
+right and two wrong per problem; manifest hash b57c1972eeed28f8), one epoch, 1,250 steps of 16
+examples, inputs keeping their last 2,048 tokens (11,470 of the 20,000 were cut from the front),
+5.8 hours of training on the laptop (the lost first run took 6.4). Held out by problem: **accuracy 89.4 %, AUROC 0.944** on 2,207 examples
+(the first run, lost to the hang, reached 87.9 % and 0.938). On the eval-set samples it scores
+(`phase-5-accuracy-vs-tokens-orm.json`; scores next to each `samples.jsonl`):
+
+| samples (T = 0.6, n = 32, pinned 300-problem subsets) | GSM8K AUROC | MATH-500 AUROC | accuracy at the 0 threshold, GSM8K / MATH-500 |
+|---|---|---|---|
+| `sft` (the distribution it was trained on, other problems) | 0.866 | 0.930 | 86.8 / 86.2 % |
+| `rft` | 0.856 | 0.898 | 87.9 / 83.2 % |
+| `grpo` | 0.817 | 0.850 | 87.2 / 77.4 % |
+
+It separates right from wrong answers well and degrades as the policy drifts from the one it was
+trained on.
+
+**Best-of-k and the reward-weighted vote** against majority vote, over the same seeded draws
+(`scripts/plot_accuracy_vs_tokens.py --scores`; `figures/phase-5-accuracy-vs-tokens-orm.{png,md,json}`):
+
+| run | k | GSM8K: maj@k / best-of-k / weighted vote | best-of-k - maj@k | weighted - maj@k | MATH-500: maj@k / best-of-k / weighted vote | best-of-k - maj@k | weighted - maj@k |
+|---|---|---|---|---|---|---|---|
+| `sft` | 2 | 80.3 / 85.9 / 85.9 | +5.6 [4.6, 6.7] | +5.6 [4.6, 6.7] | 63.2 / 66.7 / 66.8 | +3.5 [2.6, 4.3] | +3.6 [2.8, 4.5] |
+| `sft` | 4 | 86.7 / 87.7 / 88.9 | +1.0 [-0.2, 2.1] | +2.1 [1.3, 2.9] | 70.8 / 70.8 / 72.9 | 0.0 [-1.2, 1.2] | +2.1 [1.3, 2.9] |
+| `sft` | 32 | 90.7 / 90.3 / 91.7 | -0.3 [-3.0, 2.3] | +1.0 [-0.3, 2.7] | 81.7 / 70.0 / 81.0 | **-11.7 [-15.7, -8.0]** | -0.7 [-2.0, 0.7] |
+| `rft` | 2 | 82.4 / 87.6 / 87.6 | +5.2 [4.3, 6.2] | +5.2 [4.3, 6.2] | 64.8 / 68.3 / 68.4 | +3.6 [2.7, 4.5] | +3.6 [2.8, 4.6] |
+| `rft` | 4 | 88.6 / 89.3 / 90.3 | +0.8 [-0.4, 1.9] | +1.8 [1.1, 2.5] | 71.9 / 70.6 / 73.4 | -1.3 [-2.5, -0.2] | +1.6 [0.8, 2.3] |
+| `rft` | 32 | 91.7 / 91.0 / 93.3 | -0.7 [-3.7, 2.3] | +1.7 [0.0, 3.7] | 80.7 / 67.7 / 80.0 | **-13.0 [-17.7, -9.0]** | -0.7 [-2.0, 0.7] |
+| `grpo` | 2 | 83.8 / 86.9 / 86.9 | +3.1 [2.3, 4.0] | +3.1 [2.3, 4.0] | 66.1 / 69.5 / 69.5 | +3.4 [2.4, 4.5] | +3.4 [2.4, 4.5] |
+| `grpo` | 4 | 88.9 / 88.3 / 89.8 | -0.6 [-1.6, 0.5] | +0.9 [0.3, 1.5] | 73.6 / 71.7 / 75.1 | -1.9 [-3.3, -0.5] | +1.6 [0.8, 2.4] |
+| `grpo` | 32 | 91.3 / 88.3 / 92.3 | -3.0 [-6.0, 0.3] | +1.0 [0.0, 2.3] | 81.0 / 67.7 / 81.0 | **-13.3 [-18.0, -9.3]** | 0.0 [-1.0, 1.0] |
+
+Three readings.
+
+1. **At k = 2 the verifier is worth 3-6 points.** Two votes cannot break a disagreement (the tie
+   goes to the first sample); the verifier can. With it, two `rft` samples beat the GRPO policy's
+   greedy number on both sets: +3.0 [0.1, 6.0] on GSM8K and +4.0 [0.2, 7.7] on MATH-500 at 2.6x the
+   tokens (EXP-017's plain maj@2 only matched it, -2.3 / +0.4).
+2. **Best-of-k falls as k grows, on MATH-500 sharply.** On MATH-500, best-of-32 is 11.7-13.3 points
+   below majority-of-32 and below best-of-4 for every checkpoint (on GSM8K it flattens at 88-91 and
+   trails majority vote by 0.3-3.0): the more samples the verifier ranks, the
+   likelier its top pick is a wrong answer it scores highly. This is the over-optimisation of a weak
+   verifier, measured: a 0.6B model's score is a useful signal and a poor arg-max.
+3. **The reward-weighted vote is the robust use of it.** Summing sigmoid(score) per answer is at or
+   above majority vote at every k on both sets (+0.6 to +2.1 at k = 4-8, CIs clear of or touching
+   zero; within the CI at k = 16-32 on MATH-500) and above best-of-k from k = 4 on. With it, eight `rft` samples
+   reach 77.4 % on MATH-500 against the GRPO policy's greedy 64.3 % (+13.1 [9.2, 17.2]) at 10x the
+   tokens.
+
+**Against the pre-registration.** Held-out accuracy at least 70 % (held: 89.4 %). Best-of-4 beats
+maj@4 by 1-3 points on MATH-500 for `rft` and `sft` (failed: 0.0 [-1.2, 1.2] and -1.3 [-2.5, -0.2]).
+At N = 32, best-of-N at or below maj@32, the weak-verifier plateau (held, more strongly than
+predicted: it falls, by 12-13 points). The weighted vote at or above both at every N (held: at or
+above maj@k everywhere within the CI, above best-of-k from k = 4). Falsifier (best-of-N never above
+maj@N with a CI clear of 0) did not fire, but only because of k = 2, where majority vote degenerates
+to the first sample.
+
+**What EXP-022 says, with EXP-017.** The GRPO policy's greedy number is reachable more cheaply than
+EXP-017 alone said: with a 0.6B verifier trained for 6.4 laptop hours on the SFT model's own samples,
+two RFT samples beat it. A verifier used as a vote weight keeps helping up to k = 32; used as an
+arg-max it starts hurting by k = 4 on MATH-500. The scoring cost (a 0.6B forward over each sample)
+is not on the token axis; on this laptop it ran at about 3.5 samples a second.
+
+**Caveats.** One training run, one seed; the scored sets are 300-problem subsets; the verifier was
+trained on `sft`'s samples of the training problems and scores eval problems, a shift its AUROC
+shows; inputs over 2,048 tokens are scored on their tail.

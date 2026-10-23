@@ -353,8 +353,13 @@ the policy's own labelled samples beats voting at small N and plateaus at large 
   SFT's 50-55 %. Provisional: the GRPO reference is the H100 run; the same-machine control is queued.
 - EXP-021 (Wait): intuition (c) held. The nudge equals the plain stop at the same total tokens on
   all four cells; 14-19 % of nudged loops closed on their own.
-- EXP-022 (verifier): the first run reached 87.9 % held-out accuracy and AUROC 0.938 on unseen
-  problems before a WSL kernel hang lost its weights; the rerun is in progress.
+- EXP-022 (verifier): intuition (d) held in shape. A 0.6B verifier trained for 5.8 laptop hours on
+  SFT's own labelled samples reached 89.4 % held-out accuracy (AUROC 0.944; 0.82-0.93 on the eval
+  sets, falling as the policy drifts from SFT). At k = 2 it is worth 3-6 points over a vote (which
+  cannot break a tie), so two RFT samples beat the GRPO policy's greedy number (+3.0 / +4.0). As an
+  arg-max it is over-optimised: on MATH-500 best-of-32 is 12-13 points below majority-of-32. As a
+  vote weight it stays at or above majority vote at every k. The first run's weights were lost to a
+  WSL kernel hang during the save; the reported run is the rerun.
 
 **What Phase 5B raised.** That every paired claim needs its two sides on one machine, which the
 project had assumed and not checked since EXP-000; and that the stop rule is cheaper than first

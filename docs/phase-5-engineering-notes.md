@@ -132,7 +132,12 @@ number. The training taught, to within the CIs, what a stop rule provides.
   script runs these steps offline. Tests: the builder, AUROC, a two-step train and score smoke on the
   tiny model, scoring again after deleting the PEFT folder.
 - **Best-of-k and the reward-weighted vote** in `scripts/plot_accuracy_vs_tokens.py`, over the same
-  seeded draws as maj@k, paired against maj@k and the reference greedy run.
+  seeded draws as maj@k, paired against maj@k and the reference greedy run. The evidence index has
+  the same selection as a `best_of_k` rule (`scripts/evidence.py`, tested on a synthetic set), so
+  the two quoted verifier claims are re-derived per problem.
+- **Running from a clean clone.** The harness refuses a dirty tree, and WSL's git cannot follow a
+  worktree created from Windows (its `.git` file holds a Windows path). A run that must not wait on an
+  uncommitted edit goes to a fresh clone inside WSL at the same commit; the GRPO control ran that way.
 - **`scripts/phase5b_laptop.sh`**: `wait`, `orm-build`, `orm-train`, `orm-score`, `orm-plot`, `all`;
   resumable; a failed step is reported and the next one runs.
 
@@ -147,4 +152,7 @@ checkpoint disagree on 18 % of problems?* Batch invariance fixes the reduction o
 two GPUs still produce different floating-point results, and a near-tie early in a long greedy
 decode sends the rest apart. *What did "Wait" do?* Nothing a larger budget does not: equal to the
 plain stop at the same tokens. *Why save with `torch.save` first?* Because a library save can do I/O
-beyond the file; 6.4 hours were lost to a DNS lookup inside one.
+beyond the file; 6.4 hours were lost to a DNS lookup inside one. *Your verifier has AUROC 0.94;
+why does best-of-32 lose to a vote?* Because the arg-max of 32 draws selects the verifier's errors:
+the more candidates, the likelier one wrong derivation scores above every right one. The vote uses
+the verifier's score as a weight across many draws and does not have that failure.
