@@ -12,6 +12,9 @@
 #   all         wait, orm-build, orm-train, orm-score, orm-plot (a failed step is reported, the next runs)
 set -uo pipefail
 export HF_HUB_DISABLE_XET=1
+# The reward model's steps need no network (Qwen3-0.6B-Base is cached): offline mode keeps the
+# Hub out of the save path, where a hung DNS lookup cost the first training run (23 Oct 2026).
+ORM_ENV="HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1"
 STEP="${1:-all}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PARENT="$(dirname "$ROOT")"
@@ -43,9 +46,9 @@ step_orm_build() {
 }
 
 step_orm_train() {
-  if [[ -e outputs/train/orm_0p6b/metrics.json ]]; then echo "== skip (exists): outputs/train/orm_0p6b"; return 0; fi
+  if [[ -e outputs/train/orm_0p6b/metrics.json && -e outputs/train/orm_0p6b/head.pt ]]; then echo "== skip (exists): outputs/train/orm_0p6b"; return 0; fi
   echo "== $(stamp) UTC: orm-train"
-  python -m rlvr.train.orm train --data outputs/data/orm --model Qwen/Qwen3-0.6B-Base --out outputs/train/orm_0p6b \
+  env $ORM_ENV python -m rlvr.train.orm train --data outputs/data/orm --model Qwen/Qwen3-0.6B-Base --out outputs/train/orm_0p6b \
     --lora-r 16 --lora-alpha 32 --lr 1e-4 --epochs 1 --batch 4 --grad-accum 4 --max-len 2048 --bf16 --log-every 10 --count-truncated
 }
 
@@ -55,7 +58,7 @@ step_orm_score() {
     set -- $pair
     if [[ -e "$2/gsm8k/scores.jsonl" && -e "$2/math500/scores.jsonl" ]]; then echo "== skip (scored): $1"; continue; fi
     echo "== $(stamp) UTC: orm-score $1"
-    python -m rlvr.train.orm score --orm outputs/train/orm_0p6b --samples "$2" --evals gsm8k math500 --batch 8 --bf16 || return 1
+    env $ORM_ENV python -m rlvr.train.orm score --orm outputs/train/orm_0p6b --samples "$2" --evals gsm8k math500 --batch 16 --bf16 || return 1
   done
 }
 

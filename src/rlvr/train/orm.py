@@ -234,7 +234,25 @@ class RewardModel:
         if tok.pad_token is None:
             tok.pad_token = tok.eos_token
         base = AutoModel.from_pretrained(cfg["model"], dtype=dtype)
-        base = PeftModel.from_pretrained(base, str(Path(orm_dir) / "adapter"))
+        adapter_dir = Path(orm_dir) / "adapter"
+        if (adapter_dir / "adapter_config.json").exists() and any(
+            adapter_dir.glob("adapter_model.*")
+        ):
+            base = PeftModel.from_pretrained(base, str(adapter_dir))
+        else:  # the plain state dict written before save_pretrained (see ``save``)
+            from peft import LoraConfig, get_peft_model, set_peft_model_state_dict
+
+            base = get_peft_model(
+                base,
+                LoraConfig(
+                    r=int(cfg["lora_r"]),
+                    lora_alpha=int(cfg["lora_alpha"]),
+                    lora_dropout=0.0,
+                    target_modules="all-linear",
+                ),
+            )
+            state = torch.load(Path(orm_dir) / "adapter_state.pt", map_location="cpu")
+            set_peft_model_state_dict(base, state)
         head = torch.nn.Linear(base.config.hidden_size, 1)
         head.load_state_dict(torch.load(Path(orm_dir) / "head.pt", map_location="cpu"))
         base.to(device).eval()
@@ -249,16 +267,25 @@ class RewardModel:
         return [p for p in self.base.parameters() if p.requires_grad] + list(self.head.parameters())
 
     def save(self, out: Path, model_id: str, extra: dict[str, Any]) -> None:
+        """Local files first, the PEFT folder last. On 23 Oct 2026 PEFT's ``save_pretrained`` made a
+        Hub lookup after writing only its README, the DNS step hung inside WSL (a netlink dump in
+        uninterruptible sleep) and 6.4 hours of training were lost with the weights in memory. Now
+        the head and the adapter's state dict are written with plain ``torch.save`` before anything
+        that can touch the network, and ``load`` falls back to them."""
         import torch
+        from peft import get_peft_model_state_dict
 
         out.mkdir(parents=True, exist_ok=True)
-        self.base.save_pretrained(out / "adapter")
         torch.save(self.head.state_dict(), out / "head.pt")
-        (out / "orm_config.json").write_text(
-            json.dumps({"model": model_id, "max_len": self.max_len, **extra}, indent=2),
-            encoding="utf-8",
-            newline="\n",
+        torch.save(
+            {k: v.detach().cpu() for k, v in get_peft_model_state_dict(self.base).items()},
+            out / "adapter_state.pt",
         )
+        cfg = {"model": model_id, "max_len": self.max_len, **extra}
+        (out / "orm_config.json").write_text(
+            json.dumps(cfg, indent=2), encoding="utf-8", newline="\n"
+        )
+        self.base.save_pretrained(out / "adapter")
 
 
 def auroc(scores: Sequence[float], labels: Sequence[int]) -> float:
@@ -404,17 +431,18 @@ def cmd_train(args: argparse.Namespace) -> None:
                     running, micro = 0.0, 0
                 if args.max_steps and step >= args.max_steps:
                     break
+        # weights to disk before the held-out pass, so nothing after training can lose them
+        rm.save(
+            out,
+            args.model,
+            {"lora_r": args.lora_r, "lora_alpha": args.lora_alpha, "data": str(args.data)},
+        )
         ev = evaluate(rm, held, batch=args.batch, device=device, autocast=autocast)
         ev.update({"epoch": epoch, "step": step})
         log.append({"heldout": ev})
         print("heldout:", json.dumps(ev), flush=True)
         if args.max_steps and step >= args.max_steps:
             break
-    rm.save(
-        out,
-        args.model,
-        {"lora_r": args.lora_r, "lora_alpha": args.lora_alpha, "data": str(args.data)},
-    )
     with (out / "train_log.jsonl").open("w", encoding="utf-8", newline="\n") as f:
         for rec in log:
             f.write(json.dumps(rec) + "\n")

@@ -149,3 +149,26 @@ def test_train_and_score_smoke_on_tiny_model(tmp_path, monkeypatch):
     scored = [json.loads(line) for line in (samp / "gsm8k" / "scores.jsonl").open()]
     assert [s["sample_idx"] for s in scored] == [0, 1, 2] and all(0 < s["prob"] < 1 for s in scored)
     assert Path(out / "run_info.json").exists()
+    # the plain state dict written before save_pretrained is enough to load and score
+    first = [s["score"] for s in scored]
+    import shutil
+
+    assert (out / "adapter_state.pt").exists()
+    shutil.rmtree(out / "adapter")
+    (samp / "gsm8k" / "scores.jsonl").unlink()
+    orm.main(
+        [
+            "score",
+            "--orm",
+            str(out),
+            "--samples",
+            str(samp),
+            "--evals",
+            "gsm8k",
+            "--cpu",
+            "--batch",
+            "2",
+        ]
+    )
+    again = [json.loads(line)["score"] for line in (samp / "gsm8k" / "scores.jsonl").open()]
+    assert again == pytest.approx(first, abs=1e-5)
