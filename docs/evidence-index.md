@@ -7,7 +7,7 @@ claim sits next to it (`outputs/reports/evidence/<id>.md`).
 
 ## What it is
 
-`configs/evidence/claims.yaml` lists the claims (51 on 24 Oct 2026, Phases 1 to 6; the first version
+`configs/evidence/claims.yaml` lists the claims (52 on 24 Oct 2026, Phases 1 to 6; the first version
 of this page said 37 for the 39 of 22 Oct, a miscount), each with its
 experiment id, the sentence as quoted and where, the runs it rests on (a named root plus a path), the
 eval set, a selection rule and the number as quoted. `scripts/evidence.py` re-derives the number from
@@ -36,10 +36,11 @@ examples: for a paired claim, the same problem under both runs, with the tail of
 
 ## What is not in it, and what should be
 
-- The sample files of the Phase 1 base runs and probes (`outputs/eval/base_1.7b_*`, `outputs/probe`)
-  and of the Phase 5 forced-stop runs (`outputs/eval/*force*`) are on the laptop only; the roots
-  `P1` and `LAP` say so. They should go to the Hub dataset as an archive with a hash, like the
-  session archives, when a token is available.
+- The sample files of the Phase 1 base runs and probes and of every Phase 5 and 5B laptop run (the
+  roots `P1` and `LAP`) are in the Hub dataset since 24 Oct 2026 as
+  `archives/laptop_archive_2026-10-24.tar.gz`, with its SHA-256 next to it, together with the
+  outcome reward model's weights and training data; the reward model's scores sit next to the n = 32
+  sample sets they score (`scores.jsonl`).
 - Claims about training dynamics point at the reward logs and completion logs rather than listing
   problems; the completion logs (one parquet per step, 256 completions with reward and advantage) let
   any step be read.

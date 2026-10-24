@@ -22,11 +22,15 @@ or W&B. Appended at the end of each session.
 | 2026-10-15 | 2 | trainer GPU tests x4 (tag rows, LoRA merge, fp32 + autocast) | RTX 4060 Laptop 8 GB | 0.02 | 0 | 0 | 0 | tiny model |
 | 2026-10-15 | 2 | 0.6B LoRA smoke v2 with the fixed trainer: train on 400 examples + 100-problem GSM8K think-tag eval (57625ea) | RTX 4060 Laptop 8 GB | 0.25 | 0 | 0.17 M | 0.77 M | smoke, not a result; tag rows initialised and trained, `</think>` emitted 5/100 (0 before); peak 4.48 GB |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-15 | 2 | EXP-006 paired reference: base 1.7B think-tag at the 4096 window, 5 evals (c994bde) | RTX 4060 Laptop 8 GB | 3.92 | 0 | 5.3 M | 0 | 372 output tok/s (KV cache holds ~6 sequences at 4096; 1,216 tok/s at 1024 in Phase 1); estimated 1 h, took 3 h 55 min; truncated outputs end at 3,865-3,994 tokens (window minus prompt, journal 14) |
 | 2026-10-17 | 2 | E2E L4 node: environment (cu129 route), data build, model downloads, smoke eval (ade4f6a) | E2E L4 24 GB | 1.5 | INR 75 (USD 0.9) | <0.01 M | 0 | first E2E node, root disk, no volume; torch 2.13.0+cu129, vllm 0.31.0+cu129, trl 1.15.0 pinned; data step dirtied the tree (fixed in b34c25b) |
 | 2026-10-17 | 1 (deferred) | EXP-002 four sets: base 1.7B n = 64, 4-shot-CoT on GSM8K, perturbed, MATH-500, AIME24 (ade4f6a) | E2E L4 24 GB | 5.16 | INR 253 (USD 3.0) | 34.3 M | 0 | output tok/s per set 3,134 / 3,082 / 1,171 / 964 (mean sample length 154 / 151 / 359 / 926); KV cache 15.3 GiB, 23 sequences at 6,144 |
 | 2026-10-17 | 1 (deferred) | EXP-002 Countdown, stopped at 2,368 / 32,000 sequences (ade4f6a) | E2E L4 24 GB | 1.60 | INR 78 (USD 0.9) | ~4.7 M, discarded | 0 | 816 tok/s at about 2,700 tokens a sample, 21 h more projected; rerun on the A100 from zero |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-17 | 2 | E2E L4 node, whole life (invoice: two consecutive lines, 13:28-16:01 INR 124.95 and 16:01-00:01 INR 392) | E2E L4 24 GB | 10.55 | INR 516.95 (USD 6.2) | - | - | the three rows above are inside this one; 2.3 h of it was setup, archive and idle time; terminated 18 Oct 00:01 IST |
 
 The invoice line is the cost; the three run rows above break the same hours down and are not added
@@ -34,9 +38,13 @@ again. The console labels the plan "2 vCPU and 6 GB RAM"; the node had 25 vCPU a
 report of 19 Oct adds a last line for the same node, 00:01-00:10 IST, INR 7.35 (the minutes between
 the last command and the Terminate): L4 total INR 524.30.
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-16 | 2 | E2E MyAccount A30 node, 1.32 h, and its saved image `rlvr-env-v1-disk-0` (640 GB, INR 5 per GB-month, 4.1 GB-months billed so far); first provider attempt, nothing run | E2E A30 24 GB | 1.32 | INR 118.80 + 20.50 (USD 1.7) | 0 | 0 | from the usage report of 19 Oct 2026; the image keeps billing until deleted from MyAccount |
 | 2026-10-18 | - | TIR dataset volume `rlvr-phase-2`, 250 GB, created 12:32 IST and deleted the same day | - | - | INR 10.20 | - | - | 1.02 GB-months at INR 10; not needed (the notebook disk is the volume) |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-18 | 2 | TIR H100: environment (cu129 route, 25 min), data build, model downloads, smoke (bb6f2a6) | TIR H100 SXM 80 GB | 0.60 | INR 227 (USD 2.7) | <0.01 M | 0 | torch 2.13.0+cu129, vllm 0.31.0+cu129, trl 1.15.0 per the lock; torchcodec removed (CUDA 13 wheel); no flash-attn in the Phase 2 part: every training run sdpa + packing=false |
 | 2026-10-18 | 1 (deferred) | EXP-002 Countdown n = 64, base 1.7B think-tag, 500 x 64 (bb6f2a6) | TIR H100 SXM 80 GB | 1.57 | INR 595 (USD 7.1) | 62.3 M | 0 | 11,047 output tok/s (13.5x the L4); mean 1,946 tokens a sample, 43 % truncated; completes EXP-002 |
 | 2026-10-18 | 2 | EXP-005 LR sweep: 3 runs of 36 steps on 2,300 examples + 3 dev evals (bb6f2a6) | TIR H100 SXM 80 GB | 0.73 | INR 277 (USD 3.3) | 5.0 M | 18.5 M | 16.5 s/step at 4 x 16, 33 GB; winner 1e-5 |
@@ -54,6 +62,8 @@ Phase 2 part of the H100 session: 09:50 UTC 18 Oct to 03:35 UTC 19 Oct, 17.75 no
 minutes overlap at the step boundaries). The session continued into Phase 3 without a Stop; the
 notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Phase 3 rows.
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-19 | 3 | Phase 3 smoke: first attempt at a 512-token cap found no correct trace; second at 2,048 passed (bb6f2a6) | TIR H100 SXM 80 GB | 0.17 | INR 64 (USD 0.8) | 0.3 M | 0.1 M | flash-attn self-test and the packed training path verified here |
 | 2026-10-19 | 3 | EXP-009 sampling: SFT 1.7B think-tag, n = 8, T = 1.0, 7,388 prompts (MATH L1-3 3,388 + GSM8K-train 4,000) at a 2,048 cap (bb6f2a6) | TIR H100 SXM 80 GB | 1.31 | INR 497 (USD 5.9) | 95.6 M | 0 | 19.5-21.6k tok/s; the cap rule's 4,096 was lost to the flag bug (patch 0004, fixed 3e055ad) |
 | 2026-10-19 | 3 | `rlvr-build-rft`: solve rates, kept set 11,145 (hash f44edf33a26c55fc), decontamination, learnable prompts (bb6f2a6) | CPU on the node | 0.02 | INR 8 | 0 | 0 | 25 s |
@@ -69,8 +79,12 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 | 2026-10-19 | 3 | EXP-010f think-tag n = 32, T = 0.6, SFT and RFT on 300-problem subsets (bb6f2a6) | TIR H100 SXM 80 GB | 2.20 | INR 834 (USD 9.9) | 97.6 M | 0 | includes 10 min lost to the flag bug (the SFT half sampled an extra set and was stopped) |
 | 2026-10-19 | 3 | archive, Hub inventory, transcript scan, prune, the user's download and Stop | TIR H100 SXM 80 GB | 1.6 | INR 606 (USD 7.2) | - | - | about 1 h of it after the console's 16:01 IST report, per the user |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-18/19 | 2 + 3 | TIR H100 notebook `rlvr`, whole life (usage report: 25.07 h to 16:01 IST 19 Oct, INR 9,502.78; about 3 h more to the Stop, INR 1,137) | TIR H100 SXM 80 GB | 28.1 | INR 10,640 (USD 127) | about 650 M | about 285 M | the Phase 2 and Phase 3 rows above are inside this one; the node clock ran about two hours ahead of the console's, so the per-step hours are the node's and the total is the invoice's; disk INR 118.40 to 16:01 IST and about INR 112 a day since |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-20 | 4 | path B environment build on a new disk; venv stalled three times on the PyTorch index's triton host, fixed with curl-fetched sha256-checked wheels (a8b9f69) | TIR H100 SXM 80 GB (idle) | 1.6 | INR 606 (USD 7.2) | - | - | 12:14-13:52 UTC, 88 GPU-idle minutes against 25 planned; the wheels are on the Hub since |
 | 2026-10-20 | 4 | `setup` (downloads, data rebuild with hashes asserted, `rft` dev eval, pinned subsets) and `smoke` | TIR H100 SXM 80 GB | 0.4 | INR 152 (USD 1.8) | 0.7 M | 0 | two relaunches of `setup` (dirty tree from the RFT builder's report; torchcodec), 3 idle minutes; the pull window 8 min |
 | 2026-10-20 | 4 | EXP-010g and EXP-010h: build, train (12 and 14 min), five-set evals (10 and 13 min) (a8b9f69) | TIR H100 SXM 80 GB | 0.9 | INR 341 (USD 4.1) | 9 M | 30 M | W&B fid4o2yz, u4xl8kxf |
@@ -80,8 +94,12 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 | 2026-10-20 | 4 | EXP-012 evals: three templates, gap, probe, subsets check, n = 32 think-tag samples (28 min); EXP-013 five-set eval (a8b9f69) | TIR H100 SXM 80 GB | 0.93 | INR 353 (USD 4.2) | 45 M | 0 | all sets of a checkpoint in one process |
 | 2026-10-20/21 | 4 | uploads (four finals, 8.5 min in parallel), hand-back, archive (188 MB, 875 files), the wheels upload and the addendum; idle until the user's Stop at 01:30 UTC (07:00 IST) | TIR H100 SXM 80 GB (idle) | 1.72 | INR 652 (USD 7.8) | - | - | GPU idle from 23:47 UTC |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-20/21 | 4 | TIR H100 notebook, session 1 whole life (12:14 UTC 20 Oct to the Stop at 01:30 UTC (07:00 IST) 21 Oct) | TIR H100 SXM 80 GB | 13.27 | INR 5,030 (USD 60) | about 195 M | about 170 M | the rows above are inside this one; plan 12.0 h / INR 4,570; the work itself 9 h 55 min of GPU time; the overrun is the build stall and the idle tail; the disk (320 GB) about INR 107 a day while the notebook exists, Stopped or not |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-21 | 4 | session 2 start: the user's Start (about 03:25 UTC), secrets, pull to 8e94fb5, env check; `setup` (10 s, everything on disk, hashes re-checked) | TIR H100 SXM 80 GB | 0.10 | INR 38 | 0 | 0 | path A, no build |
 | 2026-10-21 | 4 | EXP-014a `a1` (KL 0): 200 steps at 40.3 s/step (no reference forward at beta 0) + four dev evals (8e94fb5) | TIR H100 SXM 80 GB | 2.40 | INR 910 (USD 10.8) | about 45 M | about 31 M | peak 63.9 GB; projection 0.90x the estimate |
 | 2026-10-21 | 4 | EXP-014b `a2` (dynamic sampling): 200 steps at 85.3 s/step (64 groups generated, 32 kept) + four dev evals | TIR H100 SXM 80 GB | 4.91 | INR 1,861 (USD 22.2) | about 118 M | about 59 M | peak 70.4 GB; 1.34x the estimate at step 10, 1.23x at the end |
@@ -91,10 +109,14 @@ notebook's whole-life invoice line (28.1 h, INR 10,640) is recorded with the Pha
 | 2026-10-21 | 4 | additions at the user's request (16:33-16:48 UTC): offline KL of three finals vs `rft` (twice), a1 zero-shot eval (4.4 min), addendum 2 | TIR H100 SXM 80 GB | 0.25 | INR 95 (USD 1.1) | about 1 M | 0 | 8 GPU-minutes of work |
 | 2026-10-21 | 4 | idle: Start to `setup` (about 5 min) and addendum 2 to the user's Delete (about 16:52 UTC) | TIR H100 SXM 80 GB (idle) | 0.15 | INR 57 | - | - | |
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-21 | 4 | TIR H100 notebook, session 2 whole life (the user's Start about 03:25 UTC to the Delete about 16:52 UTC, 21 Oct) | TIR H100 SXM 80 GB | 13.45 | INR 5,100 (USD 61) | about 270 M | about 165 M | the rows above are inside this one; plan 13.4 h / INR 5,060; GPU work 12 h 29 min with under 5 min idle between steps; nothing dropped, no run repeated; the disk billed about INR 107 a day from 20 Oct to the Delete (about INR 160) |
 
-Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 160 of disk.
+Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 160 of disk. The plan's Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost 30 % of that.
 
+| Date | Phase | Run | GPU | Hours | USD | Tokens generated | Tokens trained | Notes |
+|---|---|---|---|---|---|---|---|---|
 | 2026-10-21 | 5 | EXP-017 accuracy against tokens from the existing sample sets (379b67a) | laptop CPU | 0 | 0 | 0 | 0 | about 2 CPU-minutes; five sample sets fetched from the Hub (about 1.5 GB) |
 | 2026-10-21 | 5 | EXP-016 smoke: 0.6B base, 8 problems, budget 64 | RTX 4060 Laptop 8 GB | 0.05 | 0 | <0.01 M | 0 | the forced-stop path end to end |
 | 2026-10-21/22 | 5 | EXP-016 sweep: sft and rft at five budgets, GSM8K + MATH-500, greedy think-tag (1cf82a5) | RTX 4060 Laptop 8 GB | 8.55 | 0 | about 5.5 M | 0 | ten runs of 30-66 min, 03:01-11:34 UTC on the log's clock; the laptop slept most of the night with the job suspended (lid closed), nothing lost; two fp32 checkpoints (6.9 GB each) downloaded at 0.4-3 MB/s, about 2 h of network |
@@ -103,13 +125,18 @@ Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 16
 | 2026-10-23 | 5B | EXP-022 first reward-model run: LoRA head on Qwen3-0.6B-Base, 20,000 examples, held-out eval | RTX 4060 Laptop 8 GB | 6.5 | 0 | 0 | about 30 M | 03:01-09:31 UTC; held-out 87.9 %, AUROC 0.938; weights lost in a WSL kernel hang during the save (FAILURES_AND_LEARNINGS.md, 23 Oct); 0.95 h idle until the restart |
 | 2026-10-23 | 5B | EXP-022 rerun with the save fix (3bd2898): training, held-out eval, scoring of six n = 32 sample sets (57,600 samples), the chart | RTX 4060 Laptop 8 GB | 10.6 | 0 | 0 | about 30 M | 11:30-22:06 UTC; training 5.8 h (1,250 steps), held-out 89.4 %, AUROC 0.944; scoring 4.65 h (38-55 min a set); chart 1 min |
 | 2026-10-23 | 5B | EXP-020 GRPO control: grpo unforced greedy think-tag on the laptop, GSM8K + MATH-500 (clean WSL clone at 0d10994) | RTX 4060 Laptop 8 GB | 1.1 | 0 | about 2.3 M | 0 | 22:09-23:16 UTC; a first launch at 22:07 was refused by the harness (the main checkout held an uncommitted edit) |
+| 2026-10-24 | 7 | EXP-024 reproduction: fresh clone of 4548c00, fresh venv, the four 1.7B base greedy configs, the per-problem check | RTX 4060 Laptop 8 GB | 0.85 | 0 | about 3.3 M | 0 | 05:07-05:59 UTC on the WSL clock; environment build 1 min (uv cache), archive download 1 min, evals 0.82 h |
 | 2026-10-23 | 6 | EXP-023 trace analysis, twice (the second with the first-cycle measure and the forced split) | laptop CPU | 0 | 0 | 0 | 0 | about 15 CPU-minutes |
- The plan's
-Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost
-30 % of that.
 
 Phase 3 part: about 10.3 node-hours, INR 3,900: core 4.1 h, the gap-analysis runs 4.0 h, the
 analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A100-hours.
+
+**Final totals (24 Oct 2026, end of Phase 7).** Rented, unchanged since the Delete of 21 Oct: L4 10.55
+node-hours, A30 1.32 h, two TIR H100 notebooks 28.1 + 26.7 = 54.8 h, their disks and the dataset volume:
+**about INR 21,750 (USD 259) of the INR 22,000 (USD 262) ceiling**. Local, at INR 0: about 15.3 laptop
+GPU-hours to the end of Phase 5A, 25.9 in Phase 5B (EXP-020 5.6 + 1.1, EXP-021 2.05, EXP-022 6.5 lost + 10.6),
+0.85 in Phase 7 (EXP-024): **about 42 laptop GPU-hours**; Phase 6 and the analyses CPU only. No run after
+21 Oct rented anything.
 
 **Running totals (after Phase 4 session 2 and the Delete, 21 Oct 2026).** Rented: L4 10.55 node-hours
 (INR 524.30), A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100

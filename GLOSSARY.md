@@ -28,7 +28,7 @@ Short definitions, each with the one line you would say in an interview. Grouped
 | **partial-prompt completion test** | Contamination probe: show the model the first 60 % of a test problem and measure how often it reproduces the rest verbatim. Memorised items get completed. |
 | **perturbation test (GSM-Symbolic, GSM-Plus style)** | Rewrite test problems with different numbers or names but the same logic. The gap between original and perturbed accuracy is a memorisation signal. |
 | **truncation rate** | Fraction of responses cut off at the max token limit before producing an answer. Must be reported, because a longer model looks "worse" if truncation is silently counted as wrong. |
-| **extraction failure** | The scorer could not find an answer in the response. Counted separately from wrong answers. |
+| **extraction failure** | The scorer could not find an answer in the response. Scored wrong in the accuracy, and reported as its own rate next to it so a format problem can be told from a math problem. |
 | **format rate** | Fraction of responses with well-formed `<think>…</think><answer>…</answer>` tags. |
 | **math-verify** | Library that parses and compares mathematical answers so that `1/2`, `0.5` and `\frac{1}{2}` count as equal. |
 
