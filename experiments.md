@@ -18,6 +18,51 @@ Template:
 
 ---
 
+## Index
+
+Every entry, in id order (the entries below are in the order they were written). Status in short; the entry carries the full one.
+
+| id | question | phase | status |
+|---|---|---|---|
+| EXP-000 | Harness self-consistency: three identical greedy evals agree | phase 0 | done |
+| EXP-001 | Base-model greedy baselines against the Qwen3 technical report | phase 1 | done |
+| EXP-002 | The pass@k ceiling: how much is latent in sampling? | phase 1 | done |
+| EXP-003 | Contamination and memorisation baselines of the base model | phase 1 | done |
+| EXP-003b | Names-only perturbation: is the GSM8K gap recall or arithmetic? | phase 1 | done |
+| EXP-004 | Training-data overlap between OpenR1-Math-220k and every eval set | phase 2 | done |
+| EXP-005 | SFT learning-rate sweep on a 10 % subset | phase 2 | done |
+| EXP-006 | SFT on distilled traces: what the format and a competent style buy | phase 2 | done |
+| EXP-007 | LoRA r = 64 versus full fine-tune at the same data and epochs | phase 2 | not run |
+| EXP-008 | SFT data-scaling curve: 25 % / 50 % / 100 % of the filtered set | phase 2 | done |
+| EXP-009 | Solve-rate distribution of the SFT policy on its training prompts | phase 3 | done: sampled at a 2,048 cap, see deviation |
+| EXP-010 | Rejection-sampling fine-tuning versus SFT, paired | phase 3 | done: n = 64 on 300-problem subsets, see deviation |
+| EXP-010b | Compute-matched control: one more SFT epoch on fresh traces | phase 3 | done, with a deviation: the traces were not fresh |
+| EXP-010c | The think-tag deficit at an 8,192-token cap | phase 3 | done: decision rule written before the run |
+| EXP-010d | RFT training seeds 1 and 2 | phase 3 | done: rule written before the run |
+| EXP-010e | Token-matched control | phase 3 | done: rule written before the run |
+| EXP-010f | pass@k in the trained format: think-tag, n = 32, T = 0.6 | phase 3 | done: rule written before the run |
+| EXP-010g | RFT without the correctness filter: selection or self-distillation? | phase 4, Phase 3 ablation | done: inconclusive by construction |
+| EXP-010h | Random-two instead of shortest-two: how much of RFT's stopping effect is length selection? | phase 4, Phase 3 ablation | done |
+| EXP-010i | Matched-incorrect rejection-sampling set: the powered version of EXP-010g | phase 3 debt | not run |
+| EXP-011 | A second RFT iteration from `rft` | phase 3 | dropped |
+| EXP-012 | GRPO from `rft` against `rft`, paired: does RL beat selection, and is it sharpening or capability? | phase 4 | done: falsifier did not fire |
+| EXP-013 | Seed repeat of the main GRPO run: the noise row | phase 4 | done: MATH-500 hypothesis failed |
+| EXP-014a | Ablation A1: KL beta 0.04 versus 0 | phase 4 | done: hypothesis failed in sign |
+| EXP-014b | Ablation A2: dynamic sampling (and clip-higher) | phase 4 | done: falsifier fired |
+| EXP-014c | Ablation A3: Dr. GRPO loss normalisation | phase 4 | deferred |
+| EXP-015 | The 1,536-token cap: is the missing reasoning gain an artefact of the reward's length pressure? | phase 4 | done: falsifier fired |
+| EXP-016 | Budget forcing on the SFT and RFT checkpoints: does a decoding rule recover the termination gain? | phase 5 | done: hypothesis held on three of four clauses, falsifier did not fire |
+| EXP-017 | Accuracy against generated tokens: majority vote and pass@k from the existing sample sets | phase 5 | done: hypothesis held, falsifier did not fire |
+| EXP-018 | GRPO on a harder prompt pool (MATH levels 3-5): is the termination-only result about the prompts? | phase 5 | not run |
+| EXP-019 | DPO on finished-correct versus looping pairs: the cheapest teacher of termination | phase 5 | dropped |
+| EXP-020 | The two Phase 5 debts: the GRPO checkpoint under the stop rule, and the laptop control run | phase 5B | done: (a) held in size on one machine, mechanism clause failed; (b) falsifier fired |
+| EXP-021 | "Wait" before the stop: does sequential extension help a looping model? | phase 5B | done: hypothesis held except the "below the stop at B + 512" clause; falsifier did not fire |
+| EXP-022 | An outcome reward model on the laptop: best-of-N and weighted vote against majority vote | phase 5B | done: clauses 1, 3, 4 held, 2 failed; falsifier did not fire |
+| EXP-023 | The traces: what a loop is, where it starts, and what GRPO removed | phase 6 | done: clauses 2 and 5 held, 1 and 4 half, 3 failed on GSM8K as stated; neither falsifier's reading follows |
+| EXP-024 | Reproduction from a fresh clone: the Qwen3-1.7B-Base greedy table | phase 7 | pre-registered |
+
+---
+
 ## EXP-000  Harness self-consistency: three identical greedy evals agree      [phase 0] [status: done]
 **Question.** Section 4.1: what is the run-to-run variation of a temperature-0 vLLM eval?
 **Hypothesis.** Greedy decoding with a fixed seed is deterministic up to vLLM batching effects;
@@ -212,6 +257,11 @@ contaminated for this model, as EXP-003 said.
 **Config.** `rlvr-build-rft --per-problem-select random --seed 0 --out outputs/data/rft_random2`, the RFT config with that data and `out=outputs/train/rft_1p7b_random2`, think-tag eval; about 20 min; commit TBD.
 **Result.** `rft_1p7b_random2` (a8b9f69), 11,145 examples (hash e1815e328eb3dc9f), kept-set tokens mean 1,438 / p90 2,001 against `rft`'s 1,207 / 1,779. Paired against `rft`, think-tag greedy (`outputs/reports/phase-3-compare-random2-vs-rft.md`): **GSM8K -2.4 [-4.7, -0.1]**, perturbed -1.1 [-4.1, 1.8], MATH-500 +1.4 [-3.2, 6.0], Countdown -1.2 [-3.8, 1.6]; truncation **22.0 %** on GSM8K against `rft`'s 15.2 % (`sft` 28.1 %), 39.4 % on MATH-500 against 39.6 %; GSM8K completions 1,708 tokens against 1,426. W&B u4xl8kxf.
 **Conclusion.** The falsifier (truncation within 3 points of `rft`'s on both sets) did not fire: GSM8K truncation is 6.8 points higher, so about half of RFT's 12.9-point stopping effect on GSM8K is length selection, and the accuracy cost (-2.4, CI excluding 0, just outside the hypothesised 2) goes with it. On MATH-500, where even the shortest correct traces are long, truncation is unchanged and the stopping effect is entirely the finished-only filter. Report section 3.
+
+## EXP-011  A second RFT iteration from `rft`      [phase 3] [status: dropped (19 Oct 2026, the user's call before the session; never run)]
+**Question.** Does a second round of rejection sampling from `rft`, same recipe, buy as much as the first?
+**Hypothesis (from `docs/phase-3-plan.md`).** Under half the first iteration's gain (the plateau ReST-EM reports).
+**Why dropped.** Phase 3's budget went to the compute-matched control (EXP-010b), without which RFT's gain could not be told from "one more epoch of anything"; the second iteration's diminishing-return row is not reported. The decomposition later showed RFT's gain is termination, which GRPO then took further; a second selection round would most likely have bought more of the same stopping.
 
 ## EXP-012  GRPO from `rft` against `rft`, paired: does RL beat selection, and is it sharpening or capability?      [phase 4] [status: done (20-21 Oct 2026, H100 session 1; falsifier did not fire)]
 **Question.** Q1 (the GRPO term), Q5, Q7, Q9, Q10. PLAN.md Phase 4 steps 3 and 7: the central experiment, at shape B (`docs/phase-4-plan.md`, section 2).

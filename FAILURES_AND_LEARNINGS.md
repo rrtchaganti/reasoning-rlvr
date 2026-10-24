@@ -16,6 +16,46 @@ Template:
 
 ---
 
+## Index
+
+| date | incident | phase, tags |
+|---|---|---|
+| 2026-10-14 | Git Bash converts `/mnt/c/...` paths before WSL sees them | phase 0, tooling |
+| 2026-10-14 | Ubuntu in WSL has no pip, no venv module, no passwordless sudo | phase 0, env |
+| 2026-10-14 | WSL given 12 GB starved Windows; install job killed | phase 0, env |
+| 2026-10-14 | vLLM's torch needs CUDA 13 driver; laptop driver is CUDA 12.7 | phase 0, env |
+| 2026-10-14 | `.gitignore` rule `data/` silently excluded the source package `src/rlvr/data` | phase 0, tooling |
+| 2026-10-14 | Triton cannot compile: `Python.h: No such file or directory` (WSL, no sudo) |  |
+| 2026-10-14 | Smoke run 1: 53 % of MATH-500 completions were empty (model emitted end-of-text at once) |  |
+| 2026-10-14 | Smoke run 1: Countdown completions were garbage after the pre-filled `<think>` |  |
+| 2026-10-14 | Smoke run 1: the `</answer>` stop string was stripped, so the tag rule could never fire |  |
+| 2026-10-14 | Minor: `$228 000` was extracted as `228` |  |
+| 2026-10-14 | Files written from Windows Python arrive in WSL with CRLF line endings |  |
+| 2026-10-14 | EXP-000: three "identical" greedy vLLM runs disagreed by up to 6 points |  |
+| 2026-10-14 | run_info.json wall clock excluded engine start-up |  |
+| 2026-10-14 | `outputs/reports/phase-0.md` was ignored despite the `!/outputs/reports/` rule |  |
+| 2026-10-14 | Perturbed GSM8K: two ways a "recomputed" gold can be silently wrong |  |
+| 2026-10-14 | Background GPU job killed by the assistant's memory guard, second time |  |
+| 2026-10-14 | A "better" extraction rule that made the grader worse (rejected, kept the fallback) |  |
+| 2026-10-14 | Widening a name list silently changed the perturbed GSM8K set |  |
+| 2026-10-15 | A boolean 4D attention mask is silently *added*, not applied | phase 2, training, masking |
+| 2026-10-15 | 13-gram overlap fires on template sentences; AIME24 looked 27 % contaminated | phase 2, contamination |
+| 2026-10-15 | Source uuids are not unique: 22 rows are "NaN", 11 uuids repeat | phase 2, data |
+| 2026-10-15 | The SFT smoke checkpoint never emitted `</think>`: Qwen3-Base's think tokens are untrained rows, and LoRA cannot train them | phase 2, training, tokenizer |
+| 2026-10-15 | Caught before running: pure-bf16 AdamW at LR 1e-5 cannot move most weights | phase 2, training, precision |
+| 2026-10-15 | "4096 new tokens" was 4096 minus the prompt: `max_model_len` clips the budget silently | phase 2, eval, protocol |
+| 2026-10-15 | Wall-clock estimate off by four: "about an hour" took 3 h 55 min | phase 2, eval, process |
+| 2026-10-17 | EXP-002 projected at 5-6 h; four sets took 5 h and the fifth wanted 22 more | phase 2, eval, process |
+| 2026-10-18 | A learning rate written `5e-6` in YAML is a string; the sweep's AdamW refused it | phase 2, config, training |
+| 2026-10-19 | A flag equal to its parser default lost to the config: EXP-009 sampled at 2,048 tokens, not 4,096 | phase 3, eval, harness |
+| 2026-10-19 | The compute-matched controls trained on data the SFT checkpoint had already seen | phase 3, design, controls |
+| 2026-10-20 | GRPO ran out of memory twice at the plan's micro-batch of 32 | phase 4, training, memory |
+| 2026-10-21 | CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install | phase 4, ci, tests |
+| 2026-10-22 | Two false sentences about scoring, found by reading the code against the prose | phase 1-5, docs, extraction |
+| 2026-10-23 | Batch-invariant greedy decoding is not hardware-invariant: 15-23 % of problems flip between an H100 and the laptop | phase 5, eval, reproducibility |
+| 2026-10-23 | A Hub lookup inside PEFT's save hung in the WSL kernel and lost 6.4 hours of reward-model training | phase 5, tooling, wsl |
+| 2026-10-24 | CI red on every Phase 5B commit: the reward-model smoke test imported PEFT, which CI does not install | phase 5, ci, tests |
+
 ## 2026-10-14  Git Bash converts `/mnt/c/...` paths before WSL sees them        [phase 0] [tooling]
 **Symptom.** `wsl.exe -d Ubuntu -- bash /mnt/c/.../install.sh` failed with exit 127: bash looked for
 `C:/Program Files/Git/mnt/c/...`.
@@ -352,6 +392,30 @@ a set of similar length; read the rate off every set's progress line, not the fi
 **Learning.** The cheapest set finishes first and sets the mood. Before a multi-set run, write the
 per-set token estimate down and find the most expensive set; run it first when the budget is tight,
 so a stop costs the least.
+
+## 2026-10-18  A learning rate written `5e-6` in YAML is a string; the sweep's AdamW refused it        [phase 2] [config] [training]
+**Symptom.** The three EXP-005 sweep runs died at optimiser construction on the H100 with a TypeError on `0.0 <= lr`.
+**Diagnosis.** Under YAML 1.1 (PyYAML) `5e-6` without a dot is a string, and `--set learning_rate=5e-6` produced the same; the main and scaling configs were unaffected because their dotted LR came from `pick_lr.py`. The node may not edit tracked files, so it ran with a PATH shim that appended a dotted override (`docs/phase-2-journal.md`).
+**Fix.** Numeric knobs are cast to the type of their default, with a test (3e055ad); the three YAMLs carry dotted floats.
+**Learning.** A config value's type is part of the config; parse to the default's type and test the cast, rather than trusting the file's spelling.
+
+## 2026-10-19  A flag equal to its parser default lost to the config: EXP-009 sampled at 2,048 tokens, not 4,096        [phase 3] [eval] [harness]
+**Symptom.** The pre-registered cap rule chose 4,096 for the solve-rate pass and the script passed `--max-tokens 4096`, but the samples stopped at 2,048; an n = 32 run sampled five sets instead of two; `--limit` on the perturbed GSM8K set left 67 pairs of 300 for the gap.
+**Diagnosis.** `rlvr-eval` merged flags over the config by "flag differs from the parser default", so a flag that happened to equal the default (4,096) was treated as absent and the config's 2,048 won; `--limit` on a derived set drew a subset independent of its source's.
+**Fix.** Explicitly passed flags always win, and `--limit` on a derived set follows its source's ids; both with regression tests (3e055ad). EXP-009 was kept and reported as "solved within 2,048 tokens" (`experiments.md`, deviation), since every kept trace is under 2,048 tokens.
+**Learning.** "Was this flag given?" is not "does it differ from the default"; argparse needs a sentinel default to tell them apart, and a run record should print the resolved values, which is what caught it.
+
+## 2026-10-19  The compute-matched controls trained on data the SFT checkpoint had already seen        [phase 3] [design] [controls]
+**Symptom.** Found on the laptop after the session: each control's `train_ids.json` is a subset of the SFT run's.
+**Diagnosis.** `limit=11145, subset_seed=1` selects a seeded subset of `outputs/data/sft/train.jsonl`, the 23,000 traces SFT had trained on for two epochs; the pre-registration asked for fresh traces, and the funnel had kept every usable trace, so none were fresh. A design error, not a code bug.
+**Fix.** EXP-010b and EXP-010e carry the deviation where their numbers are quoted; the claim they support is narrowed to "not more steps on the distilled distribution", not "not more data" (`experiments.md`; `docs/phase-3-engineering-notes.md`).
+**Learning.** A control's data is checked against the treatment's by id before the run, not after; "fresh" is a property to test, not to assume.
+
+## 2026-10-20  GRPO ran out of memory twice at the plan's micro-batch of 32        [phase 4] [training] [memory]
+**Symptom.** The debugging run hit CUDA OOM twice: first with 11 GiB fragmented, then with the expandable-segments allocator and vLLM at 0.30, 76.7 GiB allocated.
+**Diagnosis.** The need was real, not fragmentation: 32 completions of about 1,700 tokens over a 151,936-token vocabulary in fp32 is about 33 GB of logits, on top of 58 GB of weights, optimiser state, reference model and vLLM (`docs/phase-4-journal.md`).
+**Fix.** The user's decision at 15:23 UTC: micro-batch 16 with gradient accumulation 16 (the same 256 completions per step), vLLM at 0.30, expandable segments, for every GRPO run alike, with one fallback to 8 allowed without asking; pinned as the config default and checked by the preflight.
+**Learning.** Estimate the logits tensor (batch x length x vocabulary x bytes) before choosing a micro-batch; at a 152k vocabulary it, not the weights, sets the limit.
 
 ## 2026-10-21  CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install        [phase 4] [ci] [tests]
 **Symptom.** The Phase 4 PR (opened as a draft on 21 Oct) showed two failed checks (the workflow runs
