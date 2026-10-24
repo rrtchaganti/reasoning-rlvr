@@ -390,3 +390,18 @@ the forced answers that are right had been stated before the stop.
 checkpoint that fails to stop re-derives one step from a fixed point, the on-policy stages made that
 rarer, and a stop rule cuts it. The remaining open question is the one the budget left unrun: whether
 harder prompts (EXP-018) would make GRPO change something other than how often the loop happens.
+
+## Phase 7 (24 Oct 2026): the write-up, and one check of the whole
+
+**Known before.** Everything above; every claim re-derives from its per-sample files (the evidence
+index, 51 claims); greedy decoding is reproducible per machine (EXP-000) and not across GPUs
+(EXP-020b).
+
+**Intuition, written before the run.** The project's exit is "someone else can clone it and
+reproduce the base-model table". On the same laptop with the locked versions, a fresh clone and a
+fresh environment should reproduce EXP-001 bit for bit: the same completions, the same grades, the
+same digits.
+
+**Question and falsifier** (EXP-024). Does it? Any differing completion on the same machine would
+mean the run record misses something that determinism depends on, and the same-machine claims of
+Phases 5 and 5B would need a second look.

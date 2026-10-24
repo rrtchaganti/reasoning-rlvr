@@ -3,7 +3,10 @@
 Written 24 Oct 2026 on branch `phase-7-write-up`, after Phases 5B and 6 merged (PR #8, tags
 `phase-5b`, `phase-6`). This is `PLAN.md`'s Phase 8, renumbered (`docs/plan-after-phase-4.md`
 section 3). No rental, no new training. The one GPU job is the reproduction check (W8), about 1.2
-laptop hours. **Status: draft for the user's edits; nothing below is built yet.**
+laptop hours. **Status (24 Oct 2026): the user took the recommendations of section 5: a slim README,
+the repo public after the merge (the user's action), a fresh environment for EXP-024, the model
+cards extended (pushed with the user's token at the end); the blog post and the short post are
+paused.**
 
 ## 1. Goal and exit
 
