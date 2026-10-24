@@ -1,305 +1,201 @@
 # reasoning-rlvr: where does post-training gain come from?
 
 A controlled study of the reasoning post-training recipe on one small base model. Starting from
-Qwen3-1.7B-Base, each stage of the recipe (SFT on distilled traces, rejection-sampling fine-tuning,
-GRPO with a verifiable reward) is trained at a stated compute budget and scored the same way: greedy,
-paired on shared problems, 95 % bootstrap confidence intervals, a pre-registered hypothesis and
-falsifier per run, three contamination probes, a seed-noise row, and a compute ledger. The question
-the study asks is not "does the recipe work" but **what each stage buys, and whether what it buys is
-reasoning, sharpening, or something cheaper**.
+Qwen3-1.7B-Base, each stage (SFT on distilled traces, rejection-sampling fine-tuning, GRPO with a
+verifiable reward) is trained at a stated compute budget and scored the same way: greedy, paired on
+shared problems, 95 % bootstrap confidence intervals, a hypothesis and falsifier written before each
+run, three contamination probes, a seed-noise row, and a compute ledger. The question is not "does
+the recipe work" but **what each stage buys, and whether what it buys is reasoning, sharpening, or
+something cheaper**.
 
-**The answer so far (21 Oct 2026, four phases run, about 55 H100 node-hours).** Every stage beats the one
-before it in the format it was trained in, with CIs clear of zero. Decomposed per problem, the whole
-paired gain of both on-policy stages (RFT, then GRPO) sits on problems the previous policy failed to
-terminate; on problems both policies finished, accuracy did not move. Sampling tells the same story:
-pass@k on GSM8K is pure sharpening, and on MATH-500 GRPO reaches a few problems RFT never solved in 32
-tries (+1.9 [0.4, 3.5] at k = 16), the one signal that is not termination. Against the base model's
-own best prompt the three stages add +6 on GSM8K and +11 on MATH-500, so the pipeline did add
-something a user could not get for free, but **at 1.7B and one GPU-day per method, on-policy
-post-training in the trained format taught the model to stop looping and answer, and little else**.
-Session 2 tested whether that was an artefact of the 1,536-token training cap: a 2,048-token cap, the
-reference model off, and dynamic sampling each bought more or less of the same stopping and nothing
-on the problems both policies finish (EXP-015's falsifier fired; section 4), so the result is a
-property of the method at this scale, data and budget. No on-policy stage after SFT moved the
-best-prompt accuracy beyond noise. Phase 5, with no rental, then asked what the termination gain is
-worth: **a decoding rule that forces the stop on the SFT checkpoint gains +4.6 / +7.2 on GSM8K /
-MATH-500 at 1,536 tokens, more than RFT's whole gain on the same machine (+2.9 / +4.6); on the RFT
-checkpoint it matches GRPO within the CI at fewer tokens; and voting over two to four samples of the
-earlier checkpoints matches or beats the GRPO policy's greedy number** (sections 4 and 6). To within
-the CIs, the training taught what a stop rule provides. Phase 6 read the text: a trained checkpoint
-that fails to stop re-derives one 100-190-word step from about word 500 (GSM8K) or 800 (MATH-500)
-on, more room adds cycles, and RFT and GRPO made that failure rarer without changing its shape.
+About 55 H100-hours and 11 L4-hours of rented compute (USD 260, under the USD 262 ceiling) and about
+40 laptop GPU-hours, 14-24 Oct 2026. Checkpoints and every sample:
+[`Raviteja546`](https://huggingface.co/Raviteja546) on Hugging Face.
 
-Chain of questions across phases: [`docs/research-narrative.md`](docs/research-narrative.md). Plan
-and rigour standards: [`PLAN.md`](PLAN.md). Pre-registration: [`experiments.md`](experiments.md).
-Process: [`WORKFLOW.md`](WORKFLOW.md). Engineering notes and journals per phase:
-[`docs/`](docs/README.md). Background: [`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md),
-[`GLOSSARY.md`](GLOSSARY.md), [`PHASES_IO_AND_HYPERPARAMS.md`](PHASES_IO_AND_HYPERPARAMS.md).
-Checkpoints and sample sets: [`Raviteja546`](https://huggingface.co/Raviteja546) on Hugging Face.
+## The answer, in five findings
 
-## 1. The finding in one table
+Each finding cites its claim in the evidence index (`outputs/reports/evidence/`), which re-derives
+the number from the per-sample files and lists the problems behind it.
+
+1. **The on-policy gains are termination.** Every stage beats the one before it in the format it was
+   trained in, with CIs clear of zero. Decomposed per problem, the whole paired gain of RFT and of
+   GRPO sits on problems the previous policy did not finish; on problems both finished, accuracy does
+   not move (GRPO over RFT, MATH-500: +10.2 [7.4, 13.2] on the truncated problems, 0.0 [-4.3, 3.9] on
+   the both-finished ones; P3-04, P4-02).
+2. **A decoding rule buys the same thing for free.** Appending `</think><answer>` at a token budget
+   lifts the SFT checkpoint by +4.6 [3.4, 6.0] / +7.2 [4.0, 10.4] (GSM8K / MATH-500) at 1,536 tokens,
+   more than RFT's whole gain and three quarters of GRPO's, on the same machine (P5-08). With RFT and
+   GRPO both stopped at 2,048 tokens, GRPO's MATH-500 gain over RFT is gone: -0.4 [-4.4, 3.4] (P5-16).
+3. **Votes and a small verifier reach the RL policy's number.** Majority vote over two RFT samples
+   matches the GRPO policy's greedy accuracy at 2.6x the tokens, four beat it (P5-01, P5-02); with a
+   0.6B verifier trained on the laptop, the better of two RFT samples beats it by +3.0 [0.1, 6.0] /
+   +4.0 [0.2, 7.7] (P5-13). As k grows, the verifier's arg-max is over-optimised (best-of-32 is 12-13
+   points below majority-of-32 on MATH-500, P5-14); its scores used as vote weights are not.
+4. **A loop is one step repeated from a fixed point.** 96-99 % of truncated GSM8K completions contain
+   a recurring 50-word window; the repeated unit is a 100-190-word step starting near word 500 (GSM8K)
+   or 800 (MATH-500) whatever the window, so more room adds cycles, not progress. Training changed how
+   often a loop happens, not what it is (Kolmogorov-Smirnov distance SFT against GRPO 0.11-0.16; P6-01).
+5. **Greedy decoding is reproducible per machine, not across GPUs, and that changed a verdict.** The
+   same checkpoint decoded on an H100 and on the laptop flips 10-23 % of problems (P5-10, P5-18). Paired
+   across machines, GRPO under the stop rule read as "no gain" (+0.2); paired on one machine it is +2.0
+   [0.6, 3.6] on MATH-500 (P5-11).
+
+Against the base model's own best prompt (zero-shot), the three stages add +6 on GSM8K and +11 on
+MATH-500, so the pipeline did add something a user could not get for free. **At 1.7B and about one
+GPU-day per method, on-policy post-training in the trained format taught the model to stop looping and
+answer, and little else;** a stop rule, two votes or a small verifier recover most of it.
+
+## The one table
 
 Qwen3-1.7B-Base, greedy, think-tag format (the format the RL stages train in), 4,096-token window.
-Each stage's gain is paired against the previous checkpoint on shared problems. "On truncated" is the
-part of that gain that sits on problems the previous policy did not finish; "both finished" is the
-paired accuracy difference restricted to problems both policies answered (`scripts/decompose_gain.py`,
-`outputs/reports/phase-4.md` section 4.5).
+Each gain is paired against the row's reference on shared problems. "On truncated" is the part of the
+gain on problems the reference did not finish; "both finished" is the paired difference on problems
+both answered (`scripts/decompose_gain.py`). Rows 1-6 ran on the H100, rows 7-8 on the laptop, each
+against a reference decoded on the same machine.
 
-| stage (experiment) | GSM8K gain | on truncated | both finished | MATH-500 gain | on truncated | both finished | truncation GSM8K / MATH-500 |
-|---|---|---|---|---|---|---|---|
-| base, think-tag | 61.8 | | | 44.8 | | | 36 / 20 % |
-| SFT, 23k distilled traces (EXP-006) | +13.0 [10.0, 15.8] | not split | | +5.8 [0.6, 11.0] | not split | | 28 / 52 % |
-| RFT, one round of selection (EXP-010) | +3.3 [1.0, 5.8] | +6.9 [5.2, 8.6] | -0.8 [-2.5, 0.9] | +5.8 [1.6, 10.2] | +12.2 [8.8, 15.6] | -2.5 [-7.0, 1.5] | 15 / 40 % |
-| GRPO, 200 steps (EXP-012) | +4.1 [2.0, 6.1] | +4.2 [3.0, 5.5] | +1.1 [-0.6, 2.8] | +7.0 [2.8, 11.0] | +10.2 [7.4, 13.2] | 0.0 [-4.3, 3.9] | 5 / 21 % |
-| ablation, KL off (EXP-014a), against the GRPO run | +2.2 [0.4, 4.0] | +2.0 [1.3, 2.7] | +1.0 [-0.7, 2.7] | +5.6 [1.6, 9.4] | +5.4 [3.4, 7.6] | +2.7 [-1.3, 6.5] | 2 / 13 % |
-| ablation, 2,048 cap (EXP-015), against the GRPO run | +0.2 [-1.7, 2.2] | +2.4 [1.6, 3.3] | +1.1 [-0.6, 2.9] | -2.6 [-6.4, 1.2] | +3.2 [1.6, 4.8] | +1.2 [-3.0, 5.2] | 10 / 26 % |
-| final, think-tag | 82.3 | | | 63.4 | | | |
-| final, zero-shot (the model's best prompt) | 84.3 (base 77.9) | | | 64.4 (base 53.8) | | | |
+| row | GSM8K gain | on truncated | both finished | MATH-500 gain | on truncated | both finished |
+|---|---|---|---|---|---|---|
+| 1. base, think-tag (accuracy) | 61.8 | | | 44.8 | | |
+| 2. SFT, 23k distilled traces, vs base (EXP-006) | +13.0 [10.0, 15.8] | not split | | +5.8 [0.6, 11.0] | not split | |
+| 3. RFT, one round of selection, vs SFT (EXP-010) | +3.3 [1.0, 5.8] | +6.9 [5.2, 8.6] | -0.8 [-2.5, 0.9] | +5.8 [1.6, 10.2] | +12.2 [8.8, 15.6] | -2.5 [-7.0, 1.5] |
+| 4. GRPO, 200 steps, vs RFT (EXP-012) | +4.1 [2.0, 6.1] | +4.2 [3.0, 5.5] | +1.1 [-0.6, 2.8] | +7.0 [2.8, 11.0] | +10.2 [7.4, 13.2] | 0.0 [-4.3, 3.9] |
+| 5. GRPO, KL off, vs GRPO (EXP-014a) | +2.2 [0.4, 4.0] | +2.0 [1.3, 2.7] | +1.0 [-0.7, 2.7] | +5.6 [1.6, 9.4] | +5.4 [3.4, 7.6] | +2.7 [-1.3, 6.5] |
+| 6. GRPO, 2,048 cap, vs GRPO (EXP-015) | +0.2 [-1.7, 2.2] | +2.4 [1.6, 3.3] | +1.1 [-0.6, 2.9] | -2.6 [-6.4, 1.2] | +3.2 [1.6, 4.8] | +1.2 [-3.0, 5.2] |
+| 7. SFT with the stop forced at 1,536, vs SFT (EXP-016) | +4.6 [3.4, 6.0] | +4.7 [3.4, 6.0] | -0.1 [-0.3, 0.0] | +7.2 [4.0, 10.4] | +8.8 [6.0, 11.6] | -2.7 [-5.4, -0.4] |
+| 8. GRPO vs RFT, both stopped at 2,048 (EXP-020) | +1.6 [-0.4, 3.6] | | | -0.4 [-4.4, 3.4] | | |
+| final GRPO, think-tag / zero-shot (accuracy) | 82.3 / 84.3 (base zero-shot 77.9) | | | 63.4 / 64.4 (base zero-shot 53.8) | | |
 
 Three facts make the decomposition a conclusion rather than a correlation. The truncated generations
-are loops, not slow solutions: at an 8,192-token cap they still do not finish and accuracy moves by
-under a point (EXP-010c). Half of RFT's stopping effect on GSM8K is the length filter itself: choosing
-two random correct traces per problem instead of the two shortest costs 2.4 [0.1, 4.7] points
-(EXP-010h). And the seed repeat of GRPO lands 4.8 points lower on MATH-500 for the same reason: it
-truncates 34 problems RFT had finished, against 23 for seed 0, with no difference in accuracy among
-finished answers (EXP-013). The 4.8 is the project's noise row on MATH-500, larger than most MATH-500
-gains people report at this scale with one seed. Session 2 added two more reads: with the reference
-model off the policy drifts 15 times further from RFT, halves its length and gains again only on
-problems the main run truncated, with nothing under zero-shot (EXP-014a); with a 2,048-token cap the
-both-finished difference and pass@16 do not move (EXP-015). Dynamic sampling changed nothing
-(EXP-014b).
+are loops, not slow solutions: at an 8,192-token cap they still do not finish (EXP-010c). Half of
+RFT's stopping effect on GSM8K is the length filter itself: two random correct traces per problem
+instead of the two shortest cost 2.4 [0.1, 4.7] points (EXP-010h). And the GRPO seed repeat lands 4.8
+points lower on MATH-500 for the same reason, more truncations, with no difference among finished
+answers (EXP-013); 4.8 is the project's noise row on MATH-500.
 
-## 2. How the question arose, phase by phase
+## The one chart
 
-Each phase's question came from the previous phase's numbers; the record is in
-[`docs/research-narrative.md`](docs/research-narrative.md), with the predictions written before each run.
+![Accuracy against generated tokens on the pinned 300-problem subsets](outputs/reports/figures/final-accuracy-vs-tokens.png)
 
-1. **Phase 0.** Three identical greedy evals differed by up to 6 points because vLLM's default scheduler
-   is not batch-invariant; with batch-invariant mode they are bit-identical. The harness is deterministic
-   before any model is compared (EXP-000).
-2. **Phase 1.** The base model does 12 points better on MATH-500 with a bare instruction than with four
-   Minerva shots, and the think-tag format the RL stages need costs it 16 points on GSM8K because 36 %
-   of generations loop. pass@64 is 98.8 / 87.8 / 63.8 (GSM8K / MATH-500 / Countdown), so the latent
-   headroom is large everywhere (EXP-001, 002). Two bars were set here: every trained model is read
-   against the base model's best prompt, and every gain in the trained format is read against the loops.
-3. **Phase 2.** SFT on distilled traces teaches the format (+13.0 on GSM8K in that format) but the
-   trained format still loses to zero-shot because a quarter to a half of its generations never
-   terminate (EXP-006). Data scaling buys +4.0 [1.4, 6.7] on GSM8K from 25 to 100 % of the data
-   (EXP-008). The question written at the end of this phase, "better at mathematics or better at
-   stopping", became the project's question.
-4. **Phase 3.** Rejection sampling keeps only finished correct traces, so it selects for stopping whether
-   intended or not. The controls were designed for that: the same tokens of distilled data gain nothing
-   (EXP-010b, 010e), the loops do not finish at 8,192 tokens (EXP-010c), and the gain persists to k = 32
-   in the trained format but the SFT and RFT pass@k curves coincide under 4-shot CoT (EXP-010f). Two
-   mechanisms were still confounded, the correctness filter and the length filter, and two ablations were
-   added to separate them (EXP-010g, 010h).
-5. **Phase 4, session 1.** GRPO from the RFT checkpoint, 32 prompts x 8 samples, 200 steps, reward 1 only
-   for a finished, well-formed, correct answer. Beats RFT on every set; the per-problem decomposition
-   above; a seed repeat for the noise row; pass@k for sharpening versus capability. The method was stable
-   (KL 0.006, no clipping, no hacking signal), the reward plateaued by step 50, and 30 % of groups had
-   zero variance throughout.
+Every way of spending tokens on the same 300 problems per set: greedy with the stop forced at a
+budget (solid, laptop), the unforced greedy run ("no stop"), majority vote over k samples (dashed,
+H100 samples), and the verifier-weighted vote over RFT's samples (dotted). The table with CIs:
+`outputs/reports/figures/final-accuracy-vs-tokens.md`.
 
-## 3. What every number carries
+## What failed
 
-- **Paired comparisons with CIs.** Every difference between checkpoints is computed per problem on shared
-  ids with a 95 % bootstrap CI over problems; a difference whose CI covers zero is reported as such.
-- **A deterministic harness.** `rlvr-eval` runs batch-invariant vLLM; three identical evals are
-  bit-identical. Extraction rules are unit-tested and logged. The 4-shot-CoT rows reproduce the Qwen3
-  technical report within 1-2 points (EXP-001).
-- **Pre-registration.** Each run has a hypothesis, a metric and a falsifier in `experiments.md` before it
-  starts. Failed predictions are kept: Countdown doubled under GRPO when the plan said it would not move;
-  the seed-to-seed noise on MATH-500 was 4.8 against a predicted 3; EXP-010g had no power by construction.
-- **Controls that cost compute.** Token-matched and step-matched controls, a cap experiment, a
-  no-correctness-filter run, a random-selection run, a seed repeat. One design error is recorded where
-  the number is quoted: the Phase 3 controls trained on a seen subset of the SFT data, so they support
-  "not more steps on the distilled distribution", not "not fresh traces".
-- **Three contamination probes**, on the base model and after every stage: 13-gram and fuzzy overlap
-  between every training set and every eval set (3 of 500 MATH-500 items dropped from training), a
-  perturbed GSM8K twin with a names-only control (the 10-point gap is arithmetic brittleness, not
-  recall), and a partial-prompt completion probe. No stage added a memorisation signal.
-- **From-scratch references, checked against the library.** `src/rlvr/ref/` holds the GRPO loss with its
-  three aggregations, group advantages, the k1/k2/k3 KL estimators, unbiased pass@k, the SFT loss and a
-  minimal sampler, each under tests. The TRL + vLLM trainer used for the scaled runs matches the
-  reference loss to 1e-9 and its gradients to 1.4e-5 in fp32 (`scripts/grpo_correctness_check.py`).
-- **A reward-hacking watch** on every RL run, five flags read off the per-step statistics: length growth
-  without accuracy, format-only outputs, groups agreeing on one wrong answer, "wait" spam, truncation
-  rising; plus the KL, clip-fraction and zero-variance-group curves. Diagnoses go to
-  `FAILURES_AND_LEARNINGS.md` with the plot that revealed each.
-- **A compute ledger.** `COMPUTE.md` lists every run's GPU-hours, tokens and cost; the project stands at
-  about 55 H100 node-hours and 11 L4-hours, about USD 260, against a stated ceiling of USD 262.
-- **An evidence index.** The quoted claims (51 across Phases 1 to 6, 47 of them with a number to
-  re-derive and 4 pointing at files) are listed in `configs/evidence/claims.yaml` with the runs they
-  rest on; `scripts/evidence.py` re-derives each number from the per-sample files, checks it against
-  the quoted one, and writes the problems and completion excerpts behind it to
-  `outputs/reports/evidence/<id>.md`. The index (`outputs/reports/evidence/README.md`) shows every
-  quoted and re-derived number side by side; on 23 Oct 2026 every one agrees.
-  `docs/evidence-index.md` explains how to read a claim file.
-- **Reproducibility.** Every run is a config plus a commit hash; a preflight compares the resolved
-  config with the plan's table, the prompt file with its committed manifest hash, the start checkpoint
-  with the run it came from, and the eval subsets with their pinned hashes before a rented GPU starts;
-  the harness refuses to run on a dirty tree; CI runs ruff and the CPU tests (193 in the gate) on every
-  push.
+Each was a prediction written before its run (`experiments.md`); the entry says what it changed.
 
-## 4. What session 2 and Phase 5 found, and what comes next
+- **Determinism (EXP-000).** Three identical greedy evals differed by up to 6 points under vLLM's
+  default scheduler; batch-invariant mode fixed it on one machine.
+- **The machine term (EXP-020b).** Predicted under 2 % of problems flipping across GPUs; measured
+  10-23 %. Every comparison against an unforced checkpoint was re-paired on one machine, which
+  reversed EXP-020a's first reading and shrank EXP-016's first-quoted gain (+5.8 / +9.0 to +4.6 / +7.2).
+- **The noise row (EXP-013).** Predicted under 3 points seed-to-seed on MATH-500; measured 4.8.
+- **Countdown (EXP-012).** Predicted flat; it doubled, and decomposed as termination.
+- **KL off (EXP-014a).** Predicted within noise; it landed above the main run, by termination.
+- **Dynamic sampling and the cap (EXP-014b, 015).** Both falsifiers fired: neither changed anything
+  on the problems both policies finish.
+- **The unfiltered RFT set (EXP-010g).** No power by construction (93 % of its traces were correct).
+- **Forced answers (EXP-016, 020a).** Predicted to be right as often as finished ones; they are right
+  about half the time for SFT and RFT, 17-22 % for GRPO.
+- **The verifier at k = 4 (EXP-022).** Predicted to beat majority vote by 1-3 points on MATH-500; it
+  did not; its arg-max collapses at k = 32.
+- **Loop onset (EXP-023).** Predicted late in the budget; loops start early, at a fixed position.
 
-**Session 2 (21 Oct 2026; `outputs/reports/phase-4.md` sections 10-18).** Three one-knob runs from the
-same checkpoint, read against the noise row. The pre-registered prediction for the cap run was that the
-both-finished paired difference against RFT would rise by at least 2 points and pass@16 by at least 3;
-the falsifier was both inside the main run's CIs. Both-finished came out at 0.0 [-4.1, 4.1] and pass@16
-at +0.8 [-0.6, 2.3], so the falsifier fired. The reference model off was predicted to land within
-noise; it landed above the main run on three sets, at half the length, 15 times further from RFT, with
-the gain again on problems the main run truncated and nothing under zero-shot. Dynamic sampling, built
-for the third of groups with zero variance, changed nothing: the prompt filter had already left 32
-informative groups in 199 steps of 200. Every claim and every failed prediction is in the registry.
+Every incident that changed a number, and its fix, is in `FAILURES_AND_LEARNINGS.md` (indexed).
 
-**Phase 5, option A (21-22 Oct 2026, no rental; `outputs/reports/phase-5.md`).** Two free tests of
-what the termination gain is worth. EXP-017, from the existing sample sets: voting over two RFT
-samples matches the GRPO policy's greedy number at 2.6x the tokens and four samples beat it at 5x
-(+3.9 [1.1, 6.7] GSM8K, +7.6 [3.8, 11.4] MATH-500); from four samples on, the majority-vote curves of
-SFT, RFT, GRPO and the cap run coincide; the untrained base under a 4-shot prompt with 16 votes
-matches GRPO's greedy GSM8K number and never its MATH-500 number. EXP-016, on the laptop: forcing
-the stop (append the closing tags at a token budget, no training) on the SFT checkpoint gains +4.6
-[3.4, 6.0] GSM8K and +7.2 [4.0, 10.4] MATH-500 at 1,536 tokens against the same checkpoint decoded on
-the same machine, more than RFT's whole same-machine gain (+2.9 / +4.6); on the RFT checkpoint at
-2,048 it stands at -1.4 [-3.4, 0.6] and +0.6 [-3.2, 4.4] against GRPO at fewer tokens. The forced
-answers are right about half the time, so the loops hold a usable derivation, not a finished one.
-Both pre-registered hypotheses held and neither falsifier fired. The first-quoted EXP-016 numbers
-(+5.8 / +9.0) paired laptop runs with H100 runs; EXP-020 showed why that matters (below).
+## What every number carries
 
-**Phase 5B (22-24 Oct 2026, laptop, no rental).** EXP-020: the same checkpoint decoded greedily on the
-H100 and on the laptop differs on 15-23 % of problems (net +0.6 to +1.8 points), so batch-invariant
-decoding is reproducible per machine, not across GPUs; every EXP-016 comparison was re-paired on one
-machine, and the "cost of the rule" first reported was mostly that machine term. Forcing the stop on
-the GRPO checkpoint at 2,048 gains +2.0 [0.6, 3.6] on MATH-500 at 27 % fewer tokens against its own
-same-machine run (the first, cross-machine pairing read this as nothing), and with RFT and GRPO both
-stopped at 2,048, GRPO's MATH-500 gain over RFT is gone (-0.4 [-4.4, 3.4]; +1.6 [-0.4, 3.6] on GSM8K). EXP-021: appending "Wait" before the stop equals the plain stop at
-the same total tokens on all four cells; a looping model given "Wait" mostly loops on. EXP-022, an
-outcome reward model trained on the laptop (a LoRA head on Qwen3-0.6B-Base, 20,000 of SFT's labelled
-samples), reached 89.4 % held-out accuracy (AUROC 0.944): with it, two RFT samples beat the GRPO
-policy's greedy number (+3.0 [0.1, 6.0] / +4.0 [0.2, 7.7]), but its arg-max is over-optimised as k
-grows (best-of-32 is 12-13 points below majority-of-32 on MATH-500), while the reward-weighted vote
-stays at or above majority vote at every k.
+- **Paired comparisons with CIs**, per problem on shared ids, 95 % bootstrap over problems; a
+  difference whose CI covers zero is reported as such; pairs only within one machine.
+- **A deterministic harness** (`rlvr-eval`, batch-invariant vLLM, unit-tested extraction); its 4-shot
+  CoT rows reproduce the Qwen3 technical report within 1-2 points (EXP-001).
+- **Pre-registration**: hypothesis, metric and falsifier in `experiments.md` before each run (36
+  entries, indexed); the chain of questions in `docs/research-narrative.md`.
+- **Controls that cost compute**: token- and step-matched SFT controls, a cap experiment, an
+  unfiltered and a random-selection RFT set, a seed repeat, same-machine controls for every
+  cross-machine pair. One design error is recorded where its number is quoted: the Phase 3 controls
+  trained on data SFT had already seen.
+- **Three contamination probes** on the base model and after every stage: 13-gram and fuzzy overlap,
+  a perturbed GSM8K twin with a names-only control, partial-prompt completion. No stage added a
+  memorisation signal.
+- **From-scratch references checked against the library**: the GRPO loss (three aggregations), group
+  advantages, k1/k2/k3 KL, unbiased pass@k, the SFT loss, a sampler (`src/rlvr/ref/`, tested); the
+  TRL + vLLM trainer matches the reference loss to 1e-9 and its gradients to 1.4e-5 in fp32.
+- **A reward-hacking watch** on every RL run (length without accuracy, format-only outputs, groups
+  agreeing on a wrong answer, "wait" spam, rising truncation); no flag fired.
+- **An evidence index**: 51 quoted claims, 47 with a number, each re-derived from the per-sample files
+  with the problems and excerpts behind it; every one agrees (`docs/evidence-index.md`).
+- **A compute ledger** (`COMPUTE.md`): every run's GPU-hours, tokens and cost.
+- **Reproducibility**: a run is a config plus a commit; a preflight checks configs, prompt files and
+  eval subsets against pinned hashes; the harness refuses a dirty tree; CI runs the CPU tests on every
+  push, and `scripts/ci_local.sh` runs CI's commands locally before a PR.
 
-**Phase 6 (23 Oct 2026, no GPU; `outputs/reports/phase-6.md`).** In the trained format 96-99 % of
-truncated GSM8K completions (76-90 % on MATH-500) contain a recurring 50-word window; the repeated
-unit is a 100-190-word step; it starts near word 500 (GSM8K) or 800 (MATH-500) whatever the window,
-so more room adds cycles, not progress. The training changed how often a loop happens, not what it
-is (Kolmogorov-Smirnov distances SFT against GRPO 0.11-0.16). Under zero-shot the trained checkpoints
-rewrite their whole solution after boxing the answer, which is why truncated zero-shot completions
-are usually right. Half to two thirds of the forced answers that are right had already been stated
-before the stop.
+## What comes next
 
-**What is left.** The write-up (Phase 7). GRPO on harder prompts (EXP-018), the matched-incorrect rejection-sampling set (EXP-010i) and Dr.
-GRPO (EXP-014c) stay pre-registered and unrun by the budget decision; DPO, distillation and serving
-were dropped with the reasons in `docs/plan-after-phase-4.md` section 4.
+The result is a property of the method at this scale, data and budget, and the experiment that could
+change it is pre-registered and unrun for budget: **GRPO on harder prompts** (MATH levels 3-5,
+EXP-018), where problems the policy finishes but gets wrong are common enough for the reward to teach
+something other than stopping. With ten times the compute: that run with two seeds, Dr. GRPO's loss
+normalisation (EXP-014c), and a matched-incorrect RFT set (EXP-010i). Not worth it at any compute:
+more steps of the same GRPO configuration, which plateaued by step 50.
 
-## 5. Status
+## Reproduce
 
-| Phase | State | Report |
+```bash
+# Linux or WSL2 with a CUDA GPU and uv; the Hub repos are public, no token needed.
+# Clones the repo, builds a fresh venv, reruns the four Qwen3-1.7B-Base greedy configs (about 0.8
+# GPU-hours on an RTX 4060), and pairs every completion with the archived run (EXP-024).
+curl -sSLO https://raw.githubusercontent.com/rrtchaganti/reasoning-rlvr/main/scripts/reproduce_baselines.sh
+bash reproduce_baselines.sh
+```
+
+Development setup: `bash scripts/setup_env.sh` (uv, Python 3.12, the locked vLLM, TRL and dev tools),
+then `bash scripts/check.sh` (ruff and the CPU tests). The rented-GPU sessions are
+`scripts/phase{1,2,3,4}_rental.sh`, each step resumable, with `docs/rental-setup.md` as the procedure.
+The decoding on another GPU will differ from ours on some problems (finding 5); the CIs, not the
+digits, are what should agree.
+
+## Status
+
+| phase | state | report |
 |---|---|---|
 | 0 Harness, from-scratch references | merged 14 Oct 2026, tag `phase-0` | [`phase-0.md`](outputs/reports/phase-0.md) |
-| 1 Baselines, pass@k ceiling, contamination probes | merged 14 Oct 2026 (EXP-002 completed 18 Oct), tag `phase-1` | [`phase-1.md`](outputs/reports/phase-1.md) |
-| 2 SFT on distilled traces | runs 18-19 Oct 2026 on a TIR H100; merged 20 Oct, tag `phase-2`; checkpoint `Raviteja546/reasoning-rlvr-sft` | [`phase-2.md`](outputs/reports/phase-2.md) |
-| 3 Rejection-sampling fine-tuning | runs 19 Oct 2026; merged 20 Oct (PR #4), tag `phase-3`; checkpoint `Raviteja546/reasoning-rlvr-rft` | [`phase-3.md`](outputs/reports/phase-3.md) |
-| 4 GRPO and ablations | session 1 run 20-21 Oct 2026 (EXP-010g/h, 012, 013), session 2 run 21 Oct (EXP-014a/b, 015); 26.7 node-hours, INR 10,130; merged 21 Oct (PR #5), tag `phase-4`; checkpoint `Raviteja546/reasoning-rlvr-grpo` with the ablation finals under `ablations/` | [`phase-4.md`](outputs/reports/phase-4.md) |
-| 5 Test-time compute, the cost of termination | 5A merged 22 Oct 2026 (PR #6, tag `phase-5`): budget forcing (EXP-016) and accuracy against tokens (EXP-017), INR 0, both hypotheses held. 5B run 22-24 Oct on the laptop (`docs/plan-after-phase-4.md`): EXP-020 (the machine term; GRPO under the stop rule), EXP-021 ("Wait" before the stop), EXP-022 (an outcome reward model against voting) done | [`phase-5.md`](outputs/reports/phase-5.md) |
-| 6 The traces: what a loop is and what GRPO removed | EXP-023 done 23 Oct 2026, no GPU | [`phase-6.md`](outputs/reports/phase-6.md) |
-| 7 Write-up and the interview packet | after Phase 5B | |
-| dropped | DPO (EXP-019), distillation, quantisation and serving; EXP-018 (harder prompts) pre-registered and unrun by the budget decision; reasons in `docs/plan-after-phase-4.md` section 4 | |
+| 1 Baselines, pass@k ceiling, contamination probes | merged 14 Oct, tag `phase-1` | [`phase-1.md`](outputs/reports/phase-1.md) |
+| 2 SFT on distilled traces | merged 20 Oct, tag `phase-2` | [`phase-2.md`](outputs/reports/phase-2.md) |
+| 3 Rejection-sampling fine-tuning | merged 20 Oct (PR #4), tag `phase-3` | [`phase-3.md`](outputs/reports/phase-3.md) |
+| 4 GRPO and ablations | merged 21 Oct (PR #5), tag `phase-4` | [`phase-4.md`](outputs/reports/phase-4.md) |
+| 5 Test-time compute: the stop rule, votes, a verifier, the machine term | 5A merged 22 Oct (PR #6, tag `phase-5`); 5B merged 24 Oct (PR #8, tag `phase-5b`) | [`phase-5.md`](outputs/reports/phase-5.md) |
+| 6 The traces | merged 24 Oct (PR #8, tag `phase-6`) | [`phase-6.md`](outputs/reports/phase-6.md) |
+| 7 Write-up, interview packet, reproduction check | this branch | [`docs/phase-7-plan.md`](docs/phase-7-plan.md) |
 
-## 6. Full results
+Deliverables of `PLAN.md` section 1:
 
-Each number carries a 95 % bootstrap CI over problems and the commit that produced it; greedy,
-batch-invariant vLLM. Paired tables are in `outputs/reports/phase-N-compare-*.md`.
+| | deliverable | state |
+|---|---|---|
+| D1 | the evaluation harness `rlvr-eval` | done |
+| D2 | base-model baseline report | done (`phase-1.md`) |
+| D3 | contamination and memorisation report | done (Phase 1, then after every stage) |
+| D4 | four checkpoints on Hugging Face | three of four: `sft`, `rft`, `grpo` with cards; `distilled-0.6b` dropped |
+| D5 | GRPO ablations with a seed-noise row | two of three ablations plus the cap test in the third's slot (EXP-014a, 014b, 015); Dr. GRPO deferred |
+| D6 | the test-time-compute chart | done (the chart above) |
+| D7 | distillation and serving table | dropped |
+| D8 | from-scratch references with tests | done (`src/rlvr/ref/`) |
+| D9 | write-up | README, `docs/results.md`, `FAILURES_AND_LEARNINGS.md`, the interview packet; the blog post paused |
 
-**Base models (Phase 1, commit ffd3018).** pass@1 %, full eval sets.
+The reasons for each drop are in `docs/plan-after-phase-4.md` section 4.
 
-| model | prompt | GSM8K | GSM8K perturbed | MATH-500 | Countdown |
-|---|---|---|---|---|---|
-| Qwen3-1.7B-Base | 4-shot-CoT | 74.5 [72.0, 77.0] | 67.8 [64.8, 71.1] | 41.4 [37.0, 45.8] | - |
-| Qwen3-1.7B-Base | zero-shot | 77.6 [75.3, 79.9] | 70.0 [67.0, 73.1] | 53.6 [49.4, 57.6] | - |
-| Qwen3-1.7B-Base | think-tag | 61.3 [58.7, 63.8] | 50.8 [47.6, 54.5] | 43.0 [38.8, 47.4] | 1.2 [0.4, 2.2] |
-| Qwen3-0.6B-Base | 4-shot-CoT | 61.9 [59.3, 64.6] | 56.5 [53.1, 59.9] | 28.0 [24.0, 31.8] | - |
-| Qwen3-0.6B-Base | zero-shot | 64.9 [62.3, 67.5] | 59.5 [56.1, 62.9] | 37.6 [33.4, 41.6] | - |
-
-**After training** (Qwen3-1.7B-Base, greedy, 4,096-token window; paired differences against the previous
-checkpoint on shared problems; 18-21 Oct 2026, TIR H100):
-
-| checkpoint | prompt | GSM8K | GSM8K perturbed | MATH-500 | Countdown | truncated GSM8K / MATH-500 |
-|---|---|---|---|---|---|---|
-| base | think-tag | 61.8 [59.2, 64.4] | 51.4 [48.1, 54.8] | 44.8 [40.4, 49.2] | 1.2 [0.4, 2.2] | 36 / 20 % |
-| SFT (EXP-006) | think-tag | 74.8 (+13.0 [10.0, 15.8]) | 66.0 (+14.6) | 50.6 (+5.8 [0.6, 11.0]) | 3.8 (+2.6) | 28 / 52 % |
-| RFT (EXP-010) | think-tag | 78.2 (+3.3 [1.0, 5.8]) | 69.0 (+3.0) | 56.4 (+5.8 [1.6, 10.2]) | 7.0 (+3.2) | 15 / 40 % |
-| GRPO (EXP-012) | think-tag | 82.3 (+4.1 [2.0, 6.1]) | 73.9 (+4.8 [1.9, 7.6]) | 63.4 (+7.0 [2.8, 11.0]) | 14.0 (+7.0 [3.6, 10.4]) | 5 / 21 % |
-| GRPO seed 1 (EXP-013) | think-tag | 82.0 (-0.3 vs seed 0) | 73.6 (-0.2) | 58.6 (-4.8 [-9.0, -0.8]) | 14.6 (+0.6) | |
-| base | zero-shot | 77.9 [75.6, 80.1] | 69.9 | 53.8 [49.4, 58.2] | - | 1-9 % |
-| SFT | zero-shot | 82.2 (+4.3 [1.8, 6.6]) | 72.7 | 63.2 (+9.4 [5.0, 14.0]) | - | 17 / 59 % |
-| RFT | zero-shot | 81.1 (-1.1) | 74.7 (+2.0) | 64.8 (+1.6) | - | |
-| GRPO | zero-shot | 84.3 (+3.2 [1.5, 4.8]) | 74.7 | 64.4 (-0.4) | - | 16 / 65 % |
-| GRPO, KL off (EXP-014a) | think-tag | 84.5 (+2.2 [0.4, 4.0] vs GRPO) | 77.1 (+3.3) | 69.0 (+5.6 [1.6, 9.4]) | 14.8 (+0.8) | 2 / 13 % |
-| GRPO, KL off | zero-shot | 82.8 (-1.5 [-3.3, 0.3] vs GRPO) | 75.1 (+0.4) | 66.2 (+1.8 [-2.0, 5.4]) | - | 6 / 23 % |
-| GRPO, dynamic sampling (EXP-014b) | think-tag | 84.0 (+1.7 [-0.1, 3.6] vs GRPO) | 74.8 (+1.0) | 61.4 (-2.0 [-6.0, 2.0]) | 12.0 (-2.0) | 4 / 22 % |
-| GRPO, 2,048 cap (EXP-015) | think-tag | 82.5 (+0.2 [-1.7, 2.2] vs GRPO) | 72.3 (-1.6) | 60.8 (-2.6 [-6.4, 1.2]) | 12.4 (-1.6) | 10 / 26 % |
-
-**pass@k.** 4-shot-CoT, n = 64, T = 0.6: base 98.8 / 90.2 / 87.8 / 63.8 (GSM8K / perturbed / MATH-500 /
-Countdown under think-tag), SFT 98.2 / 88.8 / 93.0 / 62.0, RFT (300-problem subsets) 98.7 / 92.3 / 94.0.
-In the trained format at T = 0.6, n = 32, on pinned 300-problem subsets: RFT's gain over SFT persists at
-+2.0-2.5 to k = 32 on MATH-500; GRPO over RFT is -0.3 [-0.9, 0.3] at k = 16 on GSM8K (no problem newly
-solved in 32 tries) and +1.9 [0.4, 3.5] on MATH-500 (10 problems newly solved, 2 lost); the 2,048-cap run
-over RFT +0.8 [-0.6, 2.3] at k = 16 on MATH-500 (6 newly solved, 3 lost). Figures:
-`outputs/reports/figures/`.
-
-**Budget forcing (Phase 5, EXP-016; greedy think-tag, full sets, laptop).** SFT with the stop forced at
-768 / 1,024 / 1,536 / 2,048 / 3,072 tokens: GSM8K 77.8 / 79.8 / 80.7 / 80.6 / 80.8 (752 to 1,581 mean
-tokens), MATH-500 50.6 / 56.2 / 59.6 / 61.0 / 62.2 (776 to 2,419); RFT forced: GSM8K 78.2 / 79.8 /
-80.8 / 80.9 / 80.9, MATH-500 51.6 / 58.0 / 61.8 / 64.0 / 64.6. The same checkpoints unforced on the
-laptop: SFT 76.0 / 52.4, RFT 78.9 / 57.0 (on the H100 74.8 / 50.6 and 78.2 / 56.4; EXP-020). Paired
-against GRPO's greedy 82.3 / 63.4 (H100): RFT forced at 2,048 -1.4 [-3.4, 0.6] / +0.6 [-3.2, 4.4]; against
-GRPO decoded on the laptop (82.1 / 61.6), -1.2 [-3.2, 0.8] / +2.4 [-1.6, 6.6].
-Full table: `outputs/reports/figures/phase-5-force-stop.md`; same-machine pairings in
-`outputs/reports/phase-5.md` section 2b.
-
-**Controls.** Perturbation gap on GSM8K (numbers resampled, paired on 830 problems): 10.1 [7.0, 13.3] for
-the base, 11.6 after RFT, 11.1 [8.2, 14.1] after GRPO; a names-only control moves nothing (-0.4 [-3.3,
-2.5]). Partial-prompt verbatim completion: GSM8K 1.1 %, MATH-500 11.6 % (long held-outs), unchanged by
-training. Phase 3 ablations: the same tokens of distilled data instead of the selected traces gain nothing
-(74.8 to 74.1 GSM8K); unfiltered traces land on RFT but were 93 % correct by construction (EXP-010g, no
-power); random instead of shortest traces -2.4 [-4.7, -0.1] GSM8K (EXP-010h). GRPO training: reward 0.34
-to 0.68, finished rate 0.35 to 0.75, mean completion 1,406 to 1,201 tokens with p90 at the cap, KL 0.006,
-clip fraction 0, zero-variance groups 30 % flat, 56 s/step on one H100. KL off: offline KL to RFT 0.098
-per token against the main run's 0.006, finished rate 0.96, mean completion 611 tokens; dynamic
-sampling: 43.5 informative groups of 64 per step, one zero-advantage fill in 200 steps, 85 s/step; the
-2,048 cap: finished rate 0.82, p90 at the cap throughout, 72 s/step.
-
-## 7. Repository map
+## Where things are
 
 | where | what |
 |---|---|
-| `src/rlvr/eval/` | the harness: datasets, prompts, extraction, metrics, bootstrap CIs, batch-invariant sampler |
-| `src/rlvr/ref/` | from-scratch references: GRPO loss, advantages, KL estimators, pass@k, SFT loss, sampler |
-| `src/rlvr/train/` | `rlvr-sft` (TRL SFT, packed, flash attention) and `rlvr-grpo` (TRL GRPOTrainer + vLLM colocate, dynamic-sampling subclass, hacking watch) |
-| `src/rlvr/data/` | SFT and RFT data builders, contamination, perturbed GSM8K, partial-prompt probe |
-| `scripts/` | per-phase session scripts (rental and laptop, resumable), preflight checks, paired compares, the gain decomposition, the accuracy-against-tokens and budget-forcing analyses, plots |
-| `tests/` | about 200 CPU tests plus GPU-marked ones; `scripts/check.sh` is the gate before every commit |
-| `experiments.md` | pre-registration: hypothesis, metric, falsifier, result, conclusion per run |
-| `outputs/reports/` | one report per phase with every table, plus the paired compare tables and figures; `evidence/` holds the per-claim evidence files and their index |
-| `configs/evidence/claims.yaml` | the claims the reports make, each with its runs, rule and quoted number; `scripts/evidence.py` builds the index from it |
-| `docs/` | research narrative, per-phase engineering notes and journals, rental and handoff procedure |
-| `cards/` | model cards with config, data, compute and the eval table with CIs |
-| `COMPUTE.md`, `FAILURES_AND_LEARNINGS.md` | the ledger and the incident log |
-
-## 8. Reproduce
-
-```bash
-# inside WSL2 Ubuntu or any Linux box with a CUDA GPU; no sudo needed
-bash scripts/setup_env.sh            # uv + uv-managed Python 3.12 + vllm/trl + dev tools, writes requirements-lock.txt
-source ~/venvs/rlvr/bin/activate
-bash scripts/check.sh                # ruff + fast CPU tests (the pre-commit gate)
-python scripts/triton_check.py       # GPU sanity: a Triton kernel compiles and runs
-bash scripts/phase0_smoke.sh         # Phase 0 exit check on Qwen3-0.6B-Base
-rlvr-eval --help                     # score any HF checkpoint on GSM8K, perturbed GSM8K, MATH-500, Countdown, AIME24
-```
-
-CPU-only (what CI does): `bash scripts/setup_env.sh --cpu` then `pytest -q -m "not gpu"`. The rented-GPU
-sessions are `scripts/phase{1,2,3,4}_rental.sh`, each step resumable, with `docs/rental-setup.md` and
-`docs/e2e-session-handoff.md` as the procedure.
+| [`docs/results.md`](docs/results.md) | the long form: the plan's ten questions answered, phase by phase, every result table |
+| [`docs/research-narrative.md`](docs/research-narrative.md) | the chain of questions, with the predictions written before each run |
+| [`experiments.md`](experiments.md) | pre-registration and result of every run, indexed |
+| `outputs/reports/` | one report per phase, the paired tables and figures; `evidence/` the per-claim evidence |
+| `src/rlvr/` | `eval/` the harness, `ref/` the from-scratch references, `train/` SFT, GRPO and the reward model, `data/` builders and probes |
+| `scripts/` | session scripts (resumable), preflight, paired compares, the decomposition, the analyses and plots |
+| `tests/` | about 220 CPU tests plus GPU-marked ones |
+| [`COMPUTE.md`](COMPUTE.md), [`FAILURES_AND_LEARNINGS.md`](FAILURES_AND_LEARNINGS.md) | the ledger and the incident log |
+| `docs/` | per-phase engineering notes and journals, plans, rental procedure, background ([`METHODS_AND_METRICS.md`](METHODS_AND_METRICS.md), [`GLOSSARY.md`](GLOSSARY.md)) |
+| `cards/` | the model cards |

@@ -19,8 +19,9 @@ results arrive. Read the journal to learn the phase hands-on; read the notes to 
 | 4 GRPO and ablations | [`phase-4-engineering-notes.md`](phase-4-engineering-notes.md) | [`phase-4-journal.md`](phase-4-journal.md) |
 | 5 The cost of termination (budget forcing, accuracy against tokens) | [`phase-5-engineering-notes.md`](phase-5-engineering-notes.md) | [`phase-5-journal.md`](phase-5-journal.md) |
 | 6 The traces | [`phase-6-engineering-notes.md`](phase-6-engineering-notes.md) | [`phase-5-journal.md`](phase-5-journal.md) section 5 |
+| 7 Write-up, interview packet, reproduction check | `phase-7-engineering-notes.md` (at the end of the phase) | `phase-7-journal.md` (at the end of the phase) |
 
-Also here: [`evidence-index.md`](evidence-index.md) (how every quoted claim maps to the problems and completions behind it; the index itself is `outputs/reports/evidence/README.md`), [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
+Also here: [`results.md`](results.md) (the long form of the README: the plan's ten questions answered, every result table), [`phase-7-plan.md`](phase-7-plan.md), [`evidence-index.md`](evidence-index.md) (how every quoted claim maps to the problems and completions behind it; the index itself is `outputs/reports/evidence/README.md`), [`research-narrative.md`](research-narrative.md), the chain of questions across every phase (what was
 known, the intuition, the question, the prediction, what the run said, what it raised; no run is scheduled
 without its link there), and [`rental-setup.md`](rental-setup.md), the rented-GPU checklist used from Phase 1 on; the plan
 pages [`phase-3-plan.md`](phase-3-plan.md), [`phase-4-plan.md`](phase-4-plan.md) and

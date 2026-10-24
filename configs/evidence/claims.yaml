@@ -27,7 +27,7 @@ claims:
   - id: P1-01
     title: "zero-shot beats 4-shot CoT on the base model"
     experiment: EXP-001
-    where: "outputs/reports/phase-1.md; docs/research-narrative.md Phase 1; README section 2"
+    where: "outputs/reports/phase-1.md; docs/research-narrative.md Phase 1; docs/results.md"
     statement: "The base model does better with a bare instruction than with four Minerva shots: zero-shot 77.6 / 53.6 against 4-shot-CoT 74.5 / 41.4 on GSM8K / MATH-500 (1,024-token window, greedy)."
     rule: paired_flips
     ref: {root: P1, run: eval/base_1.7b_few_shot_cot, label: 4-shot-CoT}
@@ -36,7 +36,7 @@ claims:
   - id: P1-02
     title: "the think-tag format makes the base model loop"
     experiment: EXP-001
-    where: "outputs/reports/phase-1.md; README section 2 ('36 % of generations loop')"
+    where: "outputs/reports/phase-1.md; docs/results.md ('36 % of generations loop')"
     statement: "Under the think-tag template 36 % of the base model's GSM8K completions never terminate at 4,096 tokens."
     rule: truncation_rate
     run: {root: P1, run: eval/base_1.7b_think_tag_4096, label: base think-tag}
@@ -44,7 +44,7 @@ claims:
   - id: P1-03
     title: "the perturbation gap of the base model"
     experiment: EXP-003
-    where: "outputs/reports/phase-1.md section 3; README section 6 ('10.1 [7.0, 13.3]')"
+    where: "outputs/reports/phase-1.md section 3; docs/results.md ('10.1 [7.0, 13.3]')"
     statement: "Accuracy on the original GSM8K items minus accuracy on their number-resampled rewrites, paired on 830 problems: 10.1 [7.0, 13.3] for the 1.7B base under 4-shot CoT."
     rule: perturbation_gap
     run: {root: P1, run: eval/base_1.7b_few_shot_cot, label: base 4-shot-CoT}
@@ -53,7 +53,7 @@ claims:
   - id: P1-04
     title: "the names-only control moves nothing"
     experiment: EXP-003b
-    where: "outputs/reports/phase-1.md section 3b; README section 6 ('-0.4 [-3.3, 2.5]')"
+    where: "outputs/reports/phase-1.md section 3b; docs/results.md ('-0.4 [-3.3, 2.5]')"
     statement: "Renaming the people in the problem without touching the numbers changes accuracy by -0.4 [-3.3, 2.5] (original minus renamed), so the gap is arithmetic brittleness, not recall."
     rule: perturbation_gap
     run: {root: P1, run: eval/base_1.7b_few_shot_cot, label: base 4-shot-CoT}
@@ -66,7 +66,7 @@ claims:
   - id: P2-01
     title: "SFT teaches the format: +13.0 over the base in think-tag"
     experiment: EXP-006
-    where: "outputs/reports/phase-2.md; README sections 1 and 6"
+    where: "outputs/reports/phase-2.md; README; docs/results.md"
     statement: "SFT on 23k distilled traces lifts think-tag greedy GSM8K from 61.8 to 74.8 (+13.0 [10.0, 15.8]) and MATH-500 from 44.8 to 50.6 (+5.8 [0.6, 11.0]), paired, 4,096 window."
     rule: paired_flips
     ref: {root: P23, run: eval/base_1.7b_think_tag_4096, label: base}
@@ -84,7 +84,7 @@ claims:
   - id: P2-03
     title: "a quarter to a half of SFT's think-tag generations never terminate"
     experiment: EXP-006
-    where: "outputs/reports/phase-2.md; README section 1 (28 / 52 %)"
+    where: "outputs/reports/phase-2.md; README (28 / 52 %)"
     statement: "28 % of GSM8K and 52 % of MATH-500 think-tag completions of the SFT checkpoint are cut at the 4,096 window."
     rule: truncation_rate
     run: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
@@ -111,7 +111,7 @@ claims:
   - id: P3-01
     title: "RFT beats SFT in the trained format"
     experiment: EXP-010
-    where: "outputs/reports/phase-3.md section 1; README section 1"
+    where: "outputs/reports/phase-3.md section 1; README"
     statement: "One round of rejection-sampling fine-tuning beats SFT by +3.3 [1.0, 5.8] on GSM8K and +5.8 [1.6, 10.2] on MATH-500, think-tag greedy, paired."
     rule: paired_flips
     ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft}
@@ -120,7 +120,7 @@ claims:
   - id: P3-02
     title: "RFT halves the looping"
     experiment: EXP-010
-    where: "outputs/reports/phase-3.md; README section 1 (15 / 40 %)"
+    where: "outputs/reports/phase-3.md; README (15 / 40 %)"
     statement: "RFT's truncation at 4,096 is 15 % on GSM8K and 40 % on MATH-500, against SFT's 28 and 52."
     rule: truncation_rate
     run: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
@@ -156,7 +156,7 @@ claims:
   - id: P3-06
     title: "random instead of shortest traces costs GSM8K accuracy (half of RFT's stopping effect is length selection)"
     experiment: EXP-010h
-    where: "outputs/reports/phase-4.md section 3; README section 1"
+    where: "outputs/reports/phase-4.md section 3; README"
     statement: "Keeping two random correct traces per problem instead of the two shortest costs 2.4 [0.1, 4.7] points on GSM8K with truncation 7 points higher; MATH-500 unchanged."
     rule: paired_flips
     ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft (shortest two)}
@@ -185,7 +185,7 @@ claims:
   - id: P4-01
     title: "GRPO beats RFT paired on every set with 500 or more problems"
     experiment: EXP-012
-    where: "outputs/reports/phase-4.md section 1; README sections 1 and 6"
+    where: "outputs/reports/phase-4.md section 1; README; docs/results.md"
     statement: "Two hundred steps of GRPO from rft beat rft in the think-tag format: GSM8K +4.1 [2.0, 6.1], perturbed GSM8K +4.8 [1.9, 7.6], MATH-500 +7.0 [2.8, 11.0], Countdown +7.0 [3.6, 10.4]."
     rule: paired_flips
     ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
@@ -194,7 +194,7 @@ claims:
   - id: P4-02
     title: "the whole GRPO gain sits on problems RFT truncated"
     experiment: EXP-012
-    where: "outputs/reports/phase-4.md section 4.5; README section 1 (the table)"
+    where: "outputs/reports/phase-4.md section 4.5; README (the table)"
     statement: "Decomposed per problem, +4.2 [3.0, 5.5] of the +4.1 on GSM8K and +10.2 [7.4, 13.2] of the +7.0 on MATH-500 sit on problems rft truncated; on problems both policies finished the paired difference is +1.1 [-0.6, 2.8] and 0.0 [-4.3, 3.9]."
     rule: decomposition
     ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
@@ -205,7 +205,7 @@ claims:
   - id: P4-03
     title: "the seed row: seed 1 lands 4.8 lower on MATH-500"
     experiment: EXP-013
-    where: "outputs/reports/phase-4.md section 5; README section 1"
+    where: "outputs/reports/phase-4.md section 5; README"
     statement: "Seed 1 minus seed 0 of the main GRPO run, paired: -0.3 GSM8K, -0.2 perturbed, -4.8 [-9.0, -0.8] MATH-500, +0.6 Countdown."
     rule: paired_flips
     ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: seed 0}
@@ -214,7 +214,7 @@ claims:
   - id: P4-04
     title: "Countdown doubled when the plan said it would not move"
     experiment: EXP-012
-    where: "outputs/reports/phase-4.md section 4.2; README section 3 (the failed prediction)"
+    where: "outputs/reports/phase-4.md section 4.2; README (the failed prediction)"
     statement: "Countdown went from 7.0 to 14.0 under GRPO (+7.0 [3.6, 10.4]) with no Countdown in the training prompts; the gain sits on problems rft truncated (+11.2 of +7.0)."
     rule: decomposition
     ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
@@ -224,7 +224,7 @@ claims:
   - id: P4-05
     title: "KL off beats the main run in the trained format, by termination"
     experiment: EXP-014a
-    where: "outputs/reports/phase-4.md sections 11-12; README section 4"
+    where: "outputs/reports/phase-4.md sections 11-12; docs/results.md"
     statement: "The KL-off run is +2.2 [0.4, 4.0] GSM8K and +5.6 [1.6, 9.4] MATH-500 over the main run; decomposed, +5.4 of the +5.6 sits on problems the main run truncated and the both-finished difference is +2.7 [-1.3, 6.5]."
     rule: decomposition
     ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: main}
@@ -244,7 +244,7 @@ claims:
   - id: P4-07
     title: "the 2,048 cap does not move the both-finished difference (falsifier fired)"
     experiment: EXP-015
-    where: "outputs/reports/phase-4.md section 14; README section 4"
+    where: "outputs/reports/phase-4.md section 14; docs/results.md"
     statement: "Against rft, the cap run's both-finished paired difference on MATH-500 is 0.0 [-4.1, 4.1] (main: 0.0 [-4.3, 3.9]); against the main run it is +1.2 [-3.0, 5.2]."
     rule: decomposition
     ref: {root: P23, run: eval/rft_1.7b_think_tag, label: rft}
@@ -255,7 +255,7 @@ claims:
   - id: P4-08
     title: "pass@16: a small widening on MATH-500, 10 problems newly solved against 2 lost"
     experiment: EXP-012
-    where: "outputs/reports/phase-4.md section 6; README section 1"
+    where: "outputs/reports/phase-4.md section 6; README"
     statement: "At T = 0.6, n = 32 on the pinned subset, GRPO's pass@16 on MATH-500 is +1.9 [0.4, 3.5] over rft; 10 problems were solved by GRPO in 32 tries that rft never solved, against 2 the other way. On GSM8K no problem was newly solved."
     rule: pass_k_newly_solved
     ref: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
@@ -305,7 +305,7 @@ claims:
   - id: P5-01
     title: "voting over two RFT samples matches GRPO greedy"
     experiment: EXP-017
-    where: "outputs/reports/phase-5.md section 1; README section 4"
+    where: "outputs/reports/phase-5.md section 1; docs/results.md"
     statement: "maj@2 of rft (T = 0.6, pinned 300-problem subsets) against grpo greedy: -2.3 [-5.2, 0.7] on GSM8K at 2.6x the tokens and +0.4 [-3.4, 4.2] on MATH-500."
     rule: maj_k
     run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
@@ -315,7 +315,7 @@ claims:
   - id: P5-02
     title: "voting over four RFT samples beats GRPO greedy"
     experiment: EXP-017
-    where: "outputs/reports/phase-5.md section 1; README section 4"
+    where: "outputs/reports/phase-5.md section 1; docs/results.md"
     statement: "maj@4 of rft against grpo greedy: +3.9 [1.1, 6.7] on GSM8K and +7.6 [3.8, 11.4] on MATH-500, at 5x the tokens."
     rule: maj_k
     run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
@@ -325,7 +325,7 @@ claims:
   - id: P5-03
     title: "the untrained base under 4-shot CoT with 16 votes matches GRPO's greedy GSM8K number"
     experiment: EXP-017
-    where: "outputs/reports/phase-5.md section 1; README section 4"
+    where: "outputs/reports/phase-5.md section 1; docs/results.md"
     statement: "maj@16 of the base model under 4-shot CoT (n = 64) against grpo greedy on the 300 shared problems: +0.5 [-3.0, 4.1] on GSM8K; on MATH-500 the base never reaches it (maj@64 59.0, -5.3 [-10.7, 0.0])."
     rule: maj_k
     run: {root: HUB, run: base_1.7b_n64_few_shot_cot, label: base 4-shot}
@@ -336,7 +336,7 @@ claims:
   - id: P5-04
     title: "forcing the stop on SFT at 1,536: forced answers right half the time"
     experiment: EXP-016
-    where: "outputs/reports/phase-5.md section 2; README section 4"
+    where: "outputs/reports/phase-5.md section 2; docs/results.md"
     statement: "At budget 1,536, 33 % of SFT's GSM8K completions and 78 % of its MATH-500 completions are forced; the forced answers are right 55 % and 50 % of the time."
     rule: forced
     run: {root: LAP, run: eval/sft_force1536_think_tag, label: sft + force 1,536}
@@ -344,7 +344,7 @@ claims:
   - id: P5-05
     title: "a decoding rule recovers RFT's whole gain (same machine), and its cost is small"
     experiment: EXP-016 (re-paired 23 Oct 2026 after EXP-020b)
-    where: "outputs/reports/phase-5.md section 2b; README sections 1 and 4"
+    where: "outputs/reports/phase-5.md section 2b; README; docs/results.md"
     statement: "Against the same checkpoint decoded on the same machine, SFT with the stop forced at 1,536 gains +4.6 [3.4, 6.0] / +7.2 [4.0, 10.4]; decomposed, +4.7 / +8.8 sits on the problems SFT truncated and the rule costs -0.1 / -1.6 on problems that would have finished later (both-finished -0.1 / -2.7). The first decomposition (+7.3 / +13.2, both-finished -2.1 / -8.4) paired the laptop run with the H100 run and carried the machine term."
     rule: decomposition
     ref: {root: LAP, run: eval/sft_laptop_think_tag, label: sft (laptop)}
@@ -355,7 +355,7 @@ claims:
   - id: P5-08
     title: "SFT with the stop forced at 1,536 against SFT, same machine"
     experiment: EXP-016 (re-paired)
-    where: "outputs/reports/phase-5.md section 2b; README sections 1 and 4"
+    where: "outputs/reports/phase-5.md section 2b; README; docs/results.md"
     statement: "+4.6 [3.4, 6.0] on GSM8K and +7.2 [4.0, 10.4] on MATH-500, both runs on the laptop."
     rule: paired_flips
     ref: {root: LAP, run: eval/sft_laptop_think_tag, label: sft (laptop)}
@@ -364,7 +364,7 @@ claims:
   - id: P5-09
     title: "RFT over SFT on the same machine (the bar the rule is compared to)"
     experiment: EXP-020b
-    where: "outputs/reports/phase-5.md section 2b; README sections 1 and 4"
+    where: "outputs/reports/phase-5.md section 2b; README; docs/results.md"
     statement: "RFT's gain over SFT, both decoded on the laptop: +2.9 [0.8, 5.0] / +4.6 [0.6, 9.0]."
     rule: paired_flips
     ref: {root: LAP, run: eval/sft_laptop_think_tag, label: sft (laptop)}
@@ -373,7 +373,7 @@ claims:
   - id: P5-10
     title: "the machine term: the same checkpoint decoded on the H100 and on the laptop"
     experiment: EXP-020b
-    where: "outputs/reports/phase-5.md section 4; FAILURES_AND_LEARNINGS.md 23 Oct; README section 4"
+    where: "outputs/reports/phase-5.md section 4; FAILURES_AND_LEARNINGS.md 23 Oct; docs/results.md"
     statement: "SFT decoded greedily on the laptop against the H100: +1.2 [-0.9, 3.5] / +1.8 [-2.6, 5.8], with 232 of 1,319 and 117 of 500 problems flipping (17.6 % / 23.4 %)."
     rule: paired_flips
     ref: {root: P23, run: eval/sft_1.7b_think_tag, label: sft (H100)}
@@ -382,7 +382,7 @@ claims:
   - id: P5-11
     title: "GRPO under the stop rule, same machine: +2.0 on MATH-500 at fewer tokens"
     experiment: EXP-020a (re-paired 23-24 Oct 2026 against the GRPO laptop control)
-    where: "outputs/reports/phase-5.md section 4; README section 4"
+    where: "outputs/reports/phase-5.md section 4; docs/results.md"
     statement: "grpo + force 2,048 against grpo decoded on the same machine: +0.4 [0.0, 0.8] / +2.0 [0.6, 3.6] at 897 / 1,493 tokens against 993 / 2,049. The first pairing, against the H100 run, read +0.2 / +0.2."
     rule: paired_flips
     ref: {root: LAP, run: eval/grpo_laptop_think_tag, label: grpo (laptop)}
@@ -402,7 +402,7 @@ claims:
   - id: P5-16
     title: "under the same stop rule, GRPO and RFT are level on MATH-500"
     experiment: EXP-020a
-    where: "outputs/reports/phase-5.md section 4; README section 4"
+    where: "outputs/reports/phase-5.md section 4; docs/results.md"
     statement: "GRPO against RFT, both stopped at 2,048 on the laptop: +1.6 [-0.4, 3.6] / -0.4 [-4.4, 3.4]; unforced on the same machine +3.2 [1.2, 5.2] / +4.6 [0.6, 8.4]."
     rule: paired_flips
     ref: {root: LAP, run: eval/rft_force2048_think_tag, label: rft + force 2,048}
@@ -429,7 +429,7 @@ claims:
   - id: P5-12
     title: "Wait before the stop equals the plain stop at the same tokens"
     experiment: EXP-021
-    where: "outputs/reports/phase-5.md section 5; README section 4"
+    where: "outputs/reports/phase-5.md section 5; docs/results.md"
     statement: "sft with Wait (1,536 + up to 512) against sft forced at 2,048: +0.2 [-0.2, 0.7] / +0.2 [-1.4, 1.8] at 1,311 / 1,833 against 1,308 / 1,824 tokens."
     rule: paired_flips
     ref: {root: LAP, run: eval/sft_force2048_think_tag, label: sft + force 2,048}
@@ -438,7 +438,7 @@ claims:
   - id: P5-13
     title: "with the verifier, two RFT samples beat GRPO's greedy number"
     experiment: EXP-022
-    where: "outputs/reports/phase-5.md section 6; README section 4"
+    where: "outputs/reports/phase-5.md section 6; docs/results.md"
     statement: "Best-of-2 of rft by the 0.6B verifier against grpo greedy (H100) on the pinned 300-problem subsets: +3.0 [0.1, 6.0] on GSM8K and +4.0 [0.2, 7.7] on MATH-500, at 2.6x the tokens."
     rule: best_of_k
     run: {root: HUB, run: rft_1.7b_n32_think_tag_t06, label: rft}
@@ -458,7 +458,7 @@ claims:
   - id: P6-01
     title: "what a loop is: the trace analysis"
     experiment: EXP-023
-    where: "outputs/reports/phase-6.md; README sections 1 and 4"
+    where: "outputs/reports/phase-6.md; README; docs/results.md"
     statement: "96-99 % of truncated GSM8K completions of the trained checkpoints contain a recurring 50-word window; the unit is a 100-190-word step starting near word 500 (GSM8K) or 800 (MATH-500); KS distances SFT against GRPO 0.11-0.16; under zero-shot the whole solution repeats."
     rule: file_pointer
     note: "The per-completion measures are computed by scripts/analyse_traces.py from the first-sample files; the JSON holds every per-run summary and the PNG the onset and unit distributions. A completion's loop can be read directly in its sample file."
@@ -470,7 +470,7 @@ claims:
   - id: P5-06
     title: "RFT with the stop forced at 2,048 matches GRPO within the CI"
     experiment: EXP-016
-    where: "outputs/reports/phase-5.md section 2; README section 4"
+    where: "outputs/reports/phase-5.md section 2; docs/results.md"
     statement: "rft + force 2,048 against grpo greedy: -1.4 [-3.4, 0.6] on GSM8K and +0.6 [-3.2, 4.4] on MATH-500, at 1,125 / 1,710 tokens against grpo's 999 / 1,944."
     rule: paired_flips
     ref: {root: P4, run: eval/grpo_1.7b_think_tag, label: grpo}
@@ -502,7 +502,7 @@ claims:
   - id: X-02
     title: "the partial-prompt probe finds no verbatim completion"
     experiment: EXP-003
-    where: "outputs/reports/phase-1.md; README section 3"
+    where: "outputs/reports/phase-1.md; README"
     statement: "Given the first 60 % of a problem, the base model continues it verbatim 1.1 % of the time on GSM8K and 11.6 % on MATH-500 (long held-outs); the rate is unchanged after every stage."
     rule: file_pointer
     note: "Per-item continuations and their similarity scores are in each probe folder; the report JSON holds the rates."
