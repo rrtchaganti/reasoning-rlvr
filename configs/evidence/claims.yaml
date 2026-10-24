@@ -5,7 +5,7 @@
 roots:
   P1:
     desc: "Phase 1 greedy runs of the base models on the laptop (EXP-001, 003b; 1,024-token window except the 4,096 rerun)"
-    hub: "laptop only: outputs/eval/base_1.7b_* and outputs/probe; to be archived to the Hub dataset"
+    hub: "archives/laptop_archive_2026-10-24.tar.gz in Raviteja546/reasoning-rlvr-samples (sha256 8cbe1bdde8ab93976a2f46707bd11c7f53999402138e0025ba5d3005bc5606f1): outputs/eval/base_1.7b_* and outputs/probe"
   P23:
     desc: "Phase 2 and 3 H100 session archive (SFT, RFT, their controls, seeds, 8,192-cap runs, probes)"
     hub: "archives/h100_session_archive.tar.gz in Raviteja546/reasoning-rlvr-samples"
@@ -20,7 +20,7 @@ roots:
     hub: "the top-level folders of Raviteja546/reasoning-rlvr-samples"
   LAP:
     desc: "Phase 5 and 5B runs on the laptop: forced-stop (EXP-016, 020a), Wait (EXP-021), the unforced same-machine controls (EXP-020b)"
-    hub: "laptop only: outputs/eval/{sft,rft,grpo}_force*_think_tag, *_laptop_think_tag, *_wait512_think_tag; to be archived to the Hub dataset"
+    hub: "archives/laptop_archive_2026-10-24.tar.gz in Raviteja546/reasoning-rlvr-samples (sha256 8cbe1bdde8ab93976a2f46707bd11c7f53999402138e0025ba5d3005bc5606f1): outputs/eval/{sft,rft,grpo}_force*_think_tag, *_laptop_think_tag, *_wait512_think_tag"
 
 claims:
   # ----------------------------------------------------------------------------- Phase 1

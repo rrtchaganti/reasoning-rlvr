@@ -36,10 +36,11 @@ examples: for a paired claim, the same problem under both runs, with the tail of
 
 ## What is not in it, and what should be
 
-- The sample files of the Phase 1 base runs and probes (`outputs/eval/base_1.7b_*`, `outputs/probe`)
-  and of the Phase 5 forced-stop runs (`outputs/eval/*force*`) are on the laptop only; the roots
-  `P1` and `LAP` say so. They should go to the Hub dataset as an archive with a hash, like the
-  session archives, when a token is available.
+- The sample files of the Phase 1 base runs and probes and of every Phase 5 and 5B laptop run (the
+  roots `P1` and `LAP`) are in the Hub dataset since 24 Oct 2026 as
+  `archives/laptop_archive_2026-10-24.tar.gz`, with its SHA-256 next to it, together with the
+  outcome reward model's weights and training data; the reward model's scores sit next to the n = 32
+  sample sets they score (`scores.jsonl`).
 - Claims about training dynamics point at the reward logs and completion logs rather than listing
   problems; the completion logs (one parquet per step, 256 completions with reward and advantage) let
   any step be read.
