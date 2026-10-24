@@ -51,6 +51,7 @@ def test_auroc():
 
 @pytest.mark.slow
 def test_train_and_score_smoke_on_tiny_model(tmp_path, monkeypatch):
+    pytest.importorskip("peft")  # CI installs the CPU stack only (no peft)
     from test_train_sft import _tiny_model_and_tokenizer
 
     mdl = tmp_path / "tiny"
