@@ -50,10 +50,12 @@ blog post work for now").
   questions with their numbers (none had been answered in one place). Thirty-one claim locations
   pointed at old README section numbers and were re-pointed; the evidence index was rebuilt with 0
   disagreements.
-- **Drills and derivations (W5, W6),** 571f88f. Writing item 4 found a mechanism for an old null
-  result: clip-higher can only act when the probability ratio leaves the clip range, and with one
-  optimiser step per batch the ratio was 1 and the clip fraction 0 throughout, so EXP-014b's
-  clip-higher could not have done anything. Two sentences were corrected before the commit: the
+- **Drills and derivations (W5, W6),** 571f88f. Item 4 ties EXP-014b's null result to its
+  mechanism: clip-higher can only act when the probability ratio leaves the clip range, and with one
+  optimiser step per batch the ratio was 1 and the clip fraction 0 throughout. (Correction, 24 Oct:
+  this first said the write-up "found" the mechanism; the EXP-014b pre-registration of 20 Oct had
+  already stated that clip-higher is inert at one step per batch, and the PR #9 body repeats the
+  overstatement.) Two sentences were corrected before the commit: the
   masking bug of 15 Oct was caught by the reference test (nothing leaked into training), and the
   group-mean baseline scales the expected gradient by (G - 1) / G rather than biasing its direction.
 - **Cards,** f384223: each gets the stop rule as measured for that checkpoint and the machine term.
