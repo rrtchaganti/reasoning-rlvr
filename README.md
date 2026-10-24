@@ -194,6 +194,7 @@ The reasons for each drop are in `docs/plan-after-phase-4.md` section 4.
 
 | where | what |
 |---|---|
+| [`docs/project-journey.md`](docs/project-journey.md) | the whole project in order: each step's idea, what was done, what happened, what it changed |
 | [`docs/results.md`](docs/results.md) | the long form: the plan's ten questions answered, phase by phase, every result table |
 | [`docs/interview-packet.md`](docs/interview-packet.md) | two pages: the study, five results, the failed predictions, the papers in a line each, cost and next steps; with [`paper-notes.md`](docs/paper-notes.md), [`drills.md`](docs/drills.md), [`derivations.md`](docs/derivations.md) |
 | [`docs/research-narrative.md`](docs/research-narrative.md) | the chain of questions, with the predictions written before each run |
