@@ -53,6 +53,14 @@ MATH-500 by level, sft - base:
 - Answers are graded with math-verify on the `<answer>` block, falling back to the last `\boxed{}`, a final phrase or (numeric sets) the last number; what no rule extracts is scored wrong in the accuracy and the extraction-failure rate is reported beside it. A completion cut at the window is scored the same way, so truncated completions are often still right (the SFT checkpoint's truncated GSM8K completions: 31 %; the repo's `outputs/reports/phase-4-truncated-accuracy.md`).
 - Three MATH-500 problems and no GSM8K problem were found in the SFT source and removed before training (`outputs/reports/phase-2-data.md`); the base model's own pretraining contamination is measured in the repo's Phase 1 report and is not addressed by this checkpoint.
 
+## Stopping the loop at decode time (24 Oct 2026)
+
+In the trained format a quarter to a half of this checkpoint's greedy completions loop until the window. The rule: when a completion reaches B tokens inside its think block, append `\n</think>\n<answer>` and let the model write up to 128 more tokens (`rlvr-eval --force-stop-at B --force-stop-continue 128`).
+
+At B = 1,536, against the same checkpoint decoded unforced on the same machine (RTX 4060): GSM8K +4.6 [3.4, 6.0], MATH-500 +7.2 [4.0, 10.4], at 1,152 / 1,459 mean tokens; that is more than the RFT checkpoint's whole gain over this one and three quarters of the GRPO checkpoint's. The forced answers are right about half the time.
+
+Greedy decoding with the project's batch-invariant harness is bit-identical on one machine, not across GPUs: this checkpoint decoded on an H100 and on an RTX 4060 differs on 18-23 % of problems, so compare numbers from the same machine (the repo's `outputs/reports/phase-5.md`, section 4).
+
 ## Reproduce
 
 ```bash
