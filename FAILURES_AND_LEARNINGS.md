@@ -51,10 +51,19 @@ Template:
 | 2026-10-19 | The compute-matched controls trained on data the SFT checkpoint had already seen | phase 3, design, controls |
 | 2026-10-20 | GRPO ran out of memory twice at the plan's micro-batch of 32 | phase 4, training, memory |
 | 2026-10-21 | CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install | phase 4, ci, tests |
+| 2026-10-21 | The first EXP-016 launch downloaded every checkpoint in the SFT repo, over a slow link | phase 5, tooling, hub |
 | 2026-10-22 | Two false sentences about scoring, found by reading the code against the prose | phase 1-5, docs, extraction |
+| 2026-10-23 | The evidence index's page counted 37 claims where the file held 39 | phase 5, docs, evidence |
+| 2026-10-23 | The pre-registered "answer before the loop" measure misread the zero-shot completions | phase 6, analysis, design |
+| 2026-10-23 | The GRPO control could not start: a dirty main checkout, and a worktree WSL's git could not read | phase 5, tooling, git |
 | 2026-10-23 | Batch-invariant greedy decoding is not hardware-invariant: 15-23 % of problems flip between an H100 and the laptop | phase 5, eval, reproducibility |
 | 2026-10-23 | A Hub lookup inside PEFT's save hung in the WSL kernel and lost 6.4 hours of reward-model training | phase 5, tooling, wsl |
 | 2026-10-24 | CI red on every Phase 5B commit: the reward-model smoke test imported PEFT, which CI does not install | phase 5, ci, tests |
+| 2026-10-24 | The Hub push was refused: the laptop's cached login was a read-only token | phase 7, tooling, hub |
+| 2026-10-24 | Every table in the compute ledger after the first rendered as plain text | phase 7, docs |
+| 2026-10-24 | `git add -A` committed the user's two untracked personal notes | phase 7, git, process |
+| 2026-10-24 | `scripts/ci_local.sh` imported nothing: its venv pointed at a deleted worktree | phase 7, ci, tooling |
+| 2026-10-24 | The Phase 7 journal and the PR #9 body said the write-up had found a mechanism that was already pre-registered | phase 7, docs, claims |
 
 ## 2026-10-14  Git Bash converts `/mnt/c/...` paths before WSL sees them        [phase 0] [tooling]
 **Symptom.** `wsl.exe -d Ubuntu -- bash /mnt/c/.../install.sh` failed with exit 127: bash looked for
@@ -436,11 +445,35 @@ branch's CI status should be read after the first push of a phase, not at the PR
 the extras blocked (`scratchpad/ci_no_trl.sh`, the `sys.modules[...] = None` trick) is cheap enough to
 run before each PR.
 
+## 2026-10-21  The first EXP-016 launch downloaded every checkpoint in the SFT repo, over a slow link        [phase 5] [tooling] [hub]
+**Symptom.** The laptop sweep's first launch spent its first hour downloading: the SFT repo's ablation and control checkpoints arrived along with the root model, at 0.4-0.65 MB/s.
+**Diagnosis.** Passing a Hub repo id to vLLM makes its loader fetch every `model.safetensors` in the repo, including the ones under `ablations/` and `controls/`; the rental script had always used explicit excludes, the new laptop script did not.
+**Fix.** A `download` step with the rental script's excludes, the runs reading local copies (e3f7e81); the sweep reordered checkpoint-outer so one checkpoint's five budgets run while the next downloads (1cf82a5).
+**Learning.** Download a model to a local path with explicit includes and point the engine at the path; a repo id hands the file choice to the library.
+
 ## 2026-10-22  Two false sentences about scoring, found by reading the code against the prose        [phase 1-5] [docs] [extraction]
 **Symptom.** The Phase 1 report and the three model cards said prose answers without a box are "counted as failures, never as wrong"; several explanations in chat said a truncated completion "scores as wrong" or "yields nothing". The user's learning session (22 Oct 2026) read `grade()` and the extractor and found both false.
 **Diagnosis.** `grade(None, gold, type)` returns False: an extraction failure is scored wrong in every accuracy and additionally reported as a rate. The extractor falls back (final phrase, last number, boxed) on any completion, cut or not; measured on the archives (`outputs/reports/phase-4-truncated-accuracy.md`), truncated think-tag completions are right 31.1 % of the time on GSM8K and 13.5 % on MATH-500 for `sft` (91.9 / 90.8 % when finished), and 58.8 % under zero-shot on MATH-500 where the box precedes the loop. Only the GRPO training reward scores a cut completion 0.
 **Fix.** The report sentence, the cards and `push_to_hub.py` reworded with the numbers; the table added next to the Phase 4 decomposition (section 4.5) and cited in the Phase 5 report and notes; the three Hub cards re-pushed on 24 Oct 2026 (checked against `cards/*.md`).
 **Learning.** A mechanism sentence without its number is a guess dressed as a fact; every such sentence carries the measurement it rests on, and the code path is read before the prose is written.
+
+## 2026-10-23  The evidence index's page counted 37 claims where the file held 39        [phase 5] [docs] [evidence]
+**Symptom.** `docs/evidence-index.md` (22 Oct) said the claims file listed 37 claims; re-counting while adding the Phase 5B claims found 39.
+**Diagnosis.** The number was written by hand from a scroll through the YAML, not counted by a command.
+**Fix.** The page and the README corrected, with the miscount stated on the page (b3c6d67); later counts were taken with `grep -c "^  - id:"`.
+**Learning.** A count quoted in a document is a measurement; take it with a command, like any other.
+
+## 2026-10-23  The pre-registered "answer before the loop" measure misread the zero-shot completions        [phase 6] [analysis] [design]
+**Symptom.** The first EXP-023 run put the loop onset of zero-shot completions in their first 2-10 % and found an answer before it in only 10-41 % of them, while truncated zero-shot completions were known to be right 59-63 % of the time.
+**Diagnosis.** Under zero-shot the trained checkpoints write the whole solution, box the answer, then write the whole solution again: the repeating unit is the solution itself, so the first recurring window starts near the beginning and the answer sits inside the first cycle, after the measured onset.
+**Fix.** A second measure, "answer by the end of the first cycle" (onset + unit + 50 words), added after the first run and recorded as a deviation in the EXP-023 entry; both measures are reported (`outputs/reports/phase-6.md`).
+**Learning.** A text measure designed on one shape of output must be read against an example of every shape before its numbers are believed.
+
+## 2026-10-23  The GRPO control could not start: a dirty main checkout, and a worktree WSL's git could not read        [phase 5] [tooling] [git]
+**Symptom.** The queued EXP-020 control (unforced GRPO on the laptop) exited at once at 22:07 UTC; relaunched from the worktree, it failed again.
+**Diagnosis.** The harness refuses a dirty tree, and the main checkout held the user's uncommitted one-line edit to `METHODS_AND_METRICS.md`, which was not to be touched. The worktree had been created from Windows, so its `.git` file points at a Windows path that WSL's git cannot follow.
+**Fix.** A fresh clone inside WSL at the same commit (0d10994), the run launched there at 22:09 UTC and its outputs copied back; the clone was deleted after the merge.
+**Learning.** A run that must not wait on someone else's uncommitted edit goes to a clean clone; worktrees made on one side of WSL are not usable from the other.
 
 ## 2026-10-23  Batch-invariant greedy decoding is not hardware-invariant: 15-23 % of problems flip between an H100 and the laptop        [phase 5] [eval] [reproducibility]
 **Symptom.** EXP-016 paired forced-stop runs made on the laptop's RTX 4060 against unforced runs of the same checkpoints made on the H100 in Phases 2-4. The laptop control run (EXP-020b) re-ran the unforced `sft` and `rft` on the laptop.
@@ -461,3 +494,33 @@ run before each PR.
 **Diagnosis.** The same class as the 21 Oct entry: CI installs CPU torch and the dev extras, no PEFT, and runs the slow tests (`-m "not gpu"`), which the laptop gate deselects. `test_orm.py::test_train_and_score_smoke_on_tiny_model` is marked slow and builds a PEFT adapter, so it is skipped on the laptop and fails with `ModuleNotFoundError: No module named 'peft'` on CI. Reproduced in a CI-like venv (CPU torch + `.[dev]`): 1 failed, 215 passed. Blocking the import with stub modules instead misleads (transformers sees a module named `peft` and imports it), so the reliable reproduction is the clean venv.
 **Fix.** `pytest.importorskip("peft")` at the top of the test; in the CI-like venv 215 passed, 5 skipped; with PEFT installed the test still runs and passes. `scripts/ci_local.sh` builds that venv once and runs CI's three commands.
 **Learning.** The 21 Oct learning (read CI after the first push of a phase; simulate CI before the PR) was written and not applied: a learning that is a habit to remember fails, one that is a command to run holds. `bash scripts/ci_local.sh` runs before every PR body is written.
+
+## 2026-10-24  The Hub push was refused: the laptop's cached login was a read-only token        [phase 7] [tooling] [hub]
+**Symptom.** The upload of the laptop archive, the scores and the cards failed with HTTP 403 on the write step (`xet-write-token`); nothing was uploaded.
+**Diagnosis.** `whoami` showed the WSL user logged in with a fine-grained token named for another project, scoped `repo.content.read` only. Reads had worked all along, so the gap only showed at the first write.
+**Fix.** The user created a write token for the four repos, typed it into the shell with `read -s` and ran the staged script; every file was then checked against its local copy by hash.
+**Learning.** Check the token's scope (`whoami`) before a push, not after; the cached login says who you are, not what you may do.
+
+## 2026-10-24  Every table in the compute ledger after the first rendered as plain text        [phase 7] [docs]
+**Symptom.** Reading `COMPUTE.md` during the Phase 7 review: on GitHub, eleven blocks of ledger rows showed as lines of pipes, not tables, and one paragraph was split in two by rows inserted into its middle.
+**Diagnosis.** Rows were appended session by session after blank lines, each block without the header and separator rows a Markdown table needs; only the first block had them. The split sentence came from inserting rows at a line inside a paragraph. Both had been there since Phase 2.
+**Fix.** A header row above every block and the sentence rejoined (5725e11).
+**Learning.** Look at a document the way its reader will (rendered), not only as source.
+
+## 2026-10-24  `git add -A` committed the user's two untracked personal notes        [phase 7] [git] [process]
+**Symptom.** Commit 4c4d333 on `phase-7-write-up` added two Markdown files the user keeps untracked in the checkout; the commit was already pushed.
+**Diagnosis.** `git add -A` stages everything untracked; the user's notes had been left out of every earlier commit deliberately.
+**Fix.** The files untracked in the next commit (8bf108e), kept on disk; the PR merged with "Squash and merge" so `main`'s history never held them (checked with `git log origin/main -- <files>`); the remote branch deleted. PR #9's Commits tab still shows them, which GitHub keeps; the user accepted that.
+**Learning.** Stage files by name in a checkout that holds anyone else's files, and read `git status` before committing.
+
+## 2026-10-24  `scripts/ci_local.sh` imported nothing: its venv pointed at a deleted worktree        [phase 7] [ci] [tooling]
+**Symptom.** The CI-like check stopped with 13 collection errors, `ModuleNotFoundError: No module named 'rlvr'`.
+**Diagnosis.** The venv was built once, from the `rlvr_dev` worktree, with an editable install; its `.pth` file still pointed at `rlvr_dev/src`, which had been removed after the Phase 5B merge. The script reused any existing venv without checking where it imported from.
+**Fix.** The script re-points the editable install at the current checkout on every run (`uv pip install --no-deps -e .`, seconds; 4c4d333); 219 passed, 5 skipped.
+**Learning.** A cached environment carries the path it was built from; a reused one must be re-pointed, not trusted.
+
+## 2026-10-24  The Phase 7 journal and the PR #9 body said the write-up had found a mechanism that was already pre-registered        [phase 7] [docs] [claims]
+**Symptom.** Writing the project journey, the Phase 4 journal showed that EXP-014b's pre-registration (20 Oct) already stated that clip-higher is inert at one optimiser step per batch; the Phase 7 journal and the PR #9 description said the write-up had "found" it.
+**Diagnosis.** The derivations page was written from the measured clip fraction and the entropy numbers, without re-reading the pre-registration, and the journal described the page's argument as a discovery.
+**Fix.** The Phase 7 journal corrected with the date of the original statement (93d328e); the PR #10 body records the correction, since a merged PR's description is not changed.
+**Learning.** Before calling something a finding, search the record for it: the registry is the first place to look.
