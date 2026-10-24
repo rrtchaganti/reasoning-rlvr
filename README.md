@@ -136,7 +136,10 @@ Every incident that changed a number, and its fix, is in `FAILURES_AND_LEARNINGS
 The result is a property of the method at this scale, data and budget, and the experiment that could
 change it is pre-registered and unrun for budget: **GRPO on harder prompts** (MATH levels 3-5,
 EXP-018), where problems the policy finishes but gets wrong are common enough for the reward to teach
-something other than stopping. With ten times the compute: that run with two seeds, Dr. GRPO's loss
+something other than stopping. The cheapest missing control, proposed and not yet pre-registered:
+GRPO with a reward for finishing alone, no correctness term, which would show whether the
+correctness term taught anything beyond stopping (the "spurious rewards" question;
+`docs/paper-notes.md`). With ten times the compute: that run with two seeds, Dr. GRPO's loss
 normalisation (EXP-014c), and a matched-incorrect RFT set (EXP-010i). Not worth it at any compute:
 more steps of the same GRPO configuration, which plateaued by step 50.
 
@@ -190,6 +193,7 @@ The reasons for each drop are in `docs/plan-after-phase-4.md` section 4.
 | where | what |
 |---|---|
 | [`docs/results.md`](docs/results.md) | the long form: the plan's ten questions answered, phase by phase, every result table |
+| [`docs/interview-packet.md`](docs/interview-packet.md) | two pages: the study, five results, the failed predictions, the papers in a line each, cost and next steps; with [`paper-notes.md`](docs/paper-notes.md), [`drills.md`](docs/drills.md), [`derivations.md`](docs/derivations.md) |
 | [`docs/research-narrative.md`](docs/research-narrative.md) | the chain of questions, with the predictions written before each run |
 | [`experiments.md`](experiments.md) | pre-registration and result of every run, indexed |
 | `outputs/reports/` | one report per phase, the paired tables and figures; `evidence/` the per-claim evidence |
