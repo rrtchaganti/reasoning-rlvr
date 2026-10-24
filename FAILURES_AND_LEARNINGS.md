@@ -46,15 +46,31 @@ Template:
 | 2026-10-15 | "4096 new tokens" was 4096 minus the prompt: `max_model_len` clips the budget silently | phase 2, eval, protocol |
 | 2026-10-15 | Wall-clock estimate off by four: "about an hour" took 3 h 55 min | phase 2, eval, process |
 | 2026-10-17 | EXP-002 projected at 5-6 h; four sets took 5 h and the fifth wanted 22 more | phase 2, eval, process |
+| 2026-10-17 | Data steps rewrote tracked files, and the harness refused to run on the node | phase 2, 4, tooling, harness |
+| 2026-10-18 | No flash-attention for the locked torch: SFT trained unpacked with sdpa, RFT packed with flash | phase 2, 3, training, comparability |
 | 2026-10-18 | A learning rate written `5e-6` in YAML is a string; the sweep's AdamW refused it | phase 2, config, training |
 | 2026-10-19 | A flag equal to its parser default lost to the config: EXP-009 sampled at 2,048 tokens, not 4,096 | phase 3, eval, harness |
 | 2026-10-19 | The compute-matched controls trained on data the SFT checkpoint had already seen | phase 3, design, controls |
+| 2026-10-20 | The first GRPO correctness check had no teeth, and the fp32 check compared two precisions | phase 4, testing, training |
+| 2026-10-20 | The session script printed its exit line before the dev evals, so a watcher would have overlapped runs | phase 4, tooling, orchestration |
 | 2026-10-20 | GRPO ran out of memory twice at the plan's micro-batch of 32 | phase 4, training, memory |
+| 2026-10-21 | The hacking watch's repeated-answer flag fired on both healthy GRPO runs | phase 4, reward-hacking, monitoring |
+| 2026-10-21 | "Mostly by learning to finish" was an inference, stated before it was computed | phase 4, analysis, claims |
+| 2026-10-21 | The base model's zero-shot MATH-500 was quoted as 63.2, which is SFT's number | phase 4, docs, numbers |
 | 2026-10-21 | CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install | phase 4, ci, tests |
+| 2026-10-21 | The first EXP-016 launch downloaded every checkpoint in the SFT repo, over a slow link | phase 5, tooling, hub |
 | 2026-10-22 | Two false sentences about scoring, found by reading the code against the prose | phase 1-5, docs, extraction |
-| 2026-10-23 | Batch-invariant greedy decoding is not hardware-invariant: 15-23 % of problems flip between an H100 and the laptop | phase 5, eval, reproducibility |
+| 2026-10-23 | The evidence index's page counted 37 claims where the file held 39 | phase 5, docs, evidence |
+| 2026-10-23 | The pre-registered "answer before the loop" measure misread the zero-shot completions | phase 6, analysis, design |
+| 2026-10-23 | The GRPO control could not start: a dirty main checkout, and a worktree WSL's git could not read | phase 5, tooling, git |
+| 2026-10-23 | Batch-invariant greedy decoding is not hardware-invariant: 10-23 % of problems flip between an H100 and the laptop | phase 5, eval, reproducibility |
 | 2026-10-23 | A Hub lookup inside PEFT's save hung in the WSL kernel and lost 6.4 hours of reward-model training | phase 5, tooling, wsl |
 | 2026-10-24 | CI red on every Phase 5B commit: the reward-model smoke test imported PEFT, which CI does not install | phase 5, ci, tests |
+| 2026-10-24 | The Hub push was refused: the laptop's cached login was a read-only token | phase 7, tooling, hub |
+| 2026-10-24 | Every table in the compute ledger after the first rendered as plain text | phase 7, docs |
+| 2026-10-24 | `git add -A` committed the user's two untracked personal notes | phase 7, git, process |
+| 2026-10-24 | `scripts/ci_local.sh` imported nothing: its venv pointed at a deleted worktree | phase 7, ci, tooling |
+| 2026-10-24 | The Phase 7 journal and the PR #9 body said the write-up had found a mechanism that was already pre-registered | phase 7, docs, claims |
 
 ## 2026-10-14  Git Bash converts `/mnt/c/...` paths before WSL sees them        [phase 0] [tooling]
 **Symptom.** `wsl.exe -d Ubuntu -- bash /mnt/c/.../install.sh` failed with exit 127: bash looked for
@@ -393,6 +409,18 @@ a set of similar length; read the rate off every set's progress line, not the fi
 per-set token estimate down and find the most expensive set; run it first when the budget is tight,
 so a stop costs the least.
 
+## 2026-10-17  Data steps rewrote tracked files, and the harness refused to run on the node        [phase 2, 4] [tooling] [harness]
+**Symptom.** On the first rented node (L4, 17 Oct) the smoke eval refused to start with "working tree has uncommitted changes" right after the data step; on the Phase 4 node (20 Oct) `setup` needed a relaunch for the same reason.
+**Diagnosis.** The SFT data build rewrote the committed manifest and data report with new timings and the build commit even when it reproduced the same set; on 20 Oct the RFT builder rewrote the date line of the tracked Phase 3 data report. A node may not edit tracked files, and the harness refuses a dirty tree, so a rebuild blocked every later step.
+**Fix.** A rebuild that reproduces the committed set leaves the tracked manifest, report and figure untouched (b34c25b); the RFT builder writes its report and figure next to the data, outside the tracked tree (fb856a8). The node restored the files with `git checkout` meanwhile.
+**Learning.** A script that runs on a box must never write a tracked file; generated reports go next to the data, and the laptop commits them.
+
+## 2026-10-18  No flash-attention for the locked torch: SFT trained unpacked with sdpa, RFT packed with flash        [phase 2, 3] [training] [comparability]
+**Symptom.** The training configs set `flash_attention_2` with packing; on the H100 there was no wheel to install.
+**Diagnosis.** Dao-AILab's released wheels stop at torch 2.8 and the lock pins torch 2.13; the kernels-hub build (`kernels-community/flash-attn`) failed on authentication (404 with the fine-grained token, 401 without). A source build looked too slow and risky on a billing node that evening, and every Phase 2 run had to share one backend to stay comparable.
+**Fix.** Every Phase 2 run used `attn_implementation=sdpa` and `packing=false` (exact attention, padded batches, 1.5-2x slower), recorded in each ledger row. On 19 Oct, at the user's request, the wheel was built from source in 13 minutes (the image had nvcc 12.9) and checked against sdpa (kernel max difference 0.0039, logits within bf16 noise); Phase 3 trained packed with flash, and the wheel was kept for Phase 4. The comparability note (SFT unpacked with sdpa, RFT packed with flash; exact attention in both, different micro-batch composition) is in the Phase 3 report.
+**Learning.** Check every compiled dependency against the locked torch before the session, and keep a built wheel with the run archive (the wheels went to the Hub for later sessions).
+
 ## 2026-10-18  A learning rate written `5e-6` in YAML is a string; the sweep's AdamW refused it        [phase 2] [config] [training]
 **Symptom.** The three EXP-005 sweep runs died at optimiser construction on the H100 with a TypeError on `0.0 <= lr`.
 **Diagnosis.** Under YAML 1.1 (PyYAML) `5e-6` without a dot is a string, and `--set learning_rate=5e-6` produced the same; the main and scaling configs were unaffected because their dotted LR came from `pick_lr.py`. The node may not edit tracked files, so it ran with a PATH shim that appended a dotted override (`docs/phase-2-journal.md`).
@@ -411,11 +439,41 @@ so a stop costs the least.
 **Fix.** EXP-010b and EXP-010e carry the deviation where their numbers are quoted; the claim they support is narrowed to "not more steps on the distilled distribution", not "not more data" (`experiments.md`; `docs/phase-3-engineering-notes.md`).
 **Learning.** A control's data is checked against the treatment's by id before the run, not after; "fresh" is a property to test, not to assume.
 
+## 2026-10-20  The first GRPO correctness check had no teeth, and the fp32 check compared two precisions        [phase 4] [testing] [training]
+**Symptom.** The reference GRPO loss matched TRL's to ten decimals on the first full run; the first `--dtype float32` run then disagreed *more* than the bf16 one (gradient relative difference 5-11 % against 1.3 %).
+**Diagnosis.** In the first run every real reward was 0 (the 0.6B base never writes a finished, correct think-tag answer in 256 tokens), so every advantage was zero and the policy term never ran; at ratio 1 the published loss's value is 0 for any centred advantages, so matching values proved nothing. In the fp32 run `--dtype float32` changed only the weights: TRL's forward still ran under bf16 autocast while the reference ran in fp32.
+**Fix.** The check trains TRL on a deterministic mixed reward (a hash bit of the completion; the real reward's rate still reported) and compares the *gradients* of the two losses with respect to the LoRA weights; `--dtype float32` also turns autocast off (59b5e1e). In fp32 the gradients agree to 1.4e-5; the 1.3 % in bf16 was forward noise.
+**Learning.** A check passes for the right reason only if the case it checks is exercised: confirm the signal is non-zero before reading agreement, compare gradients rather than loss values, and change one thing at a time.
+
+## 2026-10-20  The session script printed its exit line before the dev evals, so a watcher would have overlapped runs        [phase 4] [tooling] [orchestration]
+**Symptom.** Explaining the `EXIT=` line the chaining relied on, the night before session 1, found that the GRPO session script printed `EXIT=0 step=<run>` after training and *before* the dev evals of the checkpoints.
+**Diagnosis.** A watcher waiting on `^EXIT=` would have launched the next run on top of the running evals: two processes on one GPU, which the session rules forbid and which would have out-of-memoried or skewed both.
+**Fix.** The script prints no `EXIT=` line of its own and the watcher reads only the log's last line, anchored (a8b9f69); the fix was pulled on the node between `setup` and `smoke`, so every run of record is on it.
+**Learning.** A completion marker must be the last thing a step writes; check what a watcher keys on before it runs unattended.
+
 ## 2026-10-20  GRPO ran out of memory twice at the plan's micro-batch of 32        [phase 4] [training] [memory]
 **Symptom.** The debugging run hit CUDA OOM twice: first with 11 GiB fragmented, then with the expandable-segments allocator and vLLM at 0.30, 76.7 GiB allocated.
 **Diagnosis.** The need was real, not fragmentation: 32 completions of about 1,700 tokens over a 151,936-token vocabulary in fp32 is about 33 GB of logits, on top of 58 GB of weights, optimiser state, reference model and vLLM (`docs/phase-4-journal.md`).
 **Fix.** The user's decision at 15:23 UTC: micro-batch 16 with gradient accumulation 16 (the same 256 completions per step), vLLM at 0.30, expandable segments, for every GRPO run alike, with one fallback to 8 allowed without asking; pinned as the config default and checked by the preflight.
 **Learning.** Estimate the logits tensor (batch x length x vocabulary x bytes) before choosing a micro-batch; at a 152k vocabulary it, not the weights, sets the limit.
+
+## 2026-10-21  The hacking watch's repeated-answer flag fired on both healthy GRPO runs        [phase 4] [reward-hacking] [monitoring]
+**Symptom.** After session 1, the repeated-answer flag (a group of samples agreeing on one answer) had fired on the main run and the seed repeat, neither of which showed any other sign of hacking.
+**Diagnosis.** As the policy improves, more groups agree on the *correct* answer, so the plain repeated-answer rate rises with accuracy; the flag lacked a correctness term and measured improvement.
+**Fix.** The flag now needs repeated *incorrect* answers, with a test of the new statistic and a fallback for older logs (fb856a8); with it no flag fired on any run.
+**Learning.** A hacking signal must separate the bad behaviour from the good one that looks like it; test it on a healthy run before trusting a firing.
+
+## 2026-10-21  "Mostly by learning to finish" was an inference, stated before it was computed        [phase 4] [analysis] [claims]
+**Symptom.** The first recap of session 1 said GRPO beat RFT "mostly by learning to finish". The user asked how that was known and not assumed.
+**Diagnosis.** It rested on four correlations (truncation fell where accuracy rose, other templates did not move, Countdown's gain tracked its truncation, the finished rate rose in training), and one curve pointed the other way (the correct rate among finished completions rose from 0.52 to 0.79 in training).
+**Fix.** `scripts/decompose_gain.py` splits the paired gain per problem by whether the reference completion finished, with bootstrap CIs: the whole gain sits on problems RFT truncated (+10.2 of +7.0 on MATH-500) and the both-finished difference is 0.0 [-4.3, 3.9]. The report and README now state the measured split, with its caveat (truncation is an outcome of the policy, so the split is descriptive).
+**Learning.** When the per-sample files can answer a question, compute the answer; a mechanism sentence carries the number that measures it.
+
+## 2026-10-21  The base model's zero-shot MATH-500 was quoted as 63.2, which is SFT's number        [phase 4] [docs] [numbers]
+**Symptom.** A recap and the Phase 4 report's section 4.1 gave the base model's best-prompt MATH-500 as 63.2 and concluded that the pipeline added about 1 point there.
+**Diagnosis.** 63.2 is the SFT checkpoint's zero-shot number (Phase 2); the base model's is 53.8 (Phase 1). The figure was carried from memory of a table, not read from it.
+**Fix.** Corrected where it appeared, with a note in the report (section 4.1): the pipeline adds 11 points on MATH-500 under the best prompt, and the claim that training "mostly repaired a format it broke" holds for GSM8K's trained-format row, not for MATH-500.
+**Learning.** Quote a number from its file, every time; the evidence index (22 Oct) later made this a check.
 
 ## 2026-10-21  CI red on the Phase 4 PR: one GRPO test imported TRL, which CI does not install        [phase 4] [ci] [tests]
 **Symptom.** The Phase 4 PR (opened as a draft on 21 Oct) showed two failed checks (the workflow runs
@@ -436,13 +494,37 @@ branch's CI status should be read after the first push of a phase, not at the PR
 the extras blocked (`scratchpad/ci_no_trl.sh`, the `sys.modules[...] = None` trick) is cheap enough to
 run before each PR.
 
+## 2026-10-21  The first EXP-016 launch downloaded every checkpoint in the SFT repo, over a slow link        [phase 5] [tooling] [hub]
+**Symptom.** The laptop sweep's first launch spent its first hour downloading: the SFT repo's ablation and control checkpoints arrived along with the root model, at 0.4-0.65 MB/s.
+**Diagnosis.** Passing a Hub repo id to vLLM makes its loader fetch every `model.safetensors` in the repo, including the ones under `ablations/` and `controls/`; the rental script had always used explicit excludes, the new laptop script did not.
+**Fix.** A `download` step with the rental script's excludes, the runs reading local copies (e3f7e81); the sweep reordered checkpoint-outer so one checkpoint's five budgets run while the next downloads (1cf82a5).
+**Learning.** Download a model to a local path with explicit includes and point the engine at the path; a repo id hands the file choice to the library.
+
 ## 2026-10-22  Two false sentences about scoring, found by reading the code against the prose        [phase 1-5] [docs] [extraction]
 **Symptom.** The Phase 1 report and the three model cards said prose answers without a box are "counted as failures, never as wrong"; several explanations in chat said a truncated completion "scores as wrong" or "yields nothing". The user's learning session (22 Oct 2026) read `grade()` and the extractor and found both false.
 **Diagnosis.** `grade(None, gold, type)` returns False: an extraction failure is scored wrong in every accuracy and additionally reported as a rate. The extractor falls back (final phrase, last number, boxed) on any completion, cut or not; measured on the archives (`outputs/reports/phase-4-truncated-accuracy.md`), truncated think-tag completions are right 31.1 % of the time on GSM8K and 13.5 % on MATH-500 for `sft` (91.9 / 90.8 % when finished), and 58.8 % under zero-shot on MATH-500 where the box precedes the loop. Only the GRPO training reward scores a cut completion 0.
 **Fix.** The report sentence, the cards and `push_to_hub.py` reworded with the numbers; the table added next to the Phase 4 decomposition (section 4.5) and cited in the Phase 5 report and notes; the three Hub cards re-pushed on 24 Oct 2026 (checked against `cards/*.md`).
 **Learning.** A mechanism sentence without its number is a guess dressed as a fact; every such sentence carries the measurement it rests on, and the code path is read before the prose is written.
 
-## 2026-10-23  Batch-invariant greedy decoding is not hardware-invariant: 15-23 % of problems flip between an H100 and the laptop        [phase 5] [eval] [reproducibility]
+## 2026-10-23  The evidence index's page counted 37 claims where the file held 39        [phase 5] [docs] [evidence]
+**Symptom.** `docs/evidence-index.md` (22 Oct) said the claims file listed 37 claims; re-counting while adding the Phase 5B claims found 39.
+**Diagnosis.** The number was written by hand from a scroll through the YAML, not counted by a command.
+**Fix.** The page and the README corrected, with the miscount stated on the page (b3c6d67); later counts were taken with `grep -c "^  - id:"`.
+**Learning.** A count quoted in a document is a measurement; take it with a command, like any other.
+
+## 2026-10-23  The pre-registered "answer before the loop" measure misread the zero-shot completions        [phase 6] [analysis] [design]
+**Symptom.** The first EXP-023 run put the loop onset of zero-shot completions in their first 2-10 % and found an answer before it in only 10-41 % of them, while truncated zero-shot completions were known to be right 59-63 % of the time.
+**Diagnosis.** Under zero-shot the trained checkpoints write the whole solution, box the answer, then write the whole solution again: the repeating unit is the solution itself, so the first recurring window starts near the beginning and the answer sits inside the first cycle, after the measured onset.
+**Fix.** A second measure, "answer by the end of the first cycle" (onset + unit + 50 words), added after the first run and recorded as a deviation in the EXP-023 entry; both measures are reported (`outputs/reports/phase-6.md`).
+**Learning.** A text measure designed on one shape of output must be read against an example of every shape before its numbers are believed.
+
+## 2026-10-23  The GRPO control could not start: a dirty main checkout, and a worktree WSL's git could not read        [phase 5] [tooling] [git]
+**Symptom.** The queued EXP-020 control (unforced GRPO on the laptop) exited at once at 22:07 UTC; relaunched from the worktree, it failed again.
+**Diagnosis.** The harness refuses a dirty tree, and the main checkout held the user's uncommitted one-line edit to `METHODS_AND_METRICS.md`, which was not to be touched. The worktree had been created from Windows, so its `.git` file points at a Windows path that WSL's git cannot follow.
+**Fix.** A fresh clone inside WSL at the same commit (0d10994), the run launched there at 22:09 UTC and its outputs copied back; the clone was deleted after the merge.
+**Learning.** A run that must not wait on someone else's uncommitted edit goes to a clean clone; worktrees made on one side of WSL are not usable from the other.
+
+## 2026-10-23  Batch-invariant greedy decoding is not hardware-invariant: 10-23 % of problems flip between an H100 and the laptop        [phase 5] [eval] [reproducibility]
 **Symptom.** EXP-016 paired forced-stop runs made on the laptop's RTX 4060 against unforced runs of the same checkpoints made on the H100 in Phases 2-4. The laptop control run (EXP-020b) re-ran the unforced `sft` and `rft` on the laptop.
 **Diagnosis.** Same checkpoint, same harness, same batch-invariant vLLM settings, greedy: the laptop scores `sft` 76.0 / 52.4 against the H100's 74.8 / 50.6 (GSM8K / MATH-500), with 17.6 % and 23.4 % of problems flipping in one direction or the other; `rft` +0.8 / +0.6 with 14.9 % and 20.6 % flipping. EXP-000 showed batch invariance makes greedy decoding bit-identical across runs on one machine; it does not make two GPUs produce the same floating-point results, and a near-tie in the argmax early in a long completion changes everything after it. The net differences (0.6-1.8 points) sit inside their CIs but the flips are large.
 **Fix.** Every comparison against an unforced checkpoint in EXP-016 re-paired against the laptop's own unforced run (`phase-5-compare-{sft,rft}-force*-vs-{sft,rft}-laptop.md`); the report, registry, README and evidence claims carry the corrected numbers (`sft`+force at 1,536: +4.6 / +7.2, first quoted +5.8 / +9.0). Comparisons against `grpo` (run on the H100 only) carry the machine term as a caveat.
@@ -461,3 +543,33 @@ run before each PR.
 **Diagnosis.** The same class as the 21 Oct entry: CI installs CPU torch and the dev extras, no PEFT, and runs the slow tests (`-m "not gpu"`), which the laptop gate deselects. `test_orm.py::test_train_and_score_smoke_on_tiny_model` is marked slow and builds a PEFT adapter, so it is skipped on the laptop and fails with `ModuleNotFoundError: No module named 'peft'` on CI. Reproduced in a CI-like venv (CPU torch + `.[dev]`): 1 failed, 215 passed. Blocking the import with stub modules instead misleads (transformers sees a module named `peft` and imports it), so the reliable reproduction is the clean venv.
 **Fix.** `pytest.importorskip("peft")` at the top of the test; in the CI-like venv 215 passed, 5 skipped; with PEFT installed the test still runs and passes. `scripts/ci_local.sh` builds that venv once and runs CI's three commands.
 **Learning.** The 21 Oct learning (read CI after the first push of a phase; simulate CI before the PR) was written and not applied: a learning that is a habit to remember fails, one that is a command to run holds. `bash scripts/ci_local.sh` runs before every PR body is written.
+
+## 2026-10-24  The Hub push was refused: the laptop's cached login was a read-only token        [phase 7] [tooling] [hub]
+**Symptom.** The upload of the laptop archive, the scores and the cards failed with HTTP 403 on the write step (`xet-write-token`); nothing was uploaded.
+**Diagnosis.** `whoami` showed the WSL user logged in with a fine-grained token named for another project, scoped `repo.content.read` only. Reads had worked all along, so the gap only showed at the first write.
+**Fix.** The user created a write token for the four repos, typed it into the shell with `read -s` and ran the staged script; every file was then checked against its local copy by hash.
+**Learning.** Check the token's scope (`whoami`) before a push, not after; the cached login says who you are, not what you may do.
+
+## 2026-10-24  Every table in the compute ledger after the first rendered as plain text        [phase 7] [docs]
+**Symptom.** Reading `COMPUTE.md` during the Phase 7 review: on GitHub, eleven blocks of ledger rows showed as lines of pipes, not tables, and one paragraph was split in two by rows inserted into its middle.
+**Diagnosis.** Rows were appended session by session after blank lines, each block without the header and separator rows a Markdown table needs; only the first block had them. The split sentence came from inserting rows at a line inside a paragraph. Both had been there since Phase 2.
+**Fix.** A header row above every block and the sentence rejoined (5725e11).
+**Learning.** Look at a document the way its reader will (rendered), not only as source.
+
+## 2026-10-24  `git add -A` committed the user's two untracked personal notes        [phase 7] [git] [process]
+**Symptom.** Commit 4c4d333 on `phase-7-write-up` added two Markdown files the user keeps untracked in the checkout; the commit was already pushed.
+**Diagnosis.** `git add -A` stages everything untracked; the user's notes had been left out of every earlier commit deliberately.
+**Fix.** The files untracked in the next commit (8bf108e), kept on disk; the PR merged with "Squash and merge" so `main`'s history never held them (checked with `git log origin/main -- <files>`); the remote branch deleted. PR #9's Commits tab still shows them, which GitHub keeps; the user accepted that.
+**Learning.** Stage files by name in a checkout that holds anyone else's files, and read `git status` before committing.
+
+## 2026-10-24  `scripts/ci_local.sh` imported nothing: its venv pointed at a deleted worktree        [phase 7] [ci] [tooling]
+**Symptom.** The CI-like check stopped with 13 collection errors, `ModuleNotFoundError: No module named 'rlvr'`.
+**Diagnosis.** The venv was built once, from the `rlvr_dev` worktree, with an editable install; its `.pth` file still pointed at `rlvr_dev/src`, which had been removed after the Phase 5B merge. The script reused any existing venv without checking where it imported from.
+**Fix.** The script re-points the editable install at the current checkout on every run (`uv pip install --no-deps -e .`, seconds; 4c4d333); 219 passed, 5 skipped.
+**Learning.** A cached environment carries the path it was built from; a reused one must be re-pointed, not trusted.
+
+## 2026-10-24  The Phase 7 journal and the PR #9 body said the write-up had found a mechanism that was already pre-registered        [phase 7] [docs] [claims]
+**Symptom.** Writing the project journey, the Phase 4 journal showed that EXP-014b's pre-registration (20 Oct) already stated that clip-higher is inert at one optimiser step per batch; the Phase 7 journal and the PR #9 description said the write-up had "found" it.
+**Diagnosis.** The derivations page was written from the measured clip fraction and the entropy numbers, without re-reading the pre-registration, and the journal described the page's argument as a discovery.
+**Fix.** The Phase 7 journal corrected with the date of the original statement (93d328e); the PR #10 body records the correction, since a merged PR's description is not changed.
+**Learning.** Before calling something a finding, search the record for it: the registry is the first place to look.
