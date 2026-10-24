@@ -394,7 +394,7 @@ harder prompts (EXP-018) would make GRPO change something other than how often t
 ## Phase 7 (24 Oct 2026): the write-up, and one check of the whole
 
 **Known before.** Everything above; every claim re-derives from its per-sample files (the evidence
-index, 51 claims); greedy decoding is reproducible per machine (EXP-000) and not across GPUs
+index); greedy decoding is reproducible per machine (EXP-000) and not across GPUs
 (EXP-020b).
 
 **Intuition, written before the run.** The project's exit is "someone else can clone it and
@@ -405,3 +405,11 @@ same digits.
 **Question and falsifier** (EXP-024). Does it? Any differing completion on the same machine would
 mean the run record misses something that determinism depends on, and the same-machine claims of
 Phases 5 and 5B would need a second look.
+
+**What it said** (EXP-024, `outputs/reports/reproduction-check.md`). It did: 11,216 of 11,216
+completions identical in text, extracted answer and grade, the table identical to the digit. On the
+machine that made them, the numbers are a function of the commit and the lock file.
+
+**What it raised.** Nothing new to run. The open questions are the ones the budget left: GRPO on
+harder prompts (EXP-018), and the control the paper notes surfaced, a reward for finishing alone,
+which would show whether the correctness term taught anything beyond stopping.

@@ -125,10 +125,18 @@ Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 16
 | 2026-10-23 | 5B | EXP-022 first reward-model run: LoRA head on Qwen3-0.6B-Base, 20,000 examples, held-out eval | RTX 4060 Laptop 8 GB | 6.5 | 0 | 0 | about 30 M | 03:01-09:31 UTC; held-out 87.9 %, AUROC 0.938; weights lost in a WSL kernel hang during the save (FAILURES_AND_LEARNINGS.md, 23 Oct); 0.95 h idle until the restart |
 | 2026-10-23 | 5B | EXP-022 rerun with the save fix (3bd2898): training, held-out eval, scoring of six n = 32 sample sets (57,600 samples), the chart | RTX 4060 Laptop 8 GB | 10.6 | 0 | 0 | about 30 M | 11:30-22:06 UTC; training 5.8 h (1,250 steps), held-out 89.4 %, AUROC 0.944; scoring 4.65 h (38-55 min a set); chart 1 min |
 | 2026-10-23 | 5B | EXP-020 GRPO control: grpo unforced greedy think-tag on the laptop, GSM8K + MATH-500 (clean WSL clone at 0d10994) | RTX 4060 Laptop 8 GB | 1.1 | 0 | about 2.3 M | 0 | 22:09-23:16 UTC; a first launch at 22:07 was refused by the harness (the main checkout held an uncommitted edit) |
+| 2026-10-24 | 7 | EXP-024 reproduction: fresh clone of 4548c00, fresh venv, the four 1.7B base greedy configs, the per-problem check | RTX 4060 Laptop 8 GB | 0.85 | 0 | about 3.3 M | 0 | 05:07-05:59 UTC on the WSL clock; environment build 1 min (uv cache), archive download 1 min, evals 0.82 h |
 | 2026-10-23 | 6 | EXP-023 trace analysis, twice (the second with the first-cycle measure and the forced split) | laptop CPU | 0 | 0 | 0 | 0 | about 15 CPU-minutes |
 
 Phase 3 part: about 10.3 node-hours, INR 3,900: core 4.1 h, the gap-analysis runs 4.0 h, the
 analysis 0.9 h idle, archive and Stop 1.3 h. The plan's Phase 3 line was 4.5-7 A100-hours.
+
+**Final totals (24 Oct 2026, end of Phase 7).** Rented, unchanged since the Delete of 21 Oct: L4 10.55
+node-hours, A30 1.32 h, two TIR H100 notebooks 28.1 + 26.7 = 54.8 h, their disks and the dataset volume:
+**about INR 21,750 (USD 259) of the INR 22,000 (USD 262) ceiling**. Local, at INR 0: about 15.3 laptop
+GPU-hours to the end of Phase 5A, 25.9 in Phase 5B (EXP-020 5.6 + 1.1, EXP-021 2.05, EXP-022 6.5 lost + 10.6),
+0.85 in Phase 7 (EXP-024): **about 42 laptop GPU-hours**; Phase 6 and the analyses CPU only. No run after
+21 Oct rented anything.
 
 **Running totals (after Phase 4 session 2 and the Delete, 21 Oct 2026).** Rented: L4 10.55 node-hours
 (INR 524.30), A30 1.32 h (INR 118.80 + 20.50), the TIR dataset volume (INR 10.20), the first H100

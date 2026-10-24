@@ -487,6 +487,16 @@ claims:
     evals: {math500: -1.8, gsm8k: 1.7}
 
   # ----------------------------------------------------------------------------- pointers for claims that are not per-problem
+  - id: P7-01
+    title: "a fresh clone reproduces the base-model table bit for bit"
+    experiment: EXP-024
+    where: "README; docs/interview-packet.md; experiments.md EXP-024"
+    statement: "A fresh clone of 4548c00 with a fresh environment, on the laptop, regenerates the four Qwen3-1.7B-Base greedy runs: 11,216 of 11,216 completions identical in text, extracted answer and grade; the table identical to the digit."
+    rule: file_pointer
+    note: "Per-problem comparison by scripts/check_reproduction.py against the archived runs (root P1); the regenerated table next to the committed one."
+    files:
+      - {root: P1, path: reports/reproduction-check.md, what: "17 run-and-set cells, pairs, identical text / extracted / grade, pass@1 on both sides"}
+      - {root: P1, path: reports/phase-1-baselines-repro.md, what: "the regenerated table; its 1.7B rows equal outputs/reports/phase-1-baselines.md"}
   - id: X-01
     title: "the offline KL of KL-off against rft is 15x the main run's"
     experiment: EXP-014a

@@ -9,7 +9,7 @@ the recipe work" but **what each stage buys, and whether what it buys is reasoni
 something cheaper**.
 
 About 55 H100-hours and 11 L4-hours of rented compute (USD 260, under the USD 262 ceiling) and about
-40 laptop GPU-hours, 14-24 Oct 2026. Checkpoints and every sample:
+42 laptop GPU-hours, 14-24 Oct 2026. Checkpoints and every sample:
 [`Raviteja546`](https://huggingface.co/Raviteja546) on Hugging Face.
 
 ## The answer, in five findings
@@ -124,10 +124,12 @@ Every incident that changed a number, and its fix, is in `FAILURES_AND_LEARNINGS
   TRL + vLLM trainer matches the reference loss to 1e-9 and its gradients to 1.4e-5 in fp32.
 - **A reward-hacking watch** on every RL run (length without accuracy, format-only outputs, groups
   agreeing on a wrong answer, "wait" spam, rising truncation); no flag fired.
-- **An evidence index**: 51 quoted claims, 47 with a number, each re-derived from the per-sample files
+- **An evidence index**: 52 quoted claims, 47 with a number, each re-derived from the per-sample files
   with the problems and excerpts behind it; every one agrees (`docs/evidence-index.md`).
 - **A compute ledger** (`COMPUTE.md`): every run's GPU-hours, tokens and cost.
-- **Reproducibility**: a run is a config plus a commit; a preflight checks configs, prompt files and
+- **Reproducibility**: a fresh clone and a fresh environment reproduce the base-model table bit for
+  bit on the machine that made it, 11,216 of 11,216 completions identical in text and grade
+  (EXP-024, `outputs/reports/reproduction-check.md`); a run is a config plus a commit; a preflight checks configs, prompt files and
   eval subsets against pinned hashes; the harness refuses a dirty tree; CI runs the CPU tests on every
   push, and `scripts/ci_local.sh` runs CI's commands locally before a PR.
 

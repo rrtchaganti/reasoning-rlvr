@@ -11,6 +11,9 @@ if [ ! -x "$VENV/bin/python" ]; then
   VIRTUAL_ENV="$VENV" uv pip install -q torch --index-url https://download.pytorch.org/whl/cpu
   VIRTUAL_ENV="$VENV" uv pip install -q -e ".[dev]"
 fi
+# The editable install records the checkout it was made from; re-point it at this one every run
+# (a venv built from a since-deleted worktree imported nothing: 13 collection errors, 24 Oct 2026).
+VIRTUAL_ENV="$VENV" uv pip install -q --no-deps -e .
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
 export CUDA_VISIBLE_DEVICES=""

@@ -14,7 +14,8 @@ with a 95 % bootstrap CI and re-derives from its per-sample files (claim ids in 
 - The question: what does each stage buy, and is it reasoning, sharpening or termination?
 - About 55 H100-hours and 11 L4-hours (USD 260) plus about 40 laptop GPU-hours, 14-24 Oct 2026.
 - Three contamination probes before and after every stage; a reward-hacking watch on every RL run.
-- One person, one GPU-day per method; every failure logged with its fix.
+- One person, one GPU-day per method; every failure logged with its fix; a fresh clone reproduces
+  the base-model table bit for bit (11,216 of 11,216 completions, EXP-024).
 
 ## Five results
 
