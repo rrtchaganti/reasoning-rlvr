@@ -112,3 +112,48 @@ number. The training taught, to within the CIs, what a stop rule provides.
    is move the accuracy-against-tokens curve.
 5. *What would you run next?* The GRPO checkpoint under the same rule; the laptop control run; then
    the prompt-difficulty question (EXP-018), which the free experiments cannot answer.
+
+## 8. Phase 5B (22-23 Oct 2026): what was added
+
+- **The Wait pass** (`force_continue` in `src/rlvr/eval/force_stop.py`; `rlvr-eval --force-continue
+  TEXT --force-continue-tokens N`). A pass between the first one and the forced stop: completions
+  that hit the budget inside the think block get TEXT (a newline then "Wait") and N more tokens; a
+  continuation that closes the think block and finishes stays finished; the rest go on to the forced
+  stop. `Completion.continued` and `SampleRecord.forced_continue` record it; the summary gives the
+  continue rate and those completions' accuracy. Tests on a scripted sampler.
+- **The outcome reward model** (`src/rlvr/train/orm.py`): `build` (labelled pairs from a solve-rate
+  sample set, up to two correct and two incorrect samples per problem, the think-tag prompt rebuilt
+  from the problem, held-out split by problem, manifest with hashes), `train` (a LoRA adapter and a
+  scalar head on the last token's hidden state of a decoder loaded with `AutoModel`, BCE, bf16
+  autocast, gradient checkpointing, inputs keep their tail so the answer end is never cut), `score`
+  (one logit per sample into `scores.jsonl` next to `samples.jsonl`). After the 23 Oct hang, `save`
+  writes the head and the adapter's state dict with `torch.save` before PEFT's `save_pretrained`,
+  `train` saves before the held-out pass, `load` falls back to the plain state dict, and the laptop
+  script runs these steps offline. Tests: the builder, AUROC, a two-step train and score smoke on the
+  tiny model, scoring again after deleting the PEFT folder.
+- **Best-of-k and the reward-weighted vote** in `scripts/plot_accuracy_vs_tokens.py`, over the same
+  seeded draws as maj@k, paired against maj@k and the reference greedy run. The evidence index has
+  the same selection as a `best_of_k` rule (`scripts/evidence.py`, tested on a synthetic set), so
+  the two quoted verifier claims are re-derived per problem.
+- **Running from a clean clone.** The harness refuses a dirty tree, and WSL's git cannot follow a
+  worktree created from Windows (its `.git` file holds a Windows path). A run that must not wait on an
+  uncommitted edit goes to a fresh clone inside WSL at the same commit; the GRPO control ran that way.
+- **`scripts/phase5b_laptop.sh`**: `wait`, `orm-build`, `orm-train`, `orm-score`, `orm-plot`, `all`;
+  resumable; a failed step is reported and the next one runs.
+
+**The machine term.** The laptop control run (EXP-020b) found that the same checkpoint decoded
+greedily on two GPUs flips 15-23 % of problems; EXP-016 was re-paired on one machine. On one machine
+a forced run is identical to the unforced run on every completion shorter than the budget, so a
+same-machine decomposition isolates exactly what the rule changes. The GRPO control (23-24 Oct)
+closed the last cross-machine pair: GRPO forced at 2,048 is +2.0 [0.6, 3.6] on MATH-500 against its
+own laptop run, where the H100 pairing had read +0.2.
+
+**Interview questions this adds.** *Your harness is deterministic; why did two runs of the same
+checkpoint disagree on 18 % of problems?* Batch invariance fixes the reduction order on one machine;
+two GPUs still produce different floating-point results, and a near-tie early in a long greedy
+decode sends the rest apart. *What did "Wait" do?* Nothing a larger budget does not: equal to the
+plain stop at the same tokens. *Why save with `torch.save` first?* Because a library save can do I/O
+beyond the file; 6.4 hours were lost to a DNS lookup inside one. *Your verifier has AUROC 0.94;
+why does best-of-32 lose to a vote?* Because the arg-max of 32 draws selects the verifier's errors:
+the more candidates, the likelier one wrong derivation scores above every right one. The vote uses
+the verifier's score as a weight across many draws and does not have that failure.

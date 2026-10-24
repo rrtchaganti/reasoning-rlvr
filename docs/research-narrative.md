@@ -308,6 +308,85 @@ worth it.
 | Dr. GRPO normalisation (deferred) | lengths fell under the standard loss in every run; a1 shows the KL term, not the normalisation, held length up | the normalisation's length bias is invisible under a finished-only reward | does the normalisation grow length here? | the pre-registration stands | about 3.5 H100-h, INR 1,400 | EXP-014c |
 | matched-incorrect RFT set | EXP-010g had no power (93 % correct by construction) | a set with as many wrong as right finished traces separates selection from self-distillation | is the correctness filter the mechanism of RFT? | below `rft` by 2 / 3 points with truncation unchanged / within noise: self-distillation plus stopping | about 0.5 H100-h, INR 300 | EXP-010i |
 
-Distillation and serving (PLAN.md Phase 7) have no question pulling on them from the data and stay an
-engineering deliverable, last or cut. Phase 6's reward-model best-of-N is dropped unless EXP-017 shows
-voting matches the policy, in which case a verifier is the natural next ask.
+**Decided 22 Oct 2026 (`docs/plan-after-phase-4.md`).** No further rental: EXP-018, EXP-010i and
+EXP-014c stay pre-registered and unrun, EXP-018 named in the write-up as the next experiment. **DPO
+(EXP-019) is dropped**: its question (on-policy against off-policy at equal compute) lost its object
+once EXP-016 showed a free decoding rule buys the termination gain; RFT is already the off-policy
+comparator on the chart and is decomposed; and the pairs available (finished-correct against looping)
+share long prefixes, the regime where DPO's likelihood displacement degrades both responses, so a
+negative result would say little. **Distillation and serving are dropped**: a generic measurement with
+no thread from the data and a rental, and a systems table whose laptop numbers would mean nothing; the
+one non-generic version (does the termination behaviour distil) is recorded as open. **The reward model
+(EXP-022) is kept** because EXP-017 showed voting reaches the policy's number, so whether a learned
+verifier beats voting is the next cell of the D6 chart.
+
+## Open now (22 Oct 2026, after Phase 5A): Phases 5B and 6, all on the laptop
+
+| run | what we know | the intuition | the question | prediction / falsifier | id |
+|---|---|---|---|---|---|
+| `grpo` under the stop rule; the laptop control run | `grpo` truncates 4.6 / 20.8 % and its truncated completions are right 9.8 / 4.8 %; EXP-016 paired laptop runs against H100 runs | what GRPO left looping may be emptier than what it removed; the machine effect should be under a point | do GRPO's loops hold anything; is the cross-machine caveat material? | +1 to +3 on MATH-500, within noise on GSM8K; laptop within 0.5 of the H100 / no MATH-500 gain; a difference over 1 point | EXP-020 |
+| "Wait" before the stop | the loops do not finish at 8,192; the stop rule recovers the gain | a nudge gives a loop nothing it lacks | does sequential extension help a looping model? | within noise of the immediate stop and below the stop at the same total tokens / beats it by over 2 | EXP-021 |
+| an outcome reward model | 59,000 labelled traces exist; voting reaches the policy's number; weak ORMs plateau in the literature | a verifier trained on the policy's own samples ranks finished derivations better than a vote at small N and worse at large N | when does a learned verifier beat voting here? | best-of-4 beats maj@4 by 1-3 on MATH-500, at or below maj@32 at N = 32, weighted vote at or above both / never above voting | EXP-022 |
+| the traces | every result is about termination; nothing describes the text | a loop is a repeated unit starting late; GRPO changed how often, not what | what did the training change in the text? | same unit-length and onset distributions for `sft` and `grpo` loops (KS under 0.15); answer-before-loop under 15 % in the trained format / KS over 0.3; answer-before-loop common | EXP-023 |
+
+## Phase 5B (22-23 Oct 2026): the debts, the Wait pass, a verifier
+
+**Known before.** EXP-016 and EXP-017 (the stop rule and the votes reach the trained policies'
+numbers); two debts recorded in the Phase 5 notes (the GRPO checkpoint was never forced; the forced
+runs were paired with unforced runs from another machine).
+
+**Intuitions, written before the runs.** (a) GRPO's remaining loops hold readable answers too, so
+forcing it gains 1-3 points on MATH-500. (b) The cross-machine difference is a few tenths of a point.
+(c) "Wait" gives a loop nothing it lacks, so it lands with the plain stop. (d) A verifier trained on
+the policy's own labelled samples beats voting at small N and plateaus at large N.
+
+**Runs and what they said.**
+- EXP-020b (laptop control): intuition (b) failed. The same checkpoint decoded greedily on the H100
+  and on the laptop differs on 15-23 % of problems, net +0.6 to +1.8 points. Batch invariance makes
+  decoding reproducible per machine, not across GPUs. EXP-016 re-paired on one machine: the stop rule
+  on SFT is +4.6 / +7.2 at 1,536 (first quoted +5.8 / +9.0), still above RFT's same-machine +2.9 /
+  +4.6; and the rule's "cost on problems that would have finished later" was mostly the machine term,
+  because on one machine a forced run equals the unforced run on every completion shorter than the
+  budget (same-machine both-finished -0.1 / -2.7, not -2.1 / -8.4).
+- EXP-020a (GRPO forced): intuition (a) held in size once paired on one machine: +2.0 [0.6, 3.6] on
+  MATH-500 at 2,048 (+1.0 at 1,536) at 27 % fewer tokens, the gain on GRPO's own truncated problems.
+  Its mechanism failed: GRPO's forced answers are right 17-22 % of the time against SFT's 50-55 %.
+  The first pairing, against the H100 run, read "no gain"; GRPO's machine term (-1.8 on MATH-500)
+  was the size of the effect. With RFT and GRPO both stopped at 2,048 on one machine, GRPO's
+  MATH-500 gain over RFT is gone (-0.4 [-4.4, 3.4]; unforced +4.6 [0.6, 8.4]).
+- EXP-021 (Wait): intuition (c) held. The nudge equals the plain stop at the same total tokens on
+  all four cells; 14-19 % of nudged loops closed on their own.
+- EXP-022 (verifier): intuition (d) held in shape. A 0.6B verifier trained for 5.8 laptop hours on
+  SFT's own labelled samples reached 89.4 % held-out accuracy (AUROC 0.944; 0.82-0.93 on the eval
+  sets, falling as the policy drifts from SFT). At k = 2 it is worth 3-6 points over a vote (which
+  cannot break a tie), so two RFT samples beat the GRPO policy's greedy number (+3.0 / +4.0). As an
+  arg-max it is over-optimised: on MATH-500 best-of-32 is 12-13 points below majority-of-32. As a
+  vote weight it stays at or above majority vote at every k. The first run's weights were lost to a
+  WSL kernel hang during the save; the reported run is the rerun.
+
+**What Phase 5B raised.** That every paired claim needs its two sides on one machine, which the
+project had assumed and not checked since EXP-000; and that the stop rule is cheaper than first
+measured (its cost was the machine term). GRPO and the rule are mostly substitutes: under the same
+stop rule GRPO is level with RFT on MATH-500 and +1.6 [-0.4, 3.6] on GSM8K, and the rule still adds
++2.0 on GRPO's own remaining loops.
+
+## Phase 6 (23 Oct 2026): the traces
+
+**Known before.** Every result of Phases 3 to 5 is about termination; nothing described the text.
+
+**Intuition, written before the run.** A loop is a repeated unit starting late in the budget; GRPO
+changed how often loops happen, not what they are; an answer rarely precedes a trained-format loop.
+
+**What it said** (EXP-023, `outputs/reports/phase-6.md`). The second clause held (Kolmogorov-Smirnov
+0.11-0.16 between SFT's and GRPO's loops). The first half-held: the unit is a 100-190-word step, but
+the loop starts early, at a fixed word position (about 500 on GSM8K, 800 on MATH-500) whatever the
+window, so more room adds cycles, which is the mechanism behind EXP-010c. The third failed on GSM8K:
+a third of trained-format loops follow a stated answer, exactly the third of truncated completions the
+extractor already scores right; the termination gain comes from the other two thirds. Under zero-shot
+the trained checkpoints rewrite their whole solution after boxing the answer. Half to two thirds of
+the forced answers that are right had been stated before the stop.
+
+**What it raised.** The project's central result now has a text-level mechanism: a trained
+checkpoint that fails to stop re-derives one step from a fixed point, the on-policy stages made that
+rarer, and a stop rule cuts it. The remaining open question is the one the budget left unrun: whether
+harder prompts (EXP-018) would make GRPO change something other than how often the loop happens.

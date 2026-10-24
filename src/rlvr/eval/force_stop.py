@@ -75,6 +75,58 @@ def force_stop(
             num_tokens=orig.num_tokens + tail.num_tokens,
             finish_reason=tail.finish_reason,
             forced=True,
+            continued=orig.continued,
         )
         stats["num_forced_finished"] += int(tail.finish_reason != "length")
+    return out, stats
+
+
+def force_continue(
+    sampler: Sampler,
+    prompts: Sequence[str],
+    completions: list[list[Completion]],
+    cfg: SamplingConfig,
+    *,
+    text: str,
+    continue_tokens: int = 512,
+    close_tag: str = THINK_CLOSE,
+) -> tuple[list[list[Completion]], dict[str, Any]]:
+    """The other half of s1's budget forcing (EXP-021): a completion that hit the budget inside its
+    think block gets ``text`` (for example "\nWait") appended and up to ``continue_tokens`` more
+    tokens; if it then closes the think block and finishes on its own it is kept as finished, else
+    it stays a candidate for ``force_stop``. Returns the merged completions and the pass's stats."""
+    if not text:
+        raise ValueError("force_continue needs the continuation text")
+    targets = [
+        (i, j)
+        for i, comps in enumerate(completions)
+        for j, comp in enumerate(comps)
+        if needs_forcing(comp, close_tag)
+    ]
+    stats: dict[str, Any] = {
+        "budget": cfg.max_tokens,
+        "text": text,
+        "continue_tokens": continue_tokens,
+        "num_completions": sum(len(c) for c in completions),
+        "num_continued": len(targets),
+        "num_closed_think": 0,
+        "num_finished": 0,
+    }
+    if not targets:
+        return completions, stats
+    cont_prompts = [prompts[i] + completions[i][j].text + text for i, j in targets]
+    cont_cfg = replace(cfg, n=1, max_tokens=continue_tokens)
+    conts = sampler.generate(cont_prompts, cont_cfg)
+    out = [list(comps) for comps in completions]
+    for (i, j), cont in zip(targets, conts, strict=True):
+        tail = cont[0]
+        orig = completions[i][j]
+        out[i][j] = Completion(
+            text=orig.text + text + tail.text,
+            num_tokens=orig.num_tokens + tail.num_tokens,
+            finish_reason=tail.finish_reason,
+            continued=True,
+        )
+        stats["num_closed_think"] += int(close_tag in tail.text)
+        stats["num_finished"] += int(tail.finish_reason != "length")
     return out, stats

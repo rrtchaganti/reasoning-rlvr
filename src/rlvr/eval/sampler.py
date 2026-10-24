@@ -42,6 +42,8 @@ class Completion:
     # budget forcing (EXP-016): the completion hit the budget without closing its think block
     # and was given the closing tags plus a short continuation; text and num_tokens include both
     forced: bool = False
+    # the "Wait" pass of EXP-021: the completion was given a continuation prompt at the budget
+    continued: bool = False
 
     @property
     def truncated(self) -> bool:

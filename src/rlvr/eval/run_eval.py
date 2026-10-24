@@ -27,7 +27,7 @@ from typing import Any
 import yaml
 
 from rlvr.eval.datasets import load_eval_set, write_manifest
-from rlvr.eval.force_stop import force_stop
+from rlvr.eval.force_stop import force_continue, force_stop
 from rlvr.eval.prompts import TEMPLATES, build_prompt
 from rlvr.eval.report import (
     MARKDOWN_HEADER,
@@ -82,6 +82,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force-stop-continue more tokens to answer; think_tag only",
     )
     p.add_argument("--force-stop-continue", type=int, default=128)
+    p.add_argument(
+        "--force-continue",
+        default=None,
+        help='the "Wait" pass (EXP-021): before the forced stop, append this text to every '
+        "completion that hit the budget inside its think block and allow --force-continue-tokens "
+        "more; a backslash-n in the text stands for a newline",
+    )
+    p.add_argument("--force-continue-tokens", type=int, default=512)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
         "--limit",
@@ -252,6 +260,25 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
         t_eval = time.time()
         completions = sampler.generate([p.text for p in prompts], cfg)
         force_stats = None
+        cont_text = getattr(args, "force_continue", None)
+        if force_at and prompts and cont_text:
+            cont_text = str(cont_text).replace("\\n", "\n")
+            completions, cont_stats = force_continue(
+                sampler,
+                [p.text for p in prompts],
+                completions,
+                cfg,
+                text=cont_text,
+                continue_tokens=int(getattr(args, "force_continue_tokens", 512)),
+            )
+            print(
+                f"[rlvr-eval] {name}: continued {cont_stats['num_continued']} completions with "
+                f"{cont_text!r} for up to {cont_stats['continue_tokens']} tokens; "
+                f"{cont_stats['num_closed_think']} closed the think block, {cont_stats['num_finished']} finished",
+                flush=True,
+            )
+        else:
+            cont_stats = None
         if force_at and prompts:
             completions, force_stats = force_stop(
                 sampler,
@@ -261,6 +288,7 @@ def run(args: argparse.Namespace, sampler: Sampler | None = None) -> dict:
                 suffix=prompts[0].force_suffix,
                 continue_tokens=int(getattr(args, "force_stop_continue", 128)),
             )
+            force_stats["continue"] = cont_stats
             print(
                 f"[rlvr-eval] {name}: budget {force_at}, forced {force_stats['num_forced']} of "
                 f"{force_stats['num_completions']} completions, {force_stats['num_forced_finished']} "

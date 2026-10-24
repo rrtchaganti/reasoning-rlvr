@@ -254,3 +254,26 @@ def test_main_writes_index_and_claim_files(tmp_path):
     assert "| A-1 | EXP-T | gsm8k | flip | 50.0 | 50.0 | yes |" in idx
     assert "| A-2 |" in idx and "| A-3 |" in idx and "file missing" in idx
     assert (out / "A-1.md").exists() and "`p2`" in (out / "A-1.md").read_text(encoding="utf-8")
+
+
+def test_best_of_k_picks_the_highest_scored_draw(tmp_path):
+    root = tmp_path / "root"
+    rows = [_rec("p1", a == "4", extracted=a, idx=j) for j, a in enumerate(["5", "4", "5", "5"])]
+    _write(root / "samp", "math500", rows)
+    with (root / "samp" / "math500" / "scores.jsonl").open("w") as f:
+        for j, sc in enumerate([-2.0, 3.0, -1.0, -2.5]):
+            f.write(json.dumps({"problem_id": "p1", "sample_idx": j, "score": sc}) + "\n")
+    _write(root / "greedy", "math500", [_rec("p1", False, extracted="5")])
+    c = {
+        "id": "T-b",
+        "title": "t",
+        "statement": "s",
+        "rule": "best_of_k",
+        "run": {"root": "R", "run": "samp"},
+        "ref": {"root": "R", "run": "greedy", "label": "g"},
+        "k": 4,
+        "evals": {"math500": 100.0},
+    }
+    r = mod.run_claim(c, {"R": root}, {})[0]
+    assert r["derived"] == 100.0 and r["agree"] == "yes"
+    assert "| `p1` |" in "\n".join(r["res"]["lines"])

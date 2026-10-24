@@ -66,6 +66,57 @@ def load_samples(run_dir: Path, eval_name: str) -> dict[str, list[dict[str, Any]
     return dict(rows)
 
 
+def load_scores(run_dir: Path, eval_name: str) -> dict[str, dict[int, float]] | None:
+    """``{problem_id: {sample_idx: score}}`` from ``<eval>/scores.jsonl`` (an outcome reward model's
+    logits, EXP-022), or None when the run has none."""
+    path = run_dir / eval_name / "scores.jsonl"
+    if not path.exists():
+        return None
+    out: dict[str, dict[int, float]] = defaultdict(dict)
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                out[r["problem_id"]][int(r["sample_idx"])] = float(r["score"])
+    return dict(out)
+
+
+def scored_at_k_per_problem(
+    rows: list[dict[str, Any]],
+    scores: dict[int, float],
+    k: int,
+    *,
+    repeats: int = 20,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """(best-of-k hit rate, reward-weighted-vote hit rate) over the same seeded draws as maj@k:
+    best-of-k takes the drawn sample with the highest score; the weighted vote sums each drawn
+    sample's sigmoid(score) on its normalised answer and takes the heaviest key."""
+    n = len(rows)
+    rng = np.random.default_rng(seed)
+    correct_keys = {
+        normalize_for_vote(r["extracted"]) for r in rows if r["correct"] and r["extracted"]
+    }
+    n_rep = 1 if k >= n else repeats
+    bon_hits = wv_hits = 0.0
+    for _ in range(n_rep):
+        idx = rng.choice(n, size=k, replace=False) if k < n else np.arange(n)
+        best = max(idx, key=lambda j: scores.get(int(rows[j]["sample_idx"]), float("-inf")))
+        bon_hits += float(bool(rows[best]["correct"]))
+        weights: dict[str, float] = {}
+        for j in idx:
+            a = rows[j]["extracted"]
+            if a is None:
+                continue
+            w = 1.0 / (1.0 + np.exp(-scores.get(int(rows[j]["sample_idx"]), 0.0)))
+            key = normalize_for_vote(a)
+            weights[key] = weights.get(key, 0.0) + w
+        if weights:
+            heaviest = max(weights, key=lambda key: weights[key])
+            wv_hits += float(heaviest in correct_keys)
+    return bon_hits / n_rep, wv_hits / n_rep
+
+
 def maj_at_k_per_problem(
     answers: list[str | None], correct: list[bool], k: int, *, repeats: int = 20, seed: int = 0
 ) -> float:
@@ -87,8 +138,10 @@ def curves_for_run(
     ids: list[str],
     ks: tuple[int, ...],
     ref_greedy: dict[str, bool] | None,
+    scores: dict[str, dict[int, float]] | None = None,
 ) -> list[dict[str, Any]]:
-    """One record per k: tokens, maj@k, pass@k (with CIs) and the paired differences."""
+    """One record per k: tokens, maj@k, pass@k (with CIs) and the paired differences; with
+    ``scores``, best-of-k and the reward-weighted vote too, paired against maj@k."""
     n = len(samples[ids[0]])
     if any(len(samples[i]) != n for i in ids):
         raise ValueError("ragged sample counts across problems")
@@ -115,6 +168,17 @@ def curves_for_run(
         if ref is not None:
             rec["maj_minus_ref_greedy"] = paired_bootstrap_diff(maj, ref, seed=k).as_dict()
             rec["pass_minus_ref_greedy"] = paired_bootstrap_diff(pk, ref, seed=k).as_dict()
+        if scores is not None:
+            pairs = [scored_at_k_per_problem(samples[i], scores.get(i, {}), k) for i in ids]
+            bon = [a for a, _ in pairs]
+            wv = [b for _, b in pairs]
+            rec["bon_at_k"] = bootstrap_ci(bon, seed=k).as_dict()
+            rec["wvote_at_k"] = bootstrap_ci(wv, seed=k).as_dict()
+            rec["bon_minus_maj"] = paired_bootstrap_diff(bon, maj, seed=k).as_dict()
+            rec["wvote_minus_maj"] = paired_bootstrap_diff(wv, maj, seed=k).as_dict()
+            if ref is not None:
+                rec["bon_minus_ref_greedy"] = paired_bootstrap_diff(bon, ref, seed=k).as_dict()
+                rec["wvote_minus_ref_greedy"] = paired_bootstrap_diff(wv, ref, seed=k).as_dict()
         out.append(rec)
     return out
 
@@ -157,7 +221,13 @@ def analyse(
         result["evals"][ev] = {
             "num_problems": len(ids),
             "reference_greedy": reference_greedy,
-            "sampled": {lab: curves_for_run(s, ids, ks, ref) for lab, s in loaded_s.items()},
+            "sampled": {
+                lab: curves_for_run(s, ids, ks, ref, load_scores(sample_runs[lab], ev))
+                for lab, s in loaded_s.items()
+            },
+            "scored_runs": [
+                lab for lab in loaded_s if load_scores(sample_runs[lab], ev) is not None
+            ],
             "greedy": {lab: greedy_point(g, ids) for lab, g in loaded_g.items()},
         }
         print(f"[accuracy-vs-tokens] {ev}: {len(ids)} shared problems", flush=True)
@@ -187,14 +257,20 @@ def markdown(result: dict[str, Any]) -> str:
             + (f"; paired against `{ref}` greedy)" if ref else ")")
         )
         lines.append("")
+        scored = bool(block.get("scored_runs"))
         lines.append(
             "| run | k | tokens / problem | maj@k | pass@k | maj@k - ref greedy | pass@k - ref greedy |"
+            + (
+                " best-of-k | weighted vote | best-of-k - maj@k | weighted vote - maj@k |"
+                if scored
+                else ""
+            )
         )
-        lines.append("|---|---|---|---|---|---|---|")
+        lines.append("|---|---|---|---|---|---|---|" + ("---|---|---|---|" if scored else ""))
         for lab, g in block["greedy"].items():
             lines.append(
                 f"| {lab} greedy | 1 | {g['tokens_per_problem']:.0f} | {_fmt(g['pass_at_1'])} | "
-                f"{_fmt(g['pass_at_1'])} | - | - |"
+                f"{_fmt(g['pass_at_1'])} | - | - |" + (" - | - | - | - |" if scored else "")
             )
         for lab, recs in block["sampled"].items():
             for r in recs:
@@ -203,6 +279,12 @@ def markdown(result: dict[str, Any]) -> str:
                     f"{_fmt(r['maj_at_k'])} | {_fmt(r['pass_at_k'])} | "
                     f"{_fmt_diff(r.get('maj_minus_ref_greedy'))} | "
                     f"{_fmt_diff(r.get('pass_minus_ref_greedy'))} |"
+                    + (
+                        f" {_fmt(r.get('bon_at_k'))} | {_fmt(r.get('wvote_at_k'))} | "
+                        f"{_fmt_diff(r.get('bon_minus_maj'))} | {_fmt_diff(r.get('wvote_minus_maj'))} |"
+                        if scored
+                        else ""
+                    )
                 )
         lines.append("")
     return "\n".join(lines)
@@ -231,6 +313,25 @@ def plot(result: dict[str, Any], out: Path, title: str = "") -> None:
             ax.plot(x, maj, "-o", color=colours[lab], label=f"{lab} maj@k")
             ax.fill_between(x, lo, hi, color=colours[lab], alpha=0.12, linewidth=0)
             ax.plot(x, pk, "--", color=colours[lab], alpha=0.7, label=f"{lab} pass@k")
+            if recs and "bon_at_k" in recs[0]:
+                ax.plot(
+                    x,
+                    [100 * r["bon_at_k"]["mean"] for r in recs],
+                    ":",
+                    marker="s",
+                    markersize=4,
+                    color=colours[lab],
+                    label=f"{lab} best-of-k (ORM)",
+                )
+                ax.plot(
+                    x,
+                    [100 * r["wvote_at_k"]["mean"] for r in recs],
+                    "-.",
+                    marker="^",
+                    markersize=4,
+                    color=colours[lab],
+                    label=f"{lab} weighted vote (ORM)",
+                )
         for lab, g in block["greedy"].items():
             ax.plot(
                 [g["tokens_per_problem"]],

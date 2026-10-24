@@ -137,8 +137,9 @@ tokens at every budget, and truncation at the 4,096 window is 0-1.6 % in every r
 
 **Conclusion, against the pre-registration.** The hypothesis held on three of four clauses and the
 falsifier did not fire. A stop rule on the SFT checkpoint recovers all of RFT's trained-format gain
-and 70-91 % of GRPO's at fewer tokens than either; on the RFT checkpoint it matches GRPO within the
-CI at fewer tokens on MATH-500 and within a point and a half on GSM8K. Read with the Phase 4
+(on the same machine +4.6 / +7.2 against RFT's +2.9 / +4.6; section 2b) and most of GRPO's at fewer
+tokens than either; on the RFT checkpoint it matches GRPO within the CI at fewer tokens on MATH-500
+and within a point and a half on GSM8K (cross-machine cells; section 2b). Read with the Phase 4
 decomposition and EXP-017: the training taught, to within the CIs, what a decoding rule provides,
 and what it did not teach (the forced answers are right half the time, the policies' own finished
 answers nine times in ten) is the part a rule cannot supply, which is also the part no run of
@@ -148,6 +149,50 @@ Phase 4 moved.
 checkpoint, harness and batch-invariant vLLM; a cross-machine greedy difference of a few tenths of
 a point is possible and `exp016-ctrl` would measure it, not run); one decode per cell, no seed row;
 the rule was not applied to the GRPO checkpoint (5 / 21 % truncation), the natural next cell.
+
+### 2b. Correction (23 Oct 2026): the same-machine re-pairing
+
+The laptop control run (EXP-020b, section 4) measured the caveat above and it is not a few tenths:
+the same checkpoint decoded greedily on the laptop and on the H100 differs on 15-23 % of problems
+(net +0.6 to +1.8 points). Every "vs own" and "vs `rft`" cell of the table above therefore pairs two
+machines. Re-paired against the laptop's own unforced runs (`phase-5-compare-{sft,rft}-force*-vs-{sft,rft}-laptop.md`,
+`phase-5-compare-sft-force*-vs-rft-laptop.md`):
+
+| run | B | GSM8K vs own | MATH-500 vs own | GSM8K vs `rft` | MATH-500 vs `rft` |
+|---|---|---|---|---|---|
+| `sft`+force | 768 | +1.7 [0.2, 3.3] | -1.8 [-5.6, 2.0] | -1.1 [-3.3, 1.0] | -6.4 [-10.8, -2.4] |
+| `sft`+force | 1,024 | +3.7 [2.4, 5.2] | +3.8 [0.4, 7.4] | +0.8 [-1.1, 2.9] | -0.8 [-4.8, 3.4] |
+| `sft`+force | 1,536 | **+4.6 [3.4, 6.0]** | **+7.2 [4.0, 10.4]** | +1.7 [-0.2, 3.7] | +2.6 [-1.6, 6.6] |
+| `sft`+force | 2,048 | +4.5 [3.4, 5.8] | +8.6 [6.0, 11.4] | +1.7 [-0.3, 3.6] | +4.0 [0.0, 7.8] |
+| `sft`+force | 3,072 | +4.8 [3.6, 6.1] | +9.8 [7.2, 12.4] | +1.9 [-0.1, 3.9] | +5.2 [0.8, 9.4] |
+| `rft`+force | 768 | -0.8 [-1.8, 0.4] | -5.4 [-9.0, -2.0] | (own) | (own) |
+| `rft`+force | 1,024 | +0.9 [-0.1, 1.8] | +1.0 [-2.0, 3.8] | (own) | (own) |
+| `rft`+force | 1,536 | +1.9 [1.1, 2.7] | +4.8 [2.4, 7.4] | (own) | (own) |
+| `rft`+force | 2,048 | +2.0 [1.2, 2.7] | **+7.0 [4.6, 9.6]** | (own) | (own) |
+| `rft`+force | 3,072 | +2.0 [1.2, 2.7] | +7.6 [5.4, 10.0] | (own) | (own) |
+
+RFT's own gain over SFT on the same machine is +2.9 [0.8, 5.0] / +4.6 [0.6, 9.0]
+(`phase-5-compare-rft-vs-sft-laptop.md`). What changes:
+
+- *Recovery.* `sft`+force at 1,536 gains +4.6 / +7.2 over `sft` (first quoted +5.8 / +9.0), 159 % /
+  157 % of RFT's same-machine gain, and against the laptop's `rft` run it is +1.7 [-0.2, 3.7] /
+  +2.6 [-1.6, 6.6]: at least RFT's level, above it by an amount inside the CI. Clause 1 holds.
+  Against GRPO on the same machine (section 4): GRPO's gain over `sft` there is +6.1 [3.9, 8.3] /
+  +9.2 [5.0, 13.6] (`phase-5-compare-grpo-vs-sft-laptop.md`), so `sft`+force at 1,536 recovers
+  75 % / 78 % of it (at 3,072, 79 % / 107 %) and stands at -1.4 [-3.3, 0.3] / -2.0 [-6.0, 2.0]
+  against it (`phase-5-compare-sft-force1536-vs-grpo-laptop.md`).
+- *The cost of the rule was mostly the machine term.* On one machine a forced run is identical to
+  the unforced run on every completion shorter than the budget (the same greedy decode), so the rule
+  can only change completions that would have run past B. Same-machine decompositions
+  (`phase-5-gain-decomposition-{sft,rft}-force*-vs-{sft,rft}-laptop.md`): `sft`+force at 1,536 gains
+  +4.7 / +8.8 on the problems `sft` truncated and loses -0.1 / -1.6 on the problems it finished,
+  both-finished -0.1 [-0.3, 0.0] / -2.7 [-5.4, -0.4]; at 3,072 the loss is 0.0 / +0.2; `rft`+force at
+  2,048 loses 0.0 / -0.6. The first decomposition's -1.4 / -4.2 on finished problems and -2.1 / -8.4
+  both-finished were the 15-23 % cross-machine flips, not the rule. The real cost is the MATH-500
+  completions that would have finished between B and the window, about 1.6 points at 1,536.
+- Unchanged: the forced answers' accuracy (computed within each run), the shape of the curve, and
+  the conclusion. The figure's stars for `sft` and `rft` are the H100 runs; the laptop's own
+  unforced points are 76.0 / 52.4 (`sft`) and 78.9 / 57.0 (`rft`).
 
 ## 3. What option A says together
 
@@ -164,3 +209,154 @@ the rule was not applied to the GRPO checkpoint (5 / 21 % truncation), the natur
 
 What option A cannot answer is whether harder prompts would have made GRPO teach something a rule
 cannot (EXP-018), which is the one training question left in `docs/phase-5-plan.md`.
+
+## 4. EXP-020: the GRPO checkpoint under the stop rule, and the laptop control run (22-24 Oct 2026)
+
+Phase 5B, `docs/plan-after-phase-4.md` section 1; laptop RTX 4060; `outputs/phase5b_exp020.log`.
+
+**(b) The laptop control run.** The unforced `sft` and `rft` think-tag greedy runs, made again on
+the laptop at the 4,096 window, against the H100 runs of the same checkpoints
+(`phase-5-compare-{sft,rft}-laptop-vs-h100.md`):
+
+| checkpoint | GSM8K laptop / H100 | paired | problems flipping | MATH-500 laptop / H100 | paired | problems flipping |
+|---|---|---|---|---|---|---|
+| `sft` | 76.0 / 74.8 | +1.2 [-0.9, 3.5] | 232 (17.6 %) | 52.4 / 50.6 | +1.8 [-2.6, 5.8] | 117 (23.4 %) |
+| `rft` | 78.9 / 78.2 | +0.8 [-1.3, 2.8] | 196 (14.9 %) | 57.0 / 56.4 | +0.6 [-3.2, 4.8] | 103 (20.6 %) |
+| `grpo` (run 23-24 Oct) | 82.1 / 82.3 | -0.2 [-1.8, 1.5] | 130 (9.9 %) | 61.6 / 63.4 | -1.8 [-5.6, 1.8] | 93 (18.6 %) |
+
+The pre-registered hypothesis (within 0.5 points, under 2 % flipping) failed and the falsifier
+(over 1 point or over 5 % flipping) fired. Batch-invariant greedy decoding is bit-identical across
+runs on one machine (EXP-000), not across GPUs: a near-tie in the argmax early in a long completion
+sends the two decodes apart. The net difference is inside its CI, the flip rate is not small, and the
+laptop loops a little less (truncation 25.7 / 48.2 % for `sft` against 28.1 / 52.0 %). EXP-016 is
+re-paired on the same machine in section 2b; `FAILURES_AND_LEARNINGS.md` records the incident.
+
+**(a) GRPO under the stop rule, paired on one machine.** The reference is the unforced GRPO run
+made on the laptop on 23-24 Oct (82.1 / 61.6 at 993 / 2,049 mean tokens; truncation 4.5 / 22.4 %;
+`phase-5-compare-grpo-force{1536,2048}-vs-grpo-laptop.md`,
+`phase-5-gain-decomposition-grpo-force{1536,2048}-vs-grpo-laptop.md`):
+
+| B | GSM8K | tokens | forced | vs `grpo` (laptop) | MATH-500 | tokens | forced | vs `grpo` (laptop) |
+|---|---|---|---|---|---|---|---|---|
+| 1,536 | 82.5 [80.5, 84.5] | 867 | 7.4 % | +0.4 [0.0, 0.8] | 62.6 [58.4, 66.6] | 1,285 | 47 % | +1.0 [-1.2, 3.4] |
+| 2,048 | 82.5 [80.5, 84.5] | 897 | 5.0 % | +0.4 [0.0, 0.8] | 63.6 [59.4, 67.6] | 1,493 | 36 % | **+2.0 [0.6, 3.6]** |
+
+Decomposed on MATH-500: at 2,048 the gain is +2.2 [1.0, 3.6] on the problems the unforced run
+truncated and -0.2 [-1.0, 0.4] on those it finished (both-finished -0.3 [-1.0, 0.5]); at 1,536 it is
++2.6 [1.2, 4.0] and -1.6 [-3.4, 0.0], the completions that would have finished between 1,536 and
+4,096 tokens. On GSM8K it is +0.5 and -0.1 at both budgets. Against the pre-registration: +1 to +3
+on MATH-500 held (at 2,048 with a CI clear of 0; at 1,536 the point estimate is +1.0 and the CI
+covers 0); GSM8K within the noise row held; the mechanism clause failed, because the forced answers
+are right 17 / 22 % of the time (GSM8K / MATH-500), not 30-40 % (`sft`'s are 55 / 50 %; Phase 6,
+section 4). The falsifier (a CI covering 0 with a point estimate under +1) did not fire at either
+budget. GRPO's remaining loops hold readable answers too, fewer than SFT's: the rule adds 2 points on
+MATH-500 at 27 % fewer tokens (1,493 against 2,049).
+
+**GRPO against RFT, both under the rule** (`phase-5-compare-grpo-vs-rft-laptop.md`,
+`phase-5-compare-grpo-force{1536,2048}-vs-rft-force{1536,2048}.md`). Unforced on one machine, GRPO is
++3.2 [1.2, 5.2] / +4.6 [0.6, 8.4] over RFT (on the H100, +4.1 / +7.0). With both stopped at 2,048 the
+difference is +1.6 [-0.4, 3.6] / -0.4 [-4.4, 3.4]; at 1,536, +1.7 [-0.3, 3.6] / +0.8 [-3.0, 4.8].
+Under the same stop rule GRPO's MATH-500 gain over RFT is gone and half its GSM8K gain remains,
+inside its CI. `rft`+force at 2,048 against the unforced GRPO run on one machine is -1.2 [-3.2, 0.8]
+/ +2.4 [-1.6, 6.6], at 1,125 / 1,710 tokens against 993 / 2,049
+(`phase-5-compare-rft-force2048-vs-grpo-laptop.md`).
+
+**The first, cross-machine pairing** (`phase-5-compare-grpo-force{1536,2048}-vs-grpo.md`, against
+the H100 run: +0.2 / -0.8 at 1,536 and +0.2 / +0.2 at 2,048, with -4.0 to -5.0 on problems that
+would have finished) read as "no gain", and the first version of this section said the falsifier
+fired. GRPO's own machine term in (b), -1.8 on MATH-500 with 18.6 % of problems flipping, is the size
+of the effect it hid. The files stay as the record.
+
+## 5. EXP-021: "Wait" before the stop (23 Oct 2026)
+
+At budget 1,536, every completion still inside its think block got "\nWait" appended and up to 512
+more tokens; those that closed the think block and finished stayed finished, the rest got the forced
+stop (`--force-continue`, tested). Same-machine pairings throughout
+(`phase-5-compare-{sft,rft}-wait-vs-force{1536,2048}.md`).
+
+| run | closed the think block on their own | GSM8K | tokens | vs stop at 1,536 | vs stop at 2,048 | MATH-500 | tokens | vs stop at 1,536 | vs stop at 2,048 |
+|---|---|---|---|---|---|---|---|---|---|
+| `sft` + Wait | 60 of 437 / 59 of 390 (14 / 15 %) | 80.8 [78.7, 82.9] | 1,311 | +0.2 [-0.2, 0.6] | +0.2 [-0.2, 0.7] | 61.2 [57.2, 65.4] | 1,833 | +1.6 [-0.4, 3.8] | +0.2 [-1.4, 1.8] |
+| `rft` + Wait | 47 of 271 / 63 of 336 (17 / 19 %) | 80.9 [78.7, 83.0] | 1,128 | +0.1 [-0.5, 0.6] | 0.0 [-0.5, 0.5] | 63.4 [59.2, 67.6] | 1,724 | +1.6 [-0.2, 3.4] | -0.6 [-2.2, 1.4] |
+
+The stop at 2,048 spends almost exactly the tokens the Wait condition spends (1,308 against 1,311 for
+`sft` on GSM8K; 1,824 against 1,833 on MATH-500), so it is the matched comparison: the nudge lands
+within a fraction of a point of it on all four cells. Against the immediate stop at 1,536 it gains on
+MATH-500 what the extra tokens buy (+1.6, CIs touching 0). Of the completions nudged, 14-19 % closed
+their think block on their own; the rest kept looping until the forced stop. Against the
+pre-registration: within the noise of the immediate stop (held), under 20 % closing unaided (held),
+below the stop at B + 512 (failed: level, not below); the falsifier (beats the same-budget stop by
+over 2 with a CI clear of 0) did not fire. A looping model given "Wait" mostly loops on;
+sequential extension buys nothing a larger budget does not. Phase 6 shows why: the loop is a
+re-derivation of the same step from a fixed point, and "Wait" is already what the model writes
+inside it, 16-28 times per truncated completion.
+
+## 6. EXP-022: an outcome reward model against voting (23-24 Oct 2026)
+
+**The verifier.** A LoRA adapter (rank 16, every linear layer) and a scalar head on the last token's
+hidden state of Qwen3-0.6B-Base, trained with binary cross-entropy on 20,000 labelled samples of the
+`sft` checkpoint from the Phase 3 solve-rate pass (T = 1.0, 8 per problem; 58 % correct; up to two
+right and two wrong per problem; manifest hash b57c1972eeed28f8), one epoch, 1,250 steps of 16
+examples, inputs keeping their last 2,048 tokens (11,470 of the 20,000 were cut from the front),
+5.8 hours of training on the laptop (the lost first run took 6.4). Held out by problem: **accuracy 89.4 %, AUROC 0.944** on 2,207 examples
+(the first run, lost to the hang, reached 87.9 % and 0.938). On the eval-set samples it scores
+(`phase-5-accuracy-vs-tokens-orm.json`; scores next to each `samples.jsonl`):
+
+| samples (T = 0.6, n = 32, pinned 300-problem subsets) | GSM8K AUROC | MATH-500 AUROC | accuracy at the 0 threshold, GSM8K / MATH-500 |
+|---|---|---|---|
+| `sft` (the distribution it was trained on, other problems) | 0.866 | 0.930 | 86.8 / 86.2 % |
+| `rft` | 0.856 | 0.898 | 87.9 / 83.2 % |
+| `grpo` | 0.817 | 0.850 | 87.2 / 77.4 % |
+
+It separates right from wrong answers well and degrades as the policy drifts from the one it was
+trained on.
+
+**Best-of-k and the reward-weighted vote** against majority vote, over the same seeded draws
+(`scripts/plot_accuracy_vs_tokens.py --scores`; `figures/phase-5-accuracy-vs-tokens-orm.{png,md,json}`):
+
+| run | k | GSM8K: maj@k / best-of-k / weighted vote | best-of-k - maj@k | weighted - maj@k | MATH-500: maj@k / best-of-k / weighted vote | best-of-k - maj@k | weighted - maj@k |
+|---|---|---|---|---|---|---|---|
+| `sft` | 2 | 80.3 / 85.9 / 85.9 | +5.6 [4.6, 6.7] | +5.6 [4.6, 6.7] | 63.2 / 66.7 / 66.8 | +3.5 [2.6, 4.3] | +3.6 [2.8, 4.5] |
+| `sft` | 4 | 86.7 / 87.7 / 88.9 | +1.0 [-0.2, 2.1] | +2.1 [1.3, 2.9] | 70.8 / 70.8 / 72.9 | 0.0 [-1.2, 1.2] | +2.1 [1.3, 2.9] |
+| `sft` | 32 | 90.7 / 90.3 / 91.7 | -0.3 [-3.0, 2.3] | +1.0 [-0.3, 2.7] | 81.7 / 70.0 / 81.0 | **-11.7 [-15.7, -8.0]** | -0.7 [-2.0, 0.7] |
+| `rft` | 2 | 82.4 / 87.6 / 87.6 | +5.2 [4.3, 6.2] | +5.2 [4.3, 6.2] | 64.8 / 68.3 / 68.4 | +3.6 [2.7, 4.5] | +3.6 [2.8, 4.6] |
+| `rft` | 4 | 88.6 / 89.3 / 90.3 | +0.8 [-0.4, 1.9] | +1.8 [1.1, 2.5] | 71.9 / 70.6 / 73.4 | -1.3 [-2.5, -0.2] | +1.6 [0.8, 2.3] |
+| `rft` | 32 | 91.7 / 91.0 / 93.3 | -0.7 [-3.7, 2.3] | +1.7 [0.0, 3.7] | 80.7 / 67.7 / 80.0 | **-13.0 [-17.7, -9.0]** | -0.7 [-2.0, 0.7] |
+| `grpo` | 2 | 83.8 / 86.9 / 86.9 | +3.1 [2.3, 4.0] | +3.1 [2.3, 4.0] | 66.1 / 69.5 / 69.5 | +3.4 [2.4, 4.5] | +3.4 [2.4, 4.5] |
+| `grpo` | 4 | 88.9 / 88.3 / 89.8 | -0.6 [-1.6, 0.5] | +0.9 [0.3, 1.5] | 73.6 / 71.7 / 75.1 | -1.9 [-3.3, -0.5] | +1.6 [0.8, 2.4] |
+| `grpo` | 32 | 91.3 / 88.3 / 92.3 | -3.0 [-6.0, 0.3] | +1.0 [0.0, 2.3] | 81.0 / 67.7 / 81.0 | **-13.3 [-18.0, -9.3]** | 0.0 [-1.0, 1.0] |
+
+Three readings.
+
+1. **At k = 2 the verifier is worth 3-6 points.** Two votes cannot break a disagreement (the tie
+   goes to the first sample); the verifier can. With it, two `rft` samples beat the GRPO policy's
+   greedy number on both sets: +3.0 [0.1, 6.0] on GSM8K and +4.0 [0.2, 7.7] on MATH-500 at 2.6x the
+   tokens (EXP-017's plain maj@2 only matched it, -2.3 / +0.4).
+2. **Best-of-k falls as k grows, on MATH-500 sharply.** On MATH-500, best-of-32 is 11.7-13.3 points
+   below majority-of-32 and below best-of-4 for every checkpoint (on GSM8K it flattens at 88-91 and
+   trails majority vote by 0.3-3.0): the more samples the verifier ranks, the
+   likelier its top pick is a wrong answer it scores highly. This is the over-optimisation of a weak
+   verifier, measured: a 0.6B model's score is a useful signal and a poor arg-max.
+3. **The reward-weighted vote is the robust use of it.** Summing sigmoid(score) per answer is at or
+   above majority vote at every k on both sets (+0.6 to +2.1 at k = 4-8, CIs clear of or touching
+   zero; within the CI at k = 16-32 on MATH-500) and above best-of-k from k = 4 on. With it, eight `rft` samples
+   reach 77.4 % on MATH-500 against the GRPO policy's greedy 64.3 % (+13.1 [9.2, 17.2]) at 10x the
+   tokens.
+
+**Against the pre-registration.** Held-out accuracy at least 70 % (held: 89.4 %). Best-of-4 beats
+maj@4 by 1-3 points on MATH-500 for `rft` and `sft` (failed: 0.0 [-1.2, 1.2] and -1.3 [-2.5, -0.2]).
+At N = 32, best-of-N at or below maj@32, the weak-verifier plateau (held, more strongly than
+predicted: it falls, by 12-13 points). The weighted vote at or above both at every N (held: at or
+above maj@k everywhere within the CI, above best-of-k from k = 4). Falsifier (best-of-N never above
+maj@N with a CI clear of 0) did not fire, but only because of k = 2, where majority vote degenerates
+to the first sample.
+
+**What EXP-022 says, with EXP-017.** The GRPO policy's greedy number is reachable more cheaply than
+EXP-017 alone said: with a 0.6B verifier trained for 6.4 laptop hours on the SFT model's own samples,
+two RFT samples beat it. A verifier used as a vote weight keeps helping up to k = 32; used as an
+arg-max it starts hurting by k = 4 on MATH-500. The scoring cost (a 0.6B forward over each sample)
+is not on the token axis; on this laptop it ran at about 3.5 samples a second.
+
+**Caveats.** One training run, one seed; the scored sets are 300-problem subsets; the verifier was
+trained on `sft`'s samples of the training problems and scores eval problems, a shift its AUROC
+shows; inputs over 2,048 tokens are scored on their tail.

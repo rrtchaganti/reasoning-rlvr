@@ -81,3 +81,58 @@ call refuses a dirty tree at its start.
 - 11:34-12:30 UTC: the paired tables against `sft`, `rft`, `grpo` and the decompositions computed
   on the laptop; the figure script written with a test; report section 2 and 3, the registry, the
   narrative, the ledger, these notes; hibernate-on-mains restored to 3 h.
+
+## 5. Phase 5B and Phase 6, overnight and the next day (22-23 Oct 2026)
+
+**Context.** After the evidence index was merged the user resumed the paused plan
+(`docs/plan-after-phase-4.md`) and, past midnight, asked for all its runs to go overnight. The new code
+was written in a second worktree (`../rlvr_dev`, branch `phase-5b-dev`) while EXP-020 ran in the main
+checkout with the existing scripts, so no tracked file changed under a running job: the "Wait" pass
+in the harness, the reward model (`python -m rlvr.train.orm build | train | score`), best-of-k and
+weighted vote in the chart script, `scripts/phase5b_laptop.sh`, and the trace analysis. A detached
+chain waited for EXP-020 to finish, fast-forwarded the checkout and ran the rest.
+
+**The night (UTC).**
+- 18:55-00:57 EXP-020: the GRPO checkpoint forced at 1,536 and 2,048 (82.5 / 62.6 and 82.5 / 63.6,
+  flat against its unforced 82.3 / 63.4), then the unforced `sft` and `rft` on the laptop (76.0 /
+  52.4 and 78.9 / 57.0), each about two hours because they loop to the window.
+- 00:57-03:00 EXP-021: "Wait" before the stop, `sft` 80.8 / 61.2, `rft` 80.9 / 63.4, the same as the
+  plain stop at 2,048.
+- 19:07 (22 Oct) EXP-023 ran on the laptop's CPU from the archives while the GPU worked.
+- 03:00 EXP-022: 20,000 training examples built in under a minute; training 03:01-09:22, 16-36 s a
+  step (batches padded to their longest example); held-out 87.9 %, AUROC 0.938 at 09:31.
+
+**The morning.** The trainer froze in PEFT's save: a Hub lookup's DNS step blocked in the WSL kernel
+(netlink dump, state D), with the weights only in memory. A Wi-Fi toggle and ten minutes did not
+free it, `wsl --shutdown` waited on it, and the user stopped the VM's worker and restarted the WSL
+and Hyper-V compute services from an elevated shell. WSL rebooted at 11:29 UTC. The fix (weights to
+disk before evaluation and before any Hub call; offline steps; a fallback load from the plain state
+dict, tested) went in as 3bd2898 and the reward model was rerun from 11:30.
+
+**The second day (UTC).**
+- 11:30-17:26 EXP-022 rerun: training 5.8 h (faster than the first run's 6.4 h on the same
+  batches), held-out 89.4 %, AUROC 0.944; the weights were on disk before the held-out pass.
+- 17:26-22:05 scoring of the six n = 32 sample sets (`sft`, `rft`, `grpo` on GSM8K and MATH-500),
+  38-55 minutes each; the chart at 22:06.
+- 22:07 the GRPO same-machine control failed at once: the main checkout was dirty (the user's
+  one-line edit to `METHODS_AND_METRICS.md`, left untouched) and the harness refuses a dirty tree.
+  A worktree did not help either (WSL's git cannot follow the worktree's Windows path), so the run
+  went to a fresh WSL clone at the same commit and started at 22:09.
+- While it ran, EXP-022 was folded in: best-of-k, the reward-weighted vote and majority vote on
+  the same seeded draws; a `best_of_k` rule in the evidence index with two new claims, both
+  re-derived.
+- 22:09-23:16 the GRPO control: 82.1 / 61.6 against the H100's 82.3 / 63.4 (9.9 / 18.6 % of problems
+  flipping). Its first comparison step found an empty folder left by the failed launch and skipped
+  the copy; the script was fixed to check for the sample files. Re-paired on one machine, the GRPO
+  forced run at 2,048 is +2.0 [0.6, 3.6] on MATH-500, not +0.2: EXP-020(a)'s falsifier, recorded as
+  fired on the cross-machine pairing, did not fire.
+
+**What the results changed.** The laptop control runs showed a machine term of 15-23 % flipped
+problems, so EXP-016 was re-paired on one machine: the stop rule's gain on SFT is +4.6 / +7.2 (first
+quoted +5.8 / +9.0), still above RFT's, and the "cost of the rule" first reported was mostly that
+machine term, because on one machine a forced decode is identical to the unforced one below the
+budget. EXP-020's GRPO comparison was cross-machine for the same reason; its same-machine control
+turned "no gain" into +2.0 [0.6, 3.6] on MATH-500 at 2,048, and put GRPO level with RFT on MATH-500
+when both are stopped at the same budget. The trace analysis needed one measure added after its first run (the
+answer by the end of the first cycle), because under zero-shot the whole solution is the repeating
+unit; both measures are reported.

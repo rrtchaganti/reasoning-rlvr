@@ -29,7 +29,7 @@ main ──●──────────────●───────
 
 ## 3. Commits and pull requests
 
-- **Small commits, each one green.** `pre-commit` runs `ruff check`, `ruff format`, and the fast unit tests before every commit when committing from inside WSL (`pre-commit install` there). Commits made from the Windows side run the same gate by hand first: `bash scripts/check.sh` in WSL. A commit that breaks tests is not made.
+- **Small commits, each one green.** `pre-commit` runs `ruff check`, `ruff format`, and the fast unit tests before every commit when committing from inside WSL (`pre-commit install` there). Commits made from the Windows side run the same gate by hand first: `bash scripts/check.sh` in WSL. A commit that breaks tests is not made. Before a PR body is written, `bash scripts/ci_local.sh` in WSL runs CI's own commands in a CI-like venv (CPU torch, no GPU extras, slow tests included), and the branch's Actions page is read after its first push.
 - **Conventional-commit prefixes** so the history reads as a changelog:
   `feat:` new capability, `fix:` bug fix (say which number it changed, if any), `test:` tests only, `docs:` documentation, `refactor:` no behaviour change, `chore:` tooling, `exp:` an experiment registered in `experiments.md` or a result committed to `outputs/reports/`, `data:` a manifest or filtering script change.
   Subject in the imperative, under 72 characters, body explains *why* when it is not obvious.

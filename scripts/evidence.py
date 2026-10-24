@@ -27,6 +27,8 @@ Rules (``rule:`` in the YAML):
                      source of the truncated-right ones
   forced             one forced-stop run: the forced share, the forced answers' accuracy, examples
                      of forced-right and forced-wrong
+  best_of_k          one scored sampled run against a greedy reference: the verifier's pick of k
+                     seeded draws per problem, with each drawn sample's score (EXP-022)
   maj_k              one sampled run against a greedy reference: maj@k re-derived with the seeded
                      draws of scripts/plot_accuracy_vs_tokens.py, and per problem the drawn sample
                      indices, their answers, the vote and the hit; the paired difference
@@ -316,6 +318,67 @@ def rule_forced(c: dict[str, Any], roots: dict[str, Path], ev: str) -> dict[str,
     }
 
 
+def rule_best_of_k(c: dict[str, Any], roots: dict[str, Path], ev: str) -> dict[str, Any]:
+    """EXP-022: best-of-k with the outcome reward model's scores (``scores.jsonl`` next to the
+    samples), over the same seeded draws as maj@k, against a greedy reference; per problem the drawn
+    indices, their scores and answers, the pick and whether it was right."""
+    samples = load_all(roots[c["run"]["root"]] / c["run"]["run"], ev)
+    ref = load_first(roots[c["ref"]["root"]] / c["ref"]["run"], ev)
+    scores: dict[str, dict[int, float]] = defaultdict(dict)
+    sp = roots[c["run"]["root"]] / c["run"]["run"] / ev / "scores.jsonl"
+    if not sp.exists():
+        raise FileNotFoundError(sp)
+    with sp.open(encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                scores[r["problem_id"]][int(r["sample_idx"])] = float(r["score"])
+    ids = sorted(set(samples) & set(ref))
+    k, repeats = int(c["k"]), int(c.get("repeats", 20))
+    per_problem, audit = [], []
+    for i in ids:
+        rows = samples[i]
+        n = len(rows)
+        rng = np.random.default_rng(0)
+        n_rep = 1 if k >= n else repeats
+        hits, first = 0.0, None
+        for _ in range(n_rep):
+            idx = rng.choice(n, size=k, replace=False) if k < n else np.arange(n)
+            best = max(idx, key=lambda j: scores[i].get(int(rows[j]["sample_idx"]), float("-inf")))
+            hit = bool(rows[best]["correct"])
+            hits += float(hit)
+            if first is None:
+                first = (sorted(int(j) for j in idx), int(best), hit)
+        per_problem.append(hits / n_rep)
+        audit.append((i, first, hits / n_rep))
+    refc = [float(ref[i]["correct"]) for i in ids]
+    e = bootstrap_ci(per_problem, seed=k)
+    d = paired_bootstrap_diff(per_problem, refc, seed=k)
+    lr = c["ref"].get("label", "ref")
+    lines = [
+        f"best-of-{k} of `{c['run'].get('label', 'run')}` (the verifier's highest-scored of {k} seeded draws) on {len(ids)} shared problems: **{ci(e.as_dict())}**; "
+        f"{lr} greedy {pct(np.mean(refc))}; paired difference **{100 * d.mean:+.1f} [{100 * d.lo:+.1f}, {100 * d.hi:+.1f}]**.",
+        "",
+        f"**Per problem, the first seeded draw** (sample index: verifier score, answer, right?; the pick; then {lr} greedy):",
+        "",
+        f"| problem | drawn samples (score, answer, right) | pick | hit (mean over draws) | {lr} greedy |",
+        "|---|---|---|---|---|",
+    ]
+    for i, (idx, best, hit), mean_hit in audit[: c.get("examples", 25)]:
+        cells = "; ".join(
+            f"{j}: {scores[i].get(int(samples[i][j]['sample_idx']), float('nan')):+.2f}, `{excerpt(str(samples[i][j]['extracted']), 20)}`, {'right' if samples[i][j]['correct'] else 'wrong'}"
+            for j in idx
+        )
+        lines.append(
+            f"| `{i}` | {cells} | {best} | {'yes' if hit else 'no'} ({mean_hit:.2f}) | {'right' if ref[i]['correct'] else 'wrong'} |"
+        )
+    lines += [
+        "",
+        "The scores are in the run's `scores.jsonl`; every sample's full text in its `samples.jsonl`.",
+    ]
+    return {"derived": round(100 * d.mean, 1), "n": len(ids), "lines": lines}
+
+
 def rule_maj_k(c: dict[str, Any], roots: dict[str, Path], ev: str) -> dict[str, Any]:
     samples = load_all(roots[c["run"]["root"]] / c["run"]["run"], ev)
     ref = load_first(roots[c["ref"]["root"]] / c["ref"]["run"], ev)
@@ -498,6 +561,7 @@ RULES = {
     "truncated_right": rule_truncated_right,
     "forced": rule_forced,
     "maj_k": rule_maj_k,
+    "best_of_k": rule_best_of_k,
     "pass_k_newly_solved": rule_pass_k_newly_solved,
     "perturbation_gap": rule_perturbation_gap,
     "reward_log": rule_reward_log,

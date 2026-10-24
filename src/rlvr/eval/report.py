@@ -36,6 +36,7 @@ class SampleRecord:
     correct: bool
     format_ok: bool
     forced_stop: bool = False  # budget forcing (EXP-016); absent in files written before it
+    forced_continue: bool = False  # the "Wait" pass (EXP-021)
 
 
 @dataclass
@@ -76,6 +77,7 @@ def grade_completions(
                     correct=ok,
                     format_ok=tag_format_ok(full_text),
                     forced_stop=bool(getattr(comp, "forced", False)),
+                    forced_continue=bool(getattr(comp, "continued", False)),
                 )
             )
         results.append(pr)
@@ -115,6 +117,13 @@ def summarize(results: list[ProblemResult], *, ks=DEFAULT_KS) -> dict[str, Any]:
         "tokens_correct": length_stats([s.num_tokens for s in all_samples if s.correct]),
         "tokens_incorrect": length_stats([s.num_tokens for s in all_samples if not s.correct]),
     }
+    continued = [s for s in all_samples if getattr(s, "forced_continue", False)]
+    out["forced_continue_rate"] = len(continued) / len(all_samples)
+    if continued:
+        out["forced_continue_accuracy"] = sum(s.correct for s in continued) / len(continued)
+        out["forced_continue_finished_rate"] = sum(
+            s.finish_reason != "length" for s in continued
+        ) / len(continued)
     forced = [s for s in all_samples if getattr(s, "forced_stop", False)]
     out["forced_stop_rate"] = len(forced) / len(all_samples)
     if forced:

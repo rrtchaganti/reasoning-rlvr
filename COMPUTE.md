@@ -98,6 +98,12 @@ Phase 4 in all: 26.7 node-hours, INR 10,130 (sessions 1 and 2) plus about INR 16
 | 2026-10-21 | 5 | EXP-017 accuracy against tokens from the existing sample sets (379b67a) | laptop CPU | 0 | 0 | 0 | 0 | about 2 CPU-minutes; five sample sets fetched from the Hub (about 1.5 GB) |
 | 2026-10-21 | 5 | EXP-016 smoke: 0.6B base, 8 problems, budget 64 | RTX 4060 Laptop 8 GB | 0.05 | 0 | <0.01 M | 0 | the forced-stop path end to end |
 | 2026-10-21/22 | 5 | EXP-016 sweep: sft and rft at five budgets, GSM8K + MATH-500, greedy think-tag (1cf82a5) | RTX 4060 Laptop 8 GB | 8.55 | 0 | about 5.5 M | 0 | ten runs of 30-66 min, 03:01-11:34 UTC on the log's clock; the laptop slept most of the night with the job suspended (lid closed), nothing lost; two fp32 checkpoints (6.9 GB each) downloaded at 0.4-3 MB/s, about 2 h of network |
+| 2026-10-22/23 | 5B | EXP-020: grpo forced at 1,536 and 2,048; unforced sft and rft on the laptop (3fc00b3 era, phase5_laptop.sh) | RTX 4060 Laptop 8 GB | 5.6 | 0 | about 4 M | 0 | 18:55-00:57 UTC; the unforced runs loop to the window (about 2 h each) |
+| 2026-10-23 | 5B | EXP-021: sft and rft with Wait before the stop at 1,536 (3fc00b3) | RTX 4060 Laptop 8 GB | 2.05 | 0 | about 1.5 M | 0 | 00:57-03:00 UTC |
+| 2026-10-23 | 5B | EXP-022 first reward-model run: LoRA head on Qwen3-0.6B-Base, 20,000 examples, held-out eval | RTX 4060 Laptop 8 GB | 6.5 | 0 | 0 | about 30 M | 03:01-09:31 UTC; held-out 87.9 %, AUROC 0.938; weights lost in a WSL kernel hang during the save (FAILURES_AND_LEARNINGS.md, 23 Oct); 0.95 h idle until the restart |
+| 2026-10-23 | 5B | EXP-022 rerun with the save fix (3bd2898): training, held-out eval, scoring of six n = 32 sample sets (57,600 samples), the chart | RTX 4060 Laptop 8 GB | 10.6 | 0 | 0 | about 30 M | 11:30-22:06 UTC; training 5.8 h (1,250 steps), held-out 89.4 %, AUROC 0.944; scoring 4.65 h (38-55 min a set); chart 1 min |
+| 2026-10-23 | 5B | EXP-020 GRPO control: grpo unforced greedy think-tag on the laptop, GSM8K + MATH-500 (clean WSL clone at 0d10994) | RTX 4060 Laptop 8 GB | 1.1 | 0 | about 2.3 M | 0 | 22:09-23:16 UTC; a first launch at 22:07 was refused by the harness (the main checkout held an uncommitted edit) |
+| 2026-10-23 | 6 | EXP-023 trace analysis, twice (the second with the first-cycle measure and the forced split) | laptop CPU | 0 | 0 | 0 | 0 | about 15 CPU-minutes |
  The plan's
 Phase 4 line at the original shape was about 90 H100-hours; shape B with the cap test in A3's slot cost
 30 % of that.
