@@ -156,6 +156,19 @@ def test_model_card_renders_from_run_info(tmp_path):
         ["model", "--run", str(run), "--repo", "x/rft", "--base-model-id", "a/b", "--dry-run"]
     )
     assert "base_model: a/b" in (run / "final" / "README.md").read_text(encoding="utf-8")
+    # The rates are per set, not the largest value over the row (external review, 5 Nov 2026).
+    assert "| think_tag | 10.0 / 0.0 | - | 10.0 / 0.0 | - | - |" in card
+    assert "trunc %" not in card and "largest value" not in card
+    # The RFT run is an rlvr-sft run on the rft builder's data: its card says so and does not carry
+    # the SFT card's data source, intro or contamination line (the 24 Oct RFT card did).
+    info["config"]["data"] = "outputs/data/rft/train.jsonl"
+    (run / "run_info.json").write_text(json.dumps(info))
+    card = push_to_hub.model_card(run, "x/rft", [ev], "| x |\n", "Raviteja546/reasoning-rlvr-sft")
+    assert (
+        "rlvr-build-rft" in card and "datasets: [openai/gsm8k, EleutherAI/hendrycks_math]" in card
+    )
+    assert "against the checkpoint it was trained from" in card and "base model" not in card
+    assert "OpenR1" not in card and "olympiad" not in card and "36 MATH-500 problems" in card
 
 
 def test_model_card_for_a_grpo_run_uses_its_own_fields(tmp_path):
@@ -296,3 +309,31 @@ def test_compare_checkpoints_all_samples_gives_paired_pass_at_k(tmp_path):
     bad = _samples_dir_n(tmp_path, "bad", {"a": 1}, 2)
     with pytest.raises(ValueError):
         compare_checkpoints.compare_runs(rd, bad, all_samples=True)
+
+
+def test_paired_differences_are_bold_only_when_the_ci_excludes_zero():
+    assert compare_checkpoints._sig({"mean": 0.05, "lo": 0.01, "hi": 0.09}).startswith("**")
+    assert compare_checkpoints._sig({"mean": -0.05, "lo": -0.09, "hi": -0.01}).startswith("**")
+    # an interval touching zero is not significant
+    assert "**" not in compare_checkpoints._sig({"mean": 0.03, "lo": 0.0, "hi": 0.059})
+    assert "**" not in compare_checkpoints._sig({"mean": -0.033, "lo": -0.133, "hi": 0.067})
+
+
+def test_contamination_check_finds_flagged_prompts(tmp_path):
+    import contamination_check
+
+    ov = tmp_path / "ov.json"
+    drop = ["math-train-a-1-s3", "math-train-a-2-s0"]
+    ov.write_text(json.dumps({"contaminated_eval_ids": ["e1"], "train_ids_to_drop": drop}))
+    pr = tmp_path / "p.jsonl"
+    rows = [json.dumps({"id": i}) for i in ("math-train-a-1", "gsm8k-train-0")]
+    pr.write_text("\n".join(rows) + "\n")
+    assert contamination_check.flagged(ov, pr) == ({"e1"}, {"math-train-a-1"})
+
+
+def test_upload_cards_dry_run_lists_the_three_cards(capsys):
+    import upload_cards
+
+    upload_cards.main(["--dry-run"])
+    out = capsys.readouterr().out
+    assert all(f"Raviteja546/reasoning-rlvr-{n}:README.md" in out for n in ("sft", "rft", "grpo"))

@@ -762,3 +762,27 @@ against the INR 22,000 ceiling (`COMPUTE.md`).
 
 The chain of questions this phase answered, and the ones it raised, are in `docs/research-narrative.md`;
 the engineering record in `docs/phase-4-engineering-notes.md`; the chronology in `docs/phase-4-journal.md`.
+
+## 19. Addendum, 5 Nov 2026: the prompt file was not decontaminated
+
+Found while correcting the model cards after an external review. `rlvr-build-rft` decontaminates the
+RFT *traces* against every eval set but writes `learnable_prompts.jsonl`, this phase's prompt file,
+from the solve-rate rows before that filter. Of its 4,606 prompts, 68 (all MATH-train) are near
+duplicates of 36 MATH-500 problems, and 40 are near duplicates of 21 MATH-dev problems; no GSM8K,
+perturbed-GSM8K or AIME problem is affected. The RFT checkpoint never trained on those problems; GRPO
+was offered them as prompts.
+
+What it does to the MATH-500 result, paired on first samples (`scripts/contamination_check.py`;
+`contamination-grpo-math500.md`):
+
+| pair | all 500 | without the 36 (464) | the 36 alone |
+|---|---|---|---|
+| grpo - rft | +7.0 [2.8, 11.0] | +8.0 [3.9, 12.3] | -5.6 [-22.2, 8.3] |
+| grpo seed 1 - rft | +2.2 [-2.0, 6.6] | +2.8 [-1.5, 7.1] | -5.6 [-22.2, 11.1] |
+
+The gain does not come from the overlap: it is slightly larger without the flagged problems, and on
+the 36 GRPO is, if anything, worse. Every Phase 4 MATH-500 conclusion stands. The MATH-dev curves
+(section 7) were read for the plateau question only; the evaluated checkpoint is the step-200 final,
+not one picked on dev. The builder is unchanged, because changing it would change the prompt file's
+hash and with it the reproduction of every Phase 4 run; the gap is recorded on the GRPO card and in
+`FAILURES_AND_LEARNINGS.md`.

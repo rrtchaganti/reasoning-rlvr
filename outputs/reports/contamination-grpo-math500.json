@@ -1,0 +1,264 @@
+{
+  "eval_ids": [
+    "test/algebra/1255.json",
+    "test/algebra/1332.json",
+    "test/algebra/2036.json",
+    "test/algebra/224.json",
+    "test/algebra/2430.json",
+    "test/algebra/2592.json",
+    "test/algebra/276.json",
+    "test/algebra/346.json",
+    "test/algebra/351.json",
+    "test/algebra/425.json",
+    "test/algebra/567.json",
+    "test/counting_and_probability/1060.json",
+    "test/counting_and_probability/116.json",
+    "test/counting_and_probability/216.json",
+    "test/counting_and_probability/71.json",
+    "test/counting_and_probability/761.json",
+    "test/geometry/283.json",
+    "test/intermediate_algebra/1102.json",
+    "test/intermediate_algebra/1126.json",
+    "test/intermediate_algebra/1714.json",
+    "test/intermediate_algebra/337.json",
+    "test/intermediate_algebra/860.json",
+    "test/number_theory/466.json",
+    "test/number_theory/533.json",
+    "test/number_theory/686.json",
+    "test/prealgebra/1297.json",
+    "test/prealgebra/572.json",
+    "test/precalculus/1105.json",
+    "test/precalculus/1199.json",
+    "test/precalculus/1289.json",
+    "test/precalculus/1300.json",
+    "test/precalculus/34.json",
+    "test/precalculus/452.json",
+    "test/precalculus/779.json",
+    "test/precalculus/807.json",
+    "test/precalculus/819.json"
+  ],
+  "train_prompt_hits": [
+    "math-train-algebra-1039",
+    "math-train-algebra-1079",
+    "math-train-algebra-1164",
+    "math-train-algebra-1227",
+    "math-train-algebra-1319",
+    "math-train-algebra-1324",
+    "math-train-algebra-1376",
+    "math-train-algebra-1379",
+    "math-train-algebra-1403",
+    "math-train-algebra-1509",
+    "math-train-algebra-1548",
+    "math-train-algebra-1661",
+    "math-train-counting_and_probability-153",
+    "math-train-counting_and_probability-243",
+    "math-train-counting_and_probability-300",
+    "math-train-counting_and_probability-318",
+    "math-train-counting_and_probability-33",
+    "math-train-counting_and_probability-36",
+    "math-train-counting_and_probability-489",
+    "math-train-counting_and_probability-543",
+    "math-train-counting_and_probability-573",
+    "math-train-counting_and_probability-574",
+    "math-train-counting_and_probability-759",
+    "math-train-counting_and_probability-766",
+    "math-train-geometry-123",
+    "math-train-geometry-821",
+    "math-train-intermediate_algebra-1121",
+    "math-train-intermediate_algebra-214",
+    "math-train-intermediate_algebra-224",
+    "math-train-intermediate_algebra-328",
+    "math-train-intermediate_algebra-407",
+    "math-train-intermediate_algebra-460",
+    "math-train-intermediate_algebra-671",
+    "math-train-intermediate_algebra-729",
+    "math-train-number_theory-154",
+    "math-train-number_theory-598",
+    "math-train-number_theory-868",
+    "math-train-prealgebra-2",
+    "math-train-prealgebra-221",
+    "math-train-prealgebra-703",
+    "math-train-prealgebra-93",
+    "math-train-precalculus-147",
+    "math-train-precalculus-15",
+    "math-train-precalculus-167",
+    "math-train-precalculus-216",
+    "math-train-precalculus-241",
+    "math-train-precalculus-250",
+    "math-train-precalculus-259",
+    "math-train-precalculus-278",
+    "math-train-precalculus-284",
+    "math-train-precalculus-321",
+    "math-train-precalculus-348",
+    "math-train-precalculus-355",
+    "math-train-precalculus-382",
+    "math-train-precalculus-450",
+    "math-train-precalculus-46",
+    "math-train-precalculus-462",
+    "math-train-precalculus-488",
+    "math-train-precalculus-533",
+    "math-train-precalculus-542",
+    "math-train-precalculus-548",
+    "math-train-precalculus-608",
+    "math-train-precalculus-629",
+    "math-train-precalculus-647",
+    "math-train-precalculus-656",
+    "math-train-precalculus-682",
+    "math-train-precalculus-699",
+    "math-train-precalculus-702"
+  ],
+  "rows": [
+    {
+      "ref": "rft",
+      "new": "grpo",
+      "full": {
+        "num_pairs": 500,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.564,
+          "lo": 0.52,
+          "hi": 0.604,
+          "n": 500
+        },
+        "acc_new": {
+          "mean": 0.634,
+          "lo": 0.59,
+          "hi": 0.6740499999999998,
+          "n": 500
+        },
+        "diff_new_minus_ref": {
+          "mean": 0.07,
+          "lo": 0.028,
+          "hi": 0.11,
+          "n": 500
+        },
+        "only_ref": 39,
+        "only_new": 74
+      },
+      "clean": {
+        "num_pairs": 464,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.5431034482758621,
+          "lo": 0.4978448275862069,
+          "hi": 0.5862068965517241,
+          "n": 464
+        },
+        "acc_new": {
+          "mean": 0.6228448275862069,
+          "lo": 0.5753771551724138,
+          "hi": 0.665948275862069,
+          "n": 464
+        },
+        "diff_new_minus_ref": {
+          "mean": 0.07974137931034483,
+          "lo": 0.03879310344827586,
+          "hi": 0.12284482758620689,
+          "n": 464
+        },
+        "only_ref": 34,
+        "only_new": 71
+      },
+      "flagged": {
+        "num_pairs": 36,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.8333333333333334,
+          "lo": 0.6944444444444444,
+          "hi": 0.9444444444444444,
+          "n": 36
+        },
+        "acc_new": {
+          "mean": 0.7777777777777778,
+          "lo": 0.6388888888888888,
+          "hi": 0.8895833333333295,
+          "n": 36
+        },
+        "diff_new_minus_ref": {
+          "mean": -0.05555555555555555,
+          "lo": -0.2222222222222222,
+          "hi": 0.08333333333333333,
+          "n": 36
+        },
+        "only_ref": 5,
+        "only_new": 3
+      }
+    },
+    {
+      "ref": "rft",
+      "new": "grpo_seed1",
+      "full": {
+        "num_pairs": 500,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.564,
+          "lo": 0.52,
+          "hi": 0.604,
+          "n": 500
+        },
+        "acc_new": {
+          "mean": 0.586,
+          "lo": 0.542,
+          "hi": 0.63,
+          "n": 500
+        },
+        "diff_new_minus_ref": {
+          "mean": 0.022,
+          "lo": -0.02,
+          "hi": 0.066,
+          "n": 500
+        },
+        "only_ref": 52,
+        "only_new": 63
+      },
+      "clean": {
+        "num_pairs": 464,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.5431034482758621,
+          "lo": 0.4978448275862069,
+          "hi": 0.5862068965517241,
+          "n": 464
+        },
+        "acc_new": {
+          "mean": 0.5711206896551724,
+          "lo": 0.5237068965517241,
+          "hi": 0.6163793103448276,
+          "n": 464
+        },
+        "diff_new_minus_ref": {
+          "mean": 0.028017241379310345,
+          "lo": -0.015086206896551725,
+          "hi": 0.07112068965517242,
+          "n": 464
+        },
+        "only_ref": 47,
+        "only_new": 60
+      },
+      "flagged": {
+        "num_pairs": 36,
+        "unpaired": 0,
+        "acc_ref": {
+          "mean": 0.8333333333333334,
+          "lo": 0.6944444444444444,
+          "hi": 0.9444444444444444,
+          "n": 36
+        },
+        "acc_new": {
+          "mean": 0.7777777777777778,
+          "lo": 0.6388888888888888,
+          "hi": 0.8895833333333295,
+          "n": 36
+        },
+        "diff_new_minus_ref": {
+          "mean": -0.05555555555555555,
+          "lo": -0.2222222222222222,
+          "hi": 0.1111111111111111,
+          "n": 36
+        },
+        "only_ref": 5,
+        "only_new": 3
+      }
+    }
+  ]
+}

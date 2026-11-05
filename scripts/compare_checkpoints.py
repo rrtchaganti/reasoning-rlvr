@@ -107,6 +107,14 @@ def _f(e: dict) -> str:
     return f"{100 * e['mean']:.1f} [{100 * e['lo']:.1f}, {100 * e['hi']:.1f}]"
 
 
+def _sig(e: dict) -> str:
+    """A paired difference, bold only when its CI excludes zero (an interval touching zero, such as
+    [0.0, 5.9], is not bold). Every difference used to be bold, which reads as every one being
+    significant (external review of the SFT card, 5 Nov 2026)."""
+    s = _f(e)
+    return f"**{s}**" if e["lo"] > 0 or e["hi"] < 0 else s
+
+
 def markdown(
     results: dict[str, dict], levels: dict[int, dict], label_ref: str, label_new: str
 ) -> str:
@@ -119,7 +127,7 @@ def markdown(
         g = results[ev]
         lines.append(
             f"| {ev} | {g['num_pairs']} | {_f(g['acc_ref'])} | {_f(g['acc_new'])} | "
-            f"**{_f(g['diff_new_minus_ref'])}** | {g['only_ref']} / {g['only_new']} |"
+            f"{_sig(g['diff_new_minus_ref'])} | {g['only_ref']} / {g['only_new']} |"
         )
     if levels:
         lines += [
@@ -132,7 +140,7 @@ def markdown(
         for lv, g in sorted(levels.items()):
             lines.append(
                 f"| {lv} | {g['num_pairs']} | {_f(g['acc_ref'])} | {_f(g['acc_new'])} | "
-                f"{_f(g['diff_new_minus_ref'])} |"
+                f"{_sig(g['diff_new_minus_ref'])} |"
             )
     return "\n".join(lines) + "\n"
 
@@ -148,7 +156,7 @@ def markdown_samples(results: dict[str, dict], label_ref: str, label_new: str) -
         for k, r in sorted(g["by_k"].items()):
             lines.append(
                 f"| {ev} | {g['num_pairs']} | {k} | {_f(r['ref'])} | {_f(r['new'])} | "
-                f"**{_f(r['diff_new_minus_ref'])}** |"
+                f"{_sig(r['diff_new_minus_ref'])} |"
             )
     lines += ["", f"Solved at least once in n tries, {label_ref} / {label_new}:", ""]
     lines += [
