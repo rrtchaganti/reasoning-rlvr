@@ -329,3 +329,11 @@ def test_contamination_check_finds_flagged_prompts(tmp_path):
     rows = [json.dumps({"id": i}) for i in ("math-train-a-1", "gsm8k-train-0")]
     pr.write_text("\n".join(rows) + "\n")
     assert contamination_check.flagged(ov, pr) == ({"e1"}, {"math-train-a-1"})
+
+
+def test_upload_cards_dry_run_lists_the_three_cards(capsys):
+    import upload_cards
+
+    upload_cards.main(["--dry-run"])
+    out = capsys.readouterr().out
+    assert all(f"Raviteja546/reasoning-rlvr-{n}:README.md" in out for n in ("sft", "rft", "grpo"))
