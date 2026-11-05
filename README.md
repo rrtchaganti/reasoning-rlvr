@@ -172,7 +172,7 @@ digits, are what should agree.
 | 4 GRPO and ablations | merged 21 Oct (PR #5), tag `phase-4` | [`phase-4.md`](outputs/reports/phase-4.md) |
 | 5 Test-time compute: the stop rule, votes, a verifier, the machine term | 5A merged 22 Oct (PR #6, tag `phase-5`); 5B merged 24 Oct (PR #8, tag `phase-5b`) | [`phase-5.md`](outputs/reports/phase-5.md) |
 | 6 The traces | merged 24 Oct (PR #8, tag `phase-6`) | [`phase-6.md`](outputs/reports/phase-6.md) |
-| 7 Write-up, interview packet, reproduction check | this branch | [`docs/phase-7-plan.md`](docs/phase-7-plan.md) |
+| 7 Write-up, interview packet, reproduction check | merged 24 Oct (PR #9), tag `phase-7` | [`docs/phase-7-plan.md`](docs/phase-7-plan.md) |
 
 Deliverables of `PLAN.md` section 1:
 
